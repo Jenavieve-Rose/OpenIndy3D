@@ -179,6 +179,7 @@ set(J3D_TEST_DATA "" CACHE PATH "Game data root (the folder holding RESOURCE/) f
 # Each test is one program: tests/<name>.c plus the shared engine startup and crash handlers in tests/harness.c.
 #   levelload  loads the static world and every level through the binary .cnd section loaders
 #   cogcheck   compiles every .cog in the GOBs through the engine's lookup (loose overrides included)
+#   boot       (below) runs the game headless
 set(J3D_TESTS levelload cogcheck)
 
 enable_testing()
@@ -191,3 +192,15 @@ foreach(test IN LISTS J3D_TESTS)
     endif()
 endforeach()
 
+# boot: the game itself, headless (in-memory display, virtual clock), for 600 frames of the first level: 20 seconds of
+# game time, which covers level open, the level-start autosave and the start of the opening cutscene. It must exit 0.
+# The settings file is not touched, and "Install Path" (where the game writes SaveGames/ and JonesError.txt) points
+# into the build tree so nothing is written to the game data folder. The engine's path buffers are 128 bytes, so a very
+# deep build tree would truncate the save path.
+if(J3D_TEST_DATA)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/boot)   # the engine creates SaveGames/ but not its parent
+    add_test(NAME boot COMMAND jones3d --data ${J3D_TEST_DATA} --headless --frames 600)
+    set_tests_properties(boot PROPERTIES
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot/"
+        FAIL_REGULAR_EXPRESSION "ASSERT")
+endif()

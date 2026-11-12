@@ -99,19 +99,19 @@ OVERRIDES = {
     'std3D_FreeDisplayEnvironment': '''
     (void)pEnv; // static storage, see std3D_BuildDisplayEnvironment''',
 
-    # --- stdDisplay: startup succeeds, opening a device fails. This is the Phase 0 stopping point.
-    'stdDisplay_Startup': '''
+    # --- std3D with the headless display (platform/common/stdDisplay_headless.c): the device starts and opens, and
+    # draws nothing. Only reached once stdDisplay_Open has succeeded, which needs J3D_HEADLESS.
+    'std3D_Startup': '''
     return 1;''',
-    'stdDisplay_Open': '''
+    'std3D_Open': '''
     (void)deviceNum;
-    if ( std_pHS && std_pHS->pErrorPrint )
-    {
-        std_pHS->pErrorPrint("null platform: stdDisplay_Open: no display backend yet (PORT-PLAN.md Phase 2)\\n");
-    }
-    return 0;''',
-    'stdDisplay_GetBackBufferSize': '''
-    if ( pWidth )  *pWidth  = 0;
-    if ( pHeight ) *pHeight = 0;''',
+    return 1;''',
+    'std3D_GetNumDevices': '''
+    return 1;''',
+    # No texture size limits: the requested size is valid.
+    'std3D_GetValidDimensions': '''
+    *pOutWidth  = width;
+    *pOutHeight = height;''',
 
     # --- stdComm: -1 is "no more messages"; sithComm loops until it sees it.
     'stdComm_Receive': '''
@@ -142,6 +142,14 @@ IMPLEMENTED_ELSEWHERE = {
     # platform/common/stdDisplay_vbuffer.c: system-memory VBuffers, needed to load materials without a display
     'stdDisplay_VBufferNew', 'stdDisplay_VBufferFree', 'stdDisplay_VBufferLock', 'stdDisplay_VBufferUnlock',
     'stdDisplay_VBufferSetColorKey', 'stdDisplay_VBufferConvertColorFormat',
+    # platform/common/stdDisplay_headless.c: an in-memory display device, mode and back buffer (J3D_HEADLESS)
+    'stdDisplay_Startup', 'stdDisplay_Shutdown', 'stdDisplay_Open', 'stdDisplay_Close', 'stdDisplay_SetMode',
+    'stdDisplay_ClearMode', 'stdDisplay_Update', 'stdDisplay_GetNumDevices', 'stdDisplay_GetDevice',
+    'stdDisplay_GetCurrentDevice', 'stdDisplay_GetNumVideoModes', 'stdDisplay_GetVideoMode',
+    'stdDisplay_GetCurrentVideoMode', 'stdDisplay_FindClosestMode', 'stdDisplay_SetDefaultResolution',
+    'stdDisplay_GetBackBufferSize', 'stdDisplay_VBufferFill', 'stdDisplay_ClearRect', 'stdDisplay_BackBufferFill',
+    'stdDisplay_SaveScreen', 'stdDisplay_CanRenderWindowed', 'stdDisplay_IsFullscreen', 'stdDisplay_LockBackBuffer',
+    'stdDisplay_UnlockBackBuffer',
 }
 
 # Prototypes, with or without the J3DAPI marker (rdModel3K.h omits it). typedefs and macros never match: they start
@@ -239,6 +247,38 @@ WIN32_OVERRIDES = {
     'GlobalLock':       '    return p0;',
     'GlobalUnlock':     '    (void)p0;\n    return TRUE;',
     'GetDesktopWindow': '    return NULL;',
+    # Memory DCs and DIB sections, enough for stdBmp_Load: jonesConfig_Startup loads the dialog icons through it and
+    # fails the HUD (and so the game) when one is missing, and sithGamesave writes the savegame thumbnail from one
+    # (GetObject). A DIB section is a heap block: {tag, width, height, bits per pixel}, then the pixels (rows padded
+    # to 4 bytes). Nothing draws into them until the dialog system of Phase 6: StretchBlt is still a no-op, so a
+    # savegame thumbnail is black.
+    'CreateCompatibleDC': '    (void)p0;\n    static int memoryDC;\n    return (HDC)&memoryDC;',
+    'DeleteDC':         '    (void)p0;\n    return TRUE;',
+    'CreateDIBSection': '    (void)p0; (void)p2; (void)p4; (void)p5;\n'
+                        '    long height = p1->bmiHeader.biHeight < 0 ? -(long)p1->bmiHeader.biHeight : p1->bmiHeader.biHeight;\n'
+                        '    size_t rowSize = (((size_t)p1->bmiHeader.biWidth * p1->bmiHeader.biBitCount + 31) / 32) * 4;\n'
+                        '    uint32_t* pDib = calloc(1, 16 + rowSize * (size_t)height);\n'
+                        '    if ( !pDib )\n    {\n        return NULL;\n    }\n'
+                        '    pDib[0] = NULL_DIB_TAG;\n'
+                        '    pDib[1] = (uint32_t)p1->bmiHeader.biWidth;\n'
+                        '    pDib[2] = (uint32_t)height;\n'
+                        '    pDib[3] = p1->bmiHeader.biBitCount;\n'
+                        '    if ( p3 )\n    {\n        *p3 = (uint8_t*)pDib + 16;\n    }\n'
+                        '    return (HBITMAP)pDib;',
+    'GetObjectA':       '    if ( !p0 || *(uint32_t*)p0 != NULL_DIB_TAG || p1 < (int)sizeof(BITMAP) || !p2 )\n    {\n        return 0;\n    }\n'
+                        '    const uint32_t* pDib = p0;\n'
+                        '    BITMAP* pBitmap = p2;\n'
+                        '    memset(pBitmap, 0, sizeof(BITMAP));\n'
+                        '    pBitmap->bmWidth      = (LONG)pDib[1];\n'
+                        '    pBitmap->bmHeight     = (LONG)pDib[2];\n'
+                        '    pBitmap->bmWidthBytes = (LONG)(((pDib[1] * pDib[3] + 31) / 32) * 4);\n'
+                        '    pBitmap->bmPlanes     = 1;\n'
+                        '    pBitmap->bmBitsPixel  = (WORD)pDib[3];\n'
+                        '    pBitmap->bmBits       = (uint8_t*)pDib + 16;\n'
+                        '    return (int)sizeof(BITMAP);',
+    'DeleteObject':     '    if ( p0 && *(uint32_t*)p0 == NULL_DIB_TAG )\n    {\n'
+                        '        *(uint32_t*)p0 = 0;\n        free(p0);\n        return TRUE;\n    }\n'
+                        '    return FALSE;',
     'IsWindow':         '    (void)p0;\n    return FALSE;',
 }
 
@@ -266,11 +306,14 @@ def generate_win32():
         '#include <stdint.h>',
         '#include <stdio.h>',
         '#include <stdlib.h>',
+        '#include <string.h>',
         '',
         '#include <Windows.h>',
         '#include <CommCtrl.h>',
         '',
         '#include "null_platform.h"',
+        '',
+        '#define NULL_DIB_TAG 0x31424944u // "DIB1": marks the heap blocks CreateDIBSection hands out as HBITMAPs',
         '',
     ]
     count = 0

@@ -16,29 +16,6 @@ StdDisplayDevice* stdDisplay_pCurDevice;
 size_t stdDisplay_numVideoModes;
 StdVideoMode* stdDisplay_pCurVideoMode;
 
-int J3DAPI stdDisplay_Startup(void)
-{
-    return 1;
-}
-
-void J3DAPI stdDisplay_Shutdown(void)
-{
-}
-
-int J3DAPI stdDisplay_Open(size_t deviceNum)
-{
-    (void)deviceNum;
-    if ( std_pHS && std_pHS->pErrorPrint )
-    {
-        std_pHS->pErrorPrint("null platform: stdDisplay_Open: no display backend yet (PORT-PLAN.md Phase 2)\n");
-    }
-    return 0;
-}
-
-void J3DAPI stdDisplay_Close(void)
-{
-}
-
 LPDIRECTDRAW4 J3DAPI stdDisplay_GetDirectDraw(void)
 {
     return NULL;
@@ -49,67 +26,8 @@ int J3DAPI stdDisplay_CreateZBuffer(LPDDPIXELFORMAT pPixelFormat, int bSystemMem
     return (int)0;
 }
 
-int J3DAPI stdDisplay_Update(void)
-{
-    return (int)0;
-}
-
 void J3DAPI stdDisplay_Refresh(int bReload)
 {
-}
-
-size_t J3DAPI stdDisplay_GetNumDevices(void)
-{
-    return (size_t)0;
-}
-
-int J3DAPI stdDisplay_GetDevice(size_t deviceNum, StdDisplayDevice* pDest)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_GetCurrentDevice(StdDisplayDevice* pDevice)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_SetMode(size_t modeNum, int bFullscreen, size_t numBackBuffers)
-{
-    return (int)0;
-}
-
-size_t J3DAPI stdDisplay_FindClosestMode(const StdVideoMode* pMatch)
-{
-    return (size_t)0;
-}
-
-void J3DAPI stdDisplay_ClearMode(void)
-{
-}
-
-size_t J3DAPI stdDisplay_GetNumVideoModes(void)
-{
-    return (size_t)0;
-}
-
-int J3DAPI stdDisplay_GetVideoMode(size_t modeNum, StdVideoMode* pDestMode)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_GetCurrentVideoMode(StdVideoMode* pDisplayMode)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_VBufferFill(tVBuffer* pVBuffer, uint32_t dwFillColor, const StdRect* pRect)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_ClearRect(tVBuffer* pVBuffer, int fillColor, const StdRect* pRect)
-{
-    return (int)0;
 }
 
 int J3DAPI stdDisplay_VBufferCopy(tVBuffer* pDest, tVBuffer* pSrc, unsigned int blitX, int blitY, const StdRect* pRect, int bAlpha)
@@ -125,26 +43,6 @@ int J3DAPI stdDisplay_GetTextureMemory(size_t* pTotal, size_t* pFree)
 int J3DAPI stdDisplay_GetTotalMemory(size_t* pTotal, size_t* pFree)
 {
     return (int)0;
-}
-
-void J3DAPI stdDisplay_GetBackBufferSize(uint32_t* pWidth, uint32_t* pHeight)
-{
-    if ( pWidth )  *pWidth  = 0;
-    if ( pHeight ) *pHeight = 0;
-}
-
-int J3DAPI stdDisplay_BackBufferFill(uint32_t color, const StdRect* lpRect)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_SaveScreen(const char* pFilename)
-{
-    return (int)0;
-}
-
-void J3DAPI stdDisplay_SetDefaultResolution(uint32_t width, uint32_t height)
-{
 }
 
 HDC J3DAPI stdDisplay_GetFrontBufferDC(void)
@@ -178,25 +76,6 @@ int J3DAPI stdDisplay_SetBufferClipper(int bFrontBuffer)
 HRESULT J3DAPI stdDisplay_RemoveBufferClipper(int bFrontBuffer)
 {
     return E_NOTIMPL;
-}
-
-int J3DAPI stdDisplay_CanRenderWindowed(void)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_IsFullscreen(void)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_LockBackBuffer(void** ppSurface, uint32_t* pWidth, uint32_t* pHeight, int32_t* pPitch)
-{
-    return (int)0;
-}
-
-void J3DAPI stdDisplay_UnlockBackBuffer(void)
-{
 }
 
 uint32_t J3DAPI stdDisplay_EncodeFromRGB565(uint16_t pixel)

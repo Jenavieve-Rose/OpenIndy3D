@@ -9,11 +9,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <Windows.h>
 #include <CommCtrl.h>
 
 #include "null_platform.h"
+
+#define NULL_DIB_TAG 0x31424944u // "DIB1": marks the heap blocks CreateDIBSection hands out as HBITMAPs
 
 HANDLE WINAPI CreateMutexA(LPSECURITY_ATTRIBUTES p0, BOOL p1, LPCSTR p2)
 {
@@ -1041,7 +1044,8 @@ int WINAPI ReleaseDC(HWND p0, HDC p1)
 HDC WINAPI CreateCompatibleDC(HDC p0)
 {
     (void)p0;
-    return NULL;
+    static int memoryDC;
+    return (HDC)&memoryDC;
 }
 
 HDC WINAPI CreateDCA(LPCSTR p0, LPCSTR p1, LPCSTR p2, const void* p3)
@@ -1053,7 +1057,7 @@ HDC WINAPI CreateDCA(LPCSTR p0, LPCSTR p1, LPCSTR p2, const void* p3)
 BOOL WINAPI DeleteDC(HDC p0)
 {
     (void)p0;
-    return (BOOL)0;
+    return TRUE;
 }
 
 HGDIOBJ WINAPI SelectObject(HDC p0, HGDIOBJ p1)
@@ -1064,8 +1068,13 @@ HGDIOBJ WINAPI SelectObject(HDC p0, HGDIOBJ p1)
 
 BOOL WINAPI DeleteObject(HGDIOBJ p0)
 {
-    (void)p0;
-    return (BOOL)0;
+    if ( p0 && *(uint32_t*)p0 == NULL_DIB_TAG )
+    {
+        *(uint32_t*)p0 = 0;
+        free(p0);
+        return TRUE;
+    }
+    return FALSE;
 }
 
 HGDIOBJ WINAPI GetStockObject(int p0)
@@ -1076,8 +1085,20 @@ HGDIOBJ WINAPI GetStockObject(int p0)
 
 int WINAPI GetObjectA(HANDLE p0, int p1, LPVOID p2)
 {
-    (void)p0; (void)p1; (void)p2;
-    return (int)0;
+    if ( !p0 || *(uint32_t*)p0 != NULL_DIB_TAG || p1 < (int)sizeof(BITMAP) || !p2 )
+    {
+        return 0;
+    }
+    const uint32_t* pDib = p0;
+    BITMAP* pBitmap = p2;
+    memset(pBitmap, 0, sizeof(BITMAP));
+    pBitmap->bmWidth      = (LONG)pDib[1];
+    pBitmap->bmHeight     = (LONG)pDib[2];
+    pBitmap->bmWidthBytes = (LONG)(((pDib[1] * pDib[3] + 31) / 32) * 4);
+    pBitmap->bmPlanes     = 1;
+    pBitmap->bmBitsPixel  = (WORD)pDib[3];
+    pBitmap->bmBits       = (uint8_t*)pDib + 16;
+    return (int)sizeof(BITMAP);
 }
 
 HBITMAP WINAPI CreateCompatibleBitmap(HDC p0, int p1, int p2)
@@ -1094,8 +1115,23 @@ HBITMAP WINAPI CreateBitmap(int p0, int p1, UINT p2, UINT p3, const void* p4)
 
 HBITMAP WINAPI CreateDIBSection(HDC p0, const BITMAPINFO* p1, UINT p2, void** p3, HANDLE p4, DWORD p5)
 {
-    (void)p0; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5;
-    return (HBITMAP)0;
+    (void)p0; (void)p2; (void)p4; (void)p5;
+    long height = p1->bmiHeader.biHeight < 0 ? -(long)p1->bmiHeader.biHeight : p1->bmiHeader.biHeight;
+    size_t rowSize = (((size_t)p1->bmiHeader.biWidth * p1->bmiHeader.biBitCount + 31) / 32) * 4;
+    uint32_t* pDib = calloc(1, 16 + rowSize * (size_t)height);
+    if ( !pDib )
+    {
+        return NULL;
+    }
+    pDib[0] = NULL_DIB_TAG;
+    pDib[1] = (uint32_t)p1->bmiHeader.biWidth;
+    pDib[2] = (uint32_t)height;
+    pDib[3] = p1->bmiHeader.biBitCount;
+    if ( p3 )
+    {
+        *p3 = (uint8_t*)pDib + 16;
+    }
+    return (HBITMAP)pDib;
 }
 
 int WINAPI GetDIBits(HDC p0, HBITMAP p1, UINT p2, UINT p3, LPVOID p4, LPBITMAPINFO p5, UINT p6)

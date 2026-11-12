@@ -21,6 +21,7 @@
 #include <io.h>
 #include <Windows.h>
 
+#include <platform/common/host_clock.h>
 #include <platform/common/host_path.h>
 
 static DWORD crt_lastError = 0;
@@ -328,7 +329,7 @@ BOOL WINAPI SetCurrentDirectoryA(LPCSTR lpPathName)
 /* ----------------------------------------------------------------------------------------------------------------
  * Time
  * -------------------------------------------------------------------------------------------------------------- */
-static uint64_t crt_NowMsec(void)
+static uint64_t crt_HostNowMsec(void)
 {
     static mach_timebase_info_data_t timebase;
     if ( timebase.denom == 0 )
@@ -336,6 +337,37 @@ static uint64_t crt_NowMsec(void)
         mach_timebase_info(&timebase);
     }
     return mach_absolute_time() * timebase.numer / timebase.denom / 1000000u;
+}
+
+// The virtual clock of host_clock.h: when on, time is crt_virtualMsec and only J3DHost_AdvanceClock and Sleep move it.
+static int      crt_bVirtualClock = 0;
+static uint64_t crt_virtualMsec   = 0;
+
+void J3DHost_UseVirtualClock(void)
+{
+    if ( !crt_bVirtualClock )
+    {
+        crt_virtualMsec   = crt_HostNowMsec();
+        crt_bVirtualClock = 1;
+    }
+}
+
+int J3DHost_IsVirtualClock(void)
+{
+    return crt_bVirtualClock;
+}
+
+void J3DHost_AdvanceClock(unsigned int msec)
+{
+    if ( crt_bVirtualClock )
+    {
+        crt_virtualMsec += msec;
+    }
+}
+
+static uint64_t crt_NowMsec(void)
+{
+    return crt_bVirtualClock ? crt_virtualMsec : crt_HostNowMsec();
 }
 
 // winmm's timeGetTime counts from system start and wraps at 2^32 ms; the engine only takes differences.
@@ -351,6 +383,11 @@ DWORD WINAPI GetTickCount(void)
 
 void WINAPI Sleep(DWORD dwMilliseconds)
 {
+    if ( crt_bVirtualClock )
+    {
+        crt_virtualMsec += dwMilliseconds; // the time passes without waiting for it
+        return;
+    }
     usleep((useconds_t)dwMilliseconds * 1000u);
 }
 

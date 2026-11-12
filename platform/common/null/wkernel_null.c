@@ -4,8 +4,13 @@
  * only plays out the WM_CLOSE -> JonesMain_Shutdown -> WM_DESTROY -> quit sequence that wkernel_MainWndProc gave a
  * posted WM_CLOSE, so the game's own exit path (JonesMain_CloseWindow) still ends the loop.
  *
+ * J3D_FRAMES=<n> (jones3d --frames <n>) ends the run after n passes of that loop, through the same shutdown a closed
+ * window gets. Once a level is open a pass is one game frame, so this is how a headless run finishes (PORT-PLAN.md P1.18).
+ *
  * Replaced by the SDL3 event loop in Phase 2.
  */
+#include <stdlib.h>
+
 #include <wkernel/wkernel.h>
 #include <Jones3D/Main/JonesMain.h>
 #include <std/Win95/stdWin95.h>
@@ -41,12 +46,24 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         return -1;
     }
 
+    const char* pFrames   = getenv("J3D_FRAMES");
+    unsigned long maxFrames = pFrames ? strtoul(pFrames, NULL, 10) : 0; // 0: no limit
+    unsigned long numFrames = 0;
+
     while ( 1 )
     {
         switch ( result )
         {
             case 0:
+                if ( maxFrames && numFrames == maxFrames )
+                {
+                    // wkernel_MainWndProc's WM_CLOSE: shut the game down, then leave the loop with WM_QUIT's 0.
+                    JonesMain_Shutdown();
+                    return 0;
+                }
+
                 result = JonesMain_Process();
+                ++numFrames;
                 break;
 
             case -1:

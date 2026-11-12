@@ -6,6 +6,8 @@
  *
  * Port options are taken out of argv before the rest is joined, so the engine's own parser never sees them:
  *   --data <dir>   game data root, the folder that holds RESOURCE/ (sets J3D_DATA; see wuRegistry_file.c)
+ *   --headless     run with the in-memory display and no window (sets J3D_HEADLESS; see stdDisplay_headless.c)
+ *   --frames <n>   quit after n passes of the game loop (sets J3D_FRAMES; see wkernel_null.c)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,6 +43,24 @@ int main(int argc, char** argv)
                 return EXIT_FAILURE;
             }
             setenv("J3D_DATA", argv[++i], 1);
+            continue;
+        }
+
+        if ( strcmp(argv[i], "--headless") == 0 )
+        {
+            setenv("J3D_HEADLESS", "1", 1);
+            continue;
+        }
+
+        if ( strcmp(argv[i], "--frames") == 0 )
+        {
+            if ( i + 1 >= argc )
+            {
+                fprintf(stderr, "%s: --frames needs a count\n", argv[0]);
+                free(pCmdLine);
+                return EXIT_FAILURE;
+            }
+            setenv("J3D_FRAMES", argv[++i], 1);
             continue;
         }
 

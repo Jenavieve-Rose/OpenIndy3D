@@ -12,7 +12,7 @@ size_t std3D_maxVertices;
 
 int J3DAPI std3D_Startup(void)
 {
-    return (int)0;
+    return 1;
 }
 
 void J3DAPI std3D_Shutdown(void)
@@ -21,7 +21,7 @@ void J3DAPI std3D_Shutdown(void)
 
 size_t J3DAPI std3D_GetNumDevices(void)
 {
-    return (size_t)0;
+    return 1;
 }
 
 const Device3D* J3DAPI std3D_GetAllDevices(void)
@@ -35,7 +35,8 @@ void J3DAPI std3D_SetFindAllDevices(int bFindAll)
 
 int J3DAPI std3D_Open(size_t deviceNum)
 {
-    return (int)0;
+    (void)deviceNum;
+    return 1;
 }
 
 void J3DAPI std3D_Close(void)
@@ -121,6 +122,8 @@ void J3DAPI std3D_AllocSystemTexture(tSystemTexture* pTexture, tVBuffer** apVBuf
 
 void J3DAPI std3D_GetValidDimensions(uint32_t width, uint32_t height, uint32_t* pOutWidth, uint32_t* pOutHeight)
 {
+    *pOutWidth  = width;
+    *pOutHeight = height;
 }
 
 void J3DAPI std3D_ClearSystemTexture(tSystemTexture* pTex)
