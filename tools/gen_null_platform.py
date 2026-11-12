@@ -60,6 +60,42 @@ OVERRIDES = {
     env.numInfos      = 1;
     env.aDisplayInfos = &info;
     return &env;''',
+    # Textures are converted to the backend's format at load time, so even the null renderer must name one. 32 bpp
+    # BGRA (D3D's A8R8G8B8 / X8R8G8B8), the layout the Phase 2 Metal backend uploads. No colour key.
+    'std3D_GetTextureFormat': '''
+    memset(pDest, 0, sizeof(ColorInfo));
+    pDest->colorMode     = STDCOLOR_RGBA;
+    pDest->bpp           = 32;
+    pDest->redBPP        = 8;
+    pDest->greenBPP      = 8;
+    pDest->blueBPP       = 8;
+    pDest->redPosShift   = 16;
+    pDest->greenPosShift = 8;
+    pDest->bluePosShift  = 0;
+    if ( type != STDCOLOR_FORMAT_RGB )
+    {
+        pDest->alphaBPP      = 8;
+        pDest->alphaPosShift = 24;
+    }
+    else
+    {
+        pDest->colorMode = STDCOLOR_RGB;
+    }
+    *pbColorKeySet = 0;
+    *pColorKey     = 0;''',
+    # Pure function of the colour info; the retail body (std3D.c).
+    'std3D_GetColorFormat': '''
+    switch ( pCi->alphaBPP )
+    {
+        case 0:
+            return STDCOLOR_FORMAT_RGB;
+
+        case 1:
+            return STDCOLOR_FORMAT_RGBA_1BIT_ALPHA;
+
+        default:
+            return STDCOLOR_FORMAT_RGBA;
+    }''',
     'std3D_FreeDisplayEnvironment': '''
     (void)pEnv; // static storage, see std3D_BuildDisplayEnvironment''',
 
@@ -99,6 +135,13 @@ OVERRIDES = {
     return timeGetTime();''',
     'SoundDriver_Sleep': '''
     Sleep(dwMilliseconds);''',
+}
+
+# Functions with a real implementation elsewhere in platform/; the generator leaves them out of the null file.
+IMPLEMENTED_ELSEWHERE = {
+    # platform/common/stdDisplay_vbuffer.c: system-memory VBuffers, needed to load materials without a display
+    'stdDisplay_VBufferNew', 'stdDisplay_VBufferFree', 'stdDisplay_VBufferLock', 'stdDisplay_VBufferUnlock',
+    'stdDisplay_VBufferSetColorKey', 'stdDisplay_VBufferConvertColorFormat',
 }
 
 # Prototypes, with or without the J3DAPI marker (rdModel3K.h omits it). typedefs and macros never match: they start
@@ -151,6 +194,8 @@ def generate(header, out_name, extra_includes, phase):
         lines.append('')
 
     for ret, name, args in protos:
+        if name in IMPLEMENTED_ELSEWHERE:
+            continue
         lines.append('%s J3DAPI %s(%s)' % (ret, name, args))
         lines.append('{')
         if name in OVERRIDES:

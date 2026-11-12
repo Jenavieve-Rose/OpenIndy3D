@@ -102,25 +102,6 @@ int J3DAPI stdDisplay_GetCurrentVideoMode(StdVideoMode* pDisplayMode)
     return (int)0;
 }
 
-tVBuffer* J3DAPI stdDisplay_VBufferNew(const tRasterInfo* pRasterInfo, int bUseVSurface, int bUseVideoMemory)
-{
-    return NULL;
-}
-
-void J3DAPI stdDisplay_VBufferFree(tVBuffer* pVBuffer)
-{
-}
-
-int J3DAPI stdDisplay_VBufferLock(tVBuffer* pVBuffer)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_VBufferUnlock(tVBuffer* pVBuffer)
-{
-    return (int)0;
-}
-
 int J3DAPI stdDisplay_VBufferFill(tVBuffer* pVBuffer, uint32_t dwFillColor, const StdRect* pRect)
 {
     return (int)0;
@@ -134,16 +115,6 @@ int J3DAPI stdDisplay_ClearRect(tVBuffer* pVBuffer, int fillColor, const StdRect
 int J3DAPI stdDisplay_VBufferCopy(tVBuffer* pDest, tVBuffer* pSrc, unsigned int blitX, int blitY, const StdRect* pRect, int bAlpha)
 {
     return (int)0;
-}
-
-int J3DAPI stdDisplay_VBufferSetColorKey(tVBuffer* pVBuffer, int color)
-{
-    return (int)0;
-}
-
-tVBuffer* J3DAPI stdDisplay_VBufferConvertColorFormat(const ColorInfo* pDesiredColorFormat, tVBuffer* pSrc, int bColorKey, uint32_t colorKey)
-{
-    return NULL;
 }
 
 int J3DAPI stdDisplay_GetTextureMemory(size_t* pTotal, size_t* pFree)

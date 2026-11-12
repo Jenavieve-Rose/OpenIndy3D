@@ -44,11 +44,41 @@ void J3DAPI std3D_Close(void)
 
 void J3DAPI std3D_GetTextureFormat(StdColorFormatType type, ColorInfo* pDest, int* pbColorKeySet, uint32_t* pColorKey)
 {
+    memset(pDest, 0, sizeof(ColorInfo));
+    pDest->colorMode     = STDCOLOR_RGBA;
+    pDest->bpp           = 32;
+    pDest->redBPP        = 8;
+    pDest->greenBPP      = 8;
+    pDest->blueBPP       = 8;
+    pDest->redPosShift   = 16;
+    pDest->greenPosShift = 8;
+    pDest->bluePosShift  = 0;
+    if ( type != STDCOLOR_FORMAT_RGB )
+    {
+        pDest->alphaBPP      = 8;
+        pDest->alphaPosShift = 24;
+    }
+    else
+    {
+        pDest->colorMode = STDCOLOR_RGB;
+    }
+    *pbColorKeySet = 0;
+    *pColorKey     = 0;
 }
 
 StdColorFormatType J3DAPI std3D_GetColorFormat(const ColorInfo* pCi)
 {
-    return (StdColorFormatType)0;
+    switch ( pCi->alphaBPP )
+    {
+        case 0:
+            return STDCOLOR_FORMAT_RGB;
+
+        case 1:
+            return STDCOLOR_FORMAT_RGBA_1BIT_ALPHA;
+
+        default:
+            return STDCOLOR_FORMAT_RGBA;
+    }
 }
 
 size_t J3DAPI std3D_GetNumTextureFormats(void)
