@@ -1934,6 +1934,7 @@ int J3DAPI sithWorld_LoadEntryBinary(SithWorld* pWorld, const char* pFilePath)
     numRead = sith_pHS->pFileRead(fh, &cndHeader, sizeof(CndWorld));
     if ( numRead != sizeof(CndWorld) )
     {
+        stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Port: short read of the cnd header (%d bytes).\n", (int)numRead, 0, 0, 0);
         goto error;
     }
     sithWorld_CopyCndHeader(pWorld, &cndHeader);
@@ -1945,6 +1946,7 @@ int J3DAPI sithWorld_LoadEntryBinary(SithWorld* pWorld, const char* pFilePath)
 
     if ( memcmp(pWorld->aCopyright, aCopyrightSymbol, STD_ARRAYLEN(aCopyrightSymbol)) )
     {
+        stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Port: cnd copyright block does not match.\n", 0, 0, 0, 0);
         goto error;
     }
 
@@ -1966,6 +1968,8 @@ int J3DAPI sithWorld_LoadEntryBinary(SithWorld* pWorld, const char* pFilePath)
         result = aBinarySectionParsers[i].pfRead(fh, pWorld);
         if ( result )
         {
+            // Port: name the section; retail only reported "Parse problem" for the whole file
+            stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Port: cnd section '%s' failed to load (file offset %d).\n", aBinarySectionParsers[i].pName, (int)sith_pHS->pFileTell(fh), 0, 0);
             goto error;
         }
 

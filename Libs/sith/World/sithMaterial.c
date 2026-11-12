@@ -482,6 +482,46 @@ int J3DAPI sithMaterial_ReadMaterialsListBinary(tFileHandle fh, SithWorld* pWorl
         memset(apBuffers, 0, sizeof(tVBuffer*) * pCurInfo->numMipLevels);
 
         rasterInfo.colorInfo = pCurInfo->colorInfo;
+#ifdef J3D_PORT
+        // Port: retail allocated one buffer per mip level and reused it for every cel. That only works while the
+        // texture format has the source's bpp (16 on the D3D6 cards of 1999): VBufferConvertColorFormat replaces a
+        // buffer whose bpp differs, after which the copy and the source advance used the converted size. Here every
+        // cel and mip gets a buffer in the source format, the source advances by the source size, and the converted
+        // buffers are freed after upload.
+        for ( i = 0; i < pMat->numCels; ++i )
+        {
+            for ( j = 0; j < pCurInfo->numMipLevels; ++j )
+            {
+                rasterInfo.width  = pMat->width >> j;
+                rasterInfo.height = pMat->height >> j;
+                apBuffers[j] = stdDisplay_VBufferNew(&rasterInfo, 0, 0);
+                if ( !apBuffers[j] )
+                {
+                    goto error;
+                }
+
+                stdDisplay_VBufferLock(apBuffers[j]);
+                memcpy(apBuffers[j]->pPixels, pCurPixelBuffer, apBuffers[j]->rasterInfo.size);
+                stdDisplay_VBufferUnlock(apBuffers[j]);
+                pCurPixelBuffer += apBuffers[j]->rasterInfo.size;
+
+                apBuffers[j] = stdDisplay_VBufferConvertColorFormat(&desiredColorFormat, apBuffers[j], bHasColorKey, colorKey);
+                if ( !apBuffers[j] )
+                {
+                    goto error;
+                }
+            }
+
+            std3D_AllocSystemTexture(&pMat->aTextures[i], apBuffers, pCurInfo->numMipLevels, pMat->formatType);
+
+            for ( j = 0; j < pCurInfo->numMipLevels; ++j )
+            {
+                stdDisplay_VBufferFree(apBuffers[j]);
+                apBuffers[j] = NULL;
+            }
+        }
+#else
+        rasterInfo.colorInfo = pCurInfo->colorInfo;
         for ( j = 0; j < pCurInfo->numMipLevels; ++j )
         {
             rasterInfo.width  = pMat->width >> j;
@@ -514,6 +554,7 @@ int J3DAPI sithMaterial_ReadMaterialsListBinary(tFileHandle fh, SithWorld* pWorl
             stdDisplay_VBufferFree(apBuffers[j]);
             apBuffers[j] = NULL;
         }
+#endif
 
         stdMemory_Free(apBuffers);
         apBuffers = NULL;

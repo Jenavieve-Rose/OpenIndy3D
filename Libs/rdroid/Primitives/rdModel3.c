@@ -725,7 +725,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
 
                 pFace->numVertices = faceVerts;
 #line 726
-                pFace->aVertices = (size_t*)STDMALLOC(sizeof(int*) * faceVerts);
+                pFace->aVertices = (size_t*)STDMALLOC(sizeof(size_t) * faceVerts);
                 if ( !pFace->aVertices )
                 {
                     goto alloc_error;
@@ -734,7 +734,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
                 if ( pFace->pMaterial )
                 {
 #line 733
-                    pFace->aTexVertices = (size_t*)STDMALLOC(sizeof(int*) * faceVerts);
+                    pFace->aTexVertices = (size_t*)STDMALLOC(sizeof(size_t) * faceVerts);
                     if ( !pFace->aTexVertices )
                     {
                         goto alloc_error;

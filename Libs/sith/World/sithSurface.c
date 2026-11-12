@@ -528,14 +528,14 @@ int J3DAPI sithSurface_ReadSurfacesListBinary(tFileHandle fh, SithWorld* pWorld)
         pSurf = &pWorld->aSurfaces[i];
 
 #line 553
-        pSurf->face.aVertices = (size_t*)STDMALLOC(sizeof(int) * pSurf->face.numVertices);
+        pSurf->face.aVertices = (size_t*)STDMALLOC(sizeof(size_t) * pSurf->face.numVertices);
         if ( !pSurf->face.aVertices )
         {
             goto error;
         }
 
 #line 556
-        pSurf->face.aTexVertices = (size_t*)STDMALLOC(sizeof(int) * pSurf->face.numVertices);
+        pSurf->face.aTexVertices = (size_t*)STDMALLOC(sizeof(size_t) * pSurf->face.numVertices);
         if ( !pSurf->face.aTexVertices )
         {
             goto error;
@@ -878,7 +878,7 @@ int J3DAPI sithSurface_ReadSurfacesListText(SithWorld* pWorld, int bSkip)
         }
 
 #line 861
-        pFace->aVertices = (size_t*)STDMALLOC(sizeof(int) * cntVerts);
+        pFace->aVertices = (size_t*)STDMALLOC(sizeof(size_t) * cntVerts);
         if ( !pFace->aVertices )
         {
             goto alloc_error;
@@ -892,7 +892,7 @@ int J3DAPI sithSurface_ReadSurfacesListText(SithWorld* pWorld, int bSkip)
         }
 
 #line 873
-        pFace->aTexVertices = (size_t*)STDMALLOC(sizeof(int) * cntVerts);
+        pFace->aTexVertices = (size_t*)STDMALLOC(sizeof(size_t) * cntVerts);
         if ( !pFace->aTexVertices )
         {
             goto alloc_error;

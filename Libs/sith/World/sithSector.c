@@ -237,7 +237,7 @@ int J3DAPI sithSector_ReadSectorsListText(SithWorld* pWorld, int bSkip)
         }
 
 #line 320
-        pSec->aVertIdxs = (size_t*)STDMALLOC(sizeof(int) * numVerts);
+        pSec->aVertIdxs = (size_t*)STDMALLOC(sizeof(size_t) * numVerts);
         if ( !pSec->aVertIdxs )
         {
             goto alloc_error;
@@ -401,7 +401,11 @@ int J3DAPI sithSector_WriteSectorsListBinary(tFileHandle fh, const SithWorld* pW
     for ( i = 0; i < pWorld->numSectors; ++i )
     {
         pSec = &pWorld->aSectors[i];
-        memcpy(pVertNum, pSec->aVertIdxs, sizeof(int32_t) * pSec->numVertices);
+        // Port: element by element; the file has int32_t indices, SithSector holds size_t (retail memcpy'd 4-byte ints)
+        for ( size_t k = 0; k < pSec->numVertices; ++k )
+        {
+            pVertNum[k] = (int32_t)pSec->aVertIdxs[k];
+        }
         pVertNum += pSec->numVertices;
     }
 
@@ -527,13 +531,17 @@ int J3DAPI sithSector_ReadSectorsListBinary(tFileHandle fh, SithWorld* pWorld)
     {
         pSec = &pWorld->aSectors[i];
 #line 538
-        pSec->aVertIdxs = (size_t*)STDMALLOC(sizeof(int32_t) * pSec->numVertices);
+        pSec->aVertIdxs = (size_t*)STDMALLOC(sizeof(size_t) * pSec->numVertices);
         if ( !pSec->aVertIdxs )
         {
             goto error;
         }
 
-        memcpy(pSec->aVertIdxs, pCurVertNum, sizeof(int32_t) * pSec->numVertices);
+        // Port: element by element; the file has int32_t indices, SithSector holds size_t (retail memcpy'd 4-byte ints)
+        for ( size_t k = 0; k < pSec->numVertices; ++k )
+        {
+            pSec->aVertIdxs[k] = (size_t)pCurVertNum[k];
+        }
         pCurVertNum += pSec->numVertices;
     }
 
