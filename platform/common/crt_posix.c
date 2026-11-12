@@ -122,6 +122,13 @@ void J3DHost_ToPosixPath(char* pDst, size_t size, const char* pSrc)
     }
 }
 
+FILE* J3DHost_fopen(const char* pPath, const char* pMode)
+{
+    char aPath[1024];
+    J3DHost_ToPosixPath(aPath, sizeof(aPath), pPath);
+    return fopen(aPath, pMode);
+}
+
 /* ----------------------------------------------------------------------------------------------------------------
  * _findfirst / _findnext / _findclose (io.h)
  * -------------------------------------------------------------------------------------------------------------- */

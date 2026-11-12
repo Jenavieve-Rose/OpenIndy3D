@@ -35,6 +35,10 @@
 
 #include <w32util/wuRegistry.h>
 
+#ifdef J3D_PORT
+#include <platform/common/host_path.h>
+#endif
+
 #include <math.h>
 #include <windowsx.h>
 
@@ -1364,7 +1368,7 @@ static int J3DAPI jonesConfig_ControlOptions_WriteScheme(JonesControlsScheme* pS
     memset(aKfgPath, 0, sizeof(aKfgPath));
     sprintf(aKfgPath, "%s%s", pScheme->aName, ".kfg");
 
-    pFile = fopen(aKfgPath, "wt+");
+    pFile = J3DHost_fopen(aKfgPath, "wt+"); // Port: engine path, see host_path.h
     if ( !pFile )
     {
         SetCurrentDirectory(aCurDir);

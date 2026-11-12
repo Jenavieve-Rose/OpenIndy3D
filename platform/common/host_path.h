@@ -10,7 +10,11 @@
  * right name to create.
  */
 #include <stddef.h>
+#include <stdio.h>
 
 void J3DHost_ToPosixPath(char* pDst, size_t size, const char* pSrc);
+
+// fopen on an engine path, for the few engine sites that call the CRT directly instead of going through std_pHS.
+FILE* J3DHost_fopen(const char* pPath, const char* pMode);
 
 #endif

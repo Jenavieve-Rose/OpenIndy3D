@@ -64,6 +64,10 @@
 #include <std/Win95/stdWin95.h>
 
 #include <w32util/wuRegistry.h>
+
+#ifdef J3D_PORT
+#include <platform/common/host_path.h>
+#endif
 #include <wkernel/wkernel.h>
 
 #include <j3dcore/types.h>
@@ -586,7 +590,7 @@ static void J3DAPI JonesMain_HandleWMKeydown(HWND hWnd, WPARAM vk, int a3, int r
                 stdUtil_Format(aFilename, STD_ARRAYLEN(aFilename), "%s.%s", sithGetQuickSaveFilePrefix(), "nds");
                 STD_MAKEPATH(aPath, sithGetSaveGamesDir(), aFilename);
 
-                pFile = fopen(aPath, "r");
+                pFile = J3DHost_fopen(aPath, "r"); // Port: engine path, see host_path.h
                 if ( !pFile )
                 {
                     jonesCog_bEnableGamesave = 1;
@@ -2895,7 +2899,7 @@ void J3DAPI JonesMain_LogErrorToFile(const char* pErrorText)
 
     if ( pErrorText && strlen(pErrorText) > 0 )
     {
-        FILE* fp = fopen(curFilePath, "wt+");
+        FILE* fp = J3DHost_fopen(curFilePath, "wt+"); // Port: engine path, see host_path.h
         if ( !fp )
         {
             return;

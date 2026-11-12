@@ -89,4 +89,7 @@ fixed in Phase 0. They are layout-neutral for anything read from disk; the on-di
 - Parsers that looked only for `\` also accept `/`: `stdFileFromPath` (object names of cogs, models, particles),
   the `__FILE__` stripping in `stdPrintf`, `stdPlatform_Assert` and `JonesMain`'s assert handler, the NDS file name in
   `JonesMain`, and the install-path prefixing in `sithMain`. The `jonesConfig.c` path code is left for Phase 6.
+- The three engine sites that call `fopen` directly on a built path (the quick-save probe and `JonesError.txt` in
+  `JonesMain`, the keyset writer in `jonesConfig`) use `J3DHost_fopen`. Before, `JonesError.txt` was created with the
+  literal name `.\\JonesError.txt`.
 - `stdFnames_Concat` checks for an empty `path1` before reading `path1[len - 1]` (retail read one byte before the buffer).
