@@ -17,24 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithPathMove_countfit_1, 15)
-CF_PROTO(sithPathMove_countfit_2, 15)
-CF_PROTO(sithPathMove_countfit_3, 15)
-CF_PROTO(sithPathMove_countfit_4, 15)
-CF_PROTO(sithPathMove_countfit_5, 15)
-CF_PROTO(sithPathMove_countfit_6, 15)
-CF_PROTO(sithPathMove_countfit_7, 15)
-CF_PROTO(sithPathMove_countfit_8, 15)
-CF_PROTO(sithPathMove_countfit_9, 15)
-CF_PROTO(sithPathMove_countfit_10, 15)
-CF_PROTO(sithPathMove_countfit_11, 15)
-CF_PROTO(sithPathMove_countfit_12, 15)
-CF_PROTO(sithPathMove_countfit_13, 15)
-CF_PROTO(sithPathMove_countfit_14, 15)
-CF_PROTO(sithPathMove_countfit_15, 15)
-CF_PROTO(sithPathMove_countfit_16, 7)
-/* end count-fit */
+
 
 // Retail's abs/clip is `fcomp 0; fld; fchs`, not `fabs` (same shape as sithPhysics.c)
 #define SITHPATHMOVE_ABS(x)          ((x) < 0.0f ? -(x) : (x))
@@ -264,7 +247,7 @@ void J3DAPI sithPathMove_RotateToPYR(SithThing* pThing, rdVector3* pyr, float ti
     }
 }
 
-static __inline void J3DAPI sithPathMove_UpdateRotate(SithThing* pThing, float simTime)
+static inline void J3DAPI sithPathMove_UpdateRotate(SithThing* pThing, float simTime)
 {
     rdVector3 deltaPYR;
     rdMatrix34 curOrient;
@@ -330,7 +313,7 @@ static __inline void J3DAPI sithPathMove_UpdateRotate(SithThing* pThing, float s
     }
 }
 
-static __inline void J3DAPI sithPathMove_UpdateMove(SithThing* pThing, float simTime)
+static inline void J3DAPI sithPathMove_UpdateMove(SithThing* pThing, float simTime)
 {
     float moveDist;
     float timeDelta;

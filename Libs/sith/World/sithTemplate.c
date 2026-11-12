@@ -13,30 +13,7 @@
 #include <sith/World/sithWrite.h>
 #endif
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithTemplate_countfit_1, 15)
-CF_PROTO(sithTemplate_countfit_2, 15)
-CF_PROTO(sithTemplate_countfit_3, 15)
-CF_PROTO(sithTemplate_countfit_4, 15)
-CF_PROTO(sithTemplate_countfit_5, 15)
-CF_PROTO(sithTemplate_countfit_6, 15)
-CF_PROTO(sithTemplate_countfit_7, 15)
-CF_PROTO(sithTemplate_countfit_8, 15)
-CF_PROTO(sithTemplate_countfit_9, 15)
-CF_PROTO(sithTemplate_countfit_10, 15)
-CF_PROTO(sithTemplate_countfit_11, 15)
-CF_PROTO(sithTemplate_countfit_12, 15)
-CF_PROTO(sithTemplate_countfit_13, 15)
-CF_PROTO(sithTemplate_countfit_14, 15)
-CF_PROTO(sithTemplate_countfit_15, 15)
-CF_PROTO(sithTemplate_countfit_16, 15)
-CF_PROTO(sithTemplate_countfit_17, 15)
-CF_PROTO(sithTemplate_countfit_18, 15)
-CF_PROTO(sithTemplate_countfit_19, 15)
-CF_PROTO(sithTemplate_countfit_20, 15)
-CF_PROTO(sithTemplate_countfit_21, 15)
-CF_PROTO(sithTemplate_countfit_22, 3)
-/* end count-fit */
+
 
 #define SITHTEMPLAT_MAXCACHEDTEMPLATES 1024u
 #define SITHTEMPLATE_MAXMASTERTEMPLATES 3072u

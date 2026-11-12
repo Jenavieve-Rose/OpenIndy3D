@@ -21,12 +21,7 @@
 #include <std/General/stdMemory.h>
 #include <std/General/stdUtil.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithFX_countfit_1, 17)
-CF_PROTO(sithFX_countfit_2, 17)
-CF_PROTO(sithFX_countfit_3, 17)
-CF_PROTO(sithFX_countfit_4, 3)
-/* end count-fit */
+
 
 /* sithFX_lastChalkMarkNum (.data 0x00539458, retail bytes ffffffff) and the 4.0f
    tunable at 0x0053945C that sithFX_CreateBubble's lifetime reads

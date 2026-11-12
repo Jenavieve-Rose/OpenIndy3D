@@ -1,5 +1,5 @@
 #include "sithPlayerActions.h"
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPlayerActions_countfit_7, 30) CF_PROTO(sithPlayerActions_countfit_1, 5) /* end count-fit */
+
 #define RDMATH_INLINE_DISTANCEPOINTTOPLANE
 #include <rdroid/Math/rdMath.h>
 #include <rdroid/Math/rdMatrix.h>
@@ -2581,7 +2581,7 @@ void J3DAPI sithPlayerActions_QuickTurnRight(SithThing* pThing)
         sithPuppet_PlayKey(pThing->renderData.pPuppet, pKey, 1, 2, RDKEYFRAME_DISABLE_FADEIN | RDKEYFRAME_NOLOOP, NULL);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(sithPlayerActions_countfit_2, 30, 3) CF_PROTO(sithPlayerActions_countfit_5, 16) /* end count-fit */
+ 
 void J3DAPI sithPlayerActions_MoveToClimbSector(SithThing* pThing, SithSurface* pSurface)
 {
     SithSector* pSector;

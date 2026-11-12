@@ -1,0 +1,24 @@
+J3DPort: a native macOS port of the Jones3D engine
+==================================================
+
+This program is free software, distributed under the GNU Affero General Public License v3 (see LICENSE).
+
+It is derived from, and credits:
+
+  * Indiana Jones and the Infernal Machine, (c) 1999 LucasArts Entertainment Company LLC. The original game,
+    its engine (Jones3D/Sith/rdroid/INSANE) and all game data are the property of their owners. No game assets are
+    distributed with this program; a retail copy of the game is required to play.
+
+  * infernal-machine-decomp: the byte-exact decompilation of Indy3D.exe v1.0 and v1.2 that this port is based on,
+    imported at upstream commit 319a6fc22c515900c8dd126632a3944507abc984. AGPLv3.
+
+  * OpenJones3D by smlu (https://github.com/smlu/OpenJones3D): reimplementation whose build layout and catalogued
+    bug fixes inform this port. AGPLv3.
+
+  * OpenJKDF2 (https://github.com/shinyquagsire23/OpenJKDF2): the reference port of the related Sith engine to
+    modern platforms, including arm64 macOS.
+
+  * zlib 1.0.9 by Jean-loup Gailly and Mark Adler, vendored as modified by LucasArts for INSANE. zlib license.
+
+"Indiana Jones" and "LucasArts" are trademarks of their respective owners. This project is not affiliated with or
+endorsed by Lucasfilm, LucasArts or The Walt Disney Company.

@@ -9,26 +9,7 @@
 #include <sith/World/sithSector.h>
 
 #include <std/General/stdMath.h>
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithIntersect_countfit_1, 15)
-CF_PROTO(sithIntersect_countfit_2, 15)
-CF_PROTO(sithIntersect_countfit_3, 15)
-CF_PROTO(sithIntersect_countfit_4, 15)
-CF_PROTO(sithIntersect_countfit_5, 15)
-CF_PROTO(sithIntersect_countfit_6, 15)
-CF_PROTO(sithIntersect_countfit_7, 15)
-CF_PROTO(sithIntersect_countfit_8, 15)
-CF_PROTO(sithIntersect_countfit_9, 15)
-CF_PROTO(sithIntersect_countfit_10, 15)
-CF_PROTO(sithIntersect_countfit_11, 15)
-CF_PROTO(sithIntersect_countfit_12, 15)
-CF_PROTO(sithIntersect_countfit_13, 15)
-CF_PROTO(sithIntersect_countfit_14, 15)
-CF_PROTO(sithIntersect_countfit_15, 15)
-CF_PROTO(sithIntersect_countfit_16, 15)
-CF_PROTO(sithIntersect_countfit_17, 12)
 
-/* end count-fit */
 
 
 #define SITHINTERSECT_ABS(x) ((x) < 0.0f ? -(x) : (x))
@@ -115,22 +96,7 @@ SithCollisionType J3DAPI sithIntersect_CheckFaceVerticesIntersection(const rdVec
 }
 
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithIntersect_countfit_18, 15)
-CF_PROTO(sithIntersect_countfit_19, 15)
-CF_PROTO(sithIntersect_countfit_20, 15)
-CF_PROTO(sithIntersect_countfit_21, 15)
-CF_PROTO(sithIntersect_countfit_22, 15)
-CF_PROTO(sithIntersect_countfit_23, 15)
-CF_PROTO(sithIntersect_countfit_24, 15)
-CF_PROTO(sithIntersect_countfit_25, 15)
-CF_PROTO(sithIntersect_countfit_26, 15)
-CF_PROTO(sithIntersect_countfit_27, 15)
-CF_PROTO(sithIntersect_countfit_28, 15)
-CF_PROTO(sithIntersect_countfit_29, 15)
-CF_PROTO(sithIntersect_countfit_30, 15)
-CF_PROTO(sithIntersect_countfit_31, 14)
-/* end count-fit */
+
 
 SithCollisionType J3DAPI sithIntersect_CheckSphereThingIntersection(SithThing* pThing, const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, SithThing* pCheck, int colflags, float* pHitDistance, rdModel3Mesh** ppHitMesh, rdFace** ppHitFace, rdVector3* hitNorm)
 {
@@ -295,9 +261,7 @@ SithCollisionType J3DAPI sithIntersect_CheckSphereMeshIntersection(const rdVecto
     return currenthitType;
 }
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithIntersect_countfit_32, 20)
-/* end count-fit */
+
 
 int J3DAPI sithIntersect_CheckSphereIntersection(const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, const rdVector3* endPos, float size, float* hitDistance, int bCheckEndPos, int colflags)
 {
@@ -365,7 +329,7 @@ check_end:
     return 0;
 }
 
-static __inline void J3DAPI sithIntersect_GetProjectionAxes(const rdVector3* pNormal, int* pAxis1, int* pAxis2);
+static inline void J3DAPI sithIntersect_GetProjectionAxes(const rdVector3* pNormal, int* pAxis1, int* pAxis2);
 
 int J3DAPI sithIntersect_TestSphereFaceHit(const rdVector3* startPos, float radius, const rdFace* pFace, const rdVector3* aVertices, int* pHitMask)
 {
@@ -794,7 +758,7 @@ int J3DAPI sithIntersect_CheckThingBoundBoxIntersection(const SithThing* pThing1
     return 0;
 }
 
-static __inline void J3DAPI sithIntersect_GetProjectionAxes(const rdVector3* pNormal, int* pAxis1, int* pAxis2)
+static inline void J3DAPI sithIntersect_GetProjectionAxes(const rdVector3* pNormal, int* pAxis1, int* pAxis2)
 {
     float x;
     float y;

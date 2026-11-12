@@ -5,9 +5,7 @@
 
 #include <std/Win95/stdDisplay.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(stdBmp_countfit_1, 15)
-/* end count-fit */
+
 
 /* Retail diagnostics pass four variadic arguments, including unused zeros. */
 #define BMP_TYPE 0x4D42

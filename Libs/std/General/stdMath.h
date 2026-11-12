@@ -75,7 +75,7 @@ extern int16_t word_183962E; // round-down control word (stdMath.c; set by stdSt
 extern int16_t word_1839630; // round-up control word (stdMath.c; set by stdStartup)
 #endif
 
-__inline float __cdecl stdMath_floorf(float value)
+static inline float stdMath_floorf(float value)
 {
     float r;
 #ifdef NONMATCHING_MATH
@@ -90,7 +90,7 @@ __inline float __cdecl stdMath_floorf(float value)
     return r;
 }
 
-__inline float __cdecl stdMath_ceilf(float value)
+static inline float stdMath_ceilf(float value)
 {
     float r;
 #ifdef NONMATCHING_MATH
@@ -107,7 +107,7 @@ __inline float __cdecl stdMath_ceilf(float value)
 
 // Float to int with round-down (floor) semantics, not a truncating cast or
 // C99 lrintf's current rounding mode; the name is inferred.
-__inline long __cdecl stdMath_lrintf(float value)
+static inline long stdMath_lrintf(float value)
 {
     long r;
 #ifdef NONMATCHING_MATH
@@ -123,7 +123,7 @@ __inline long __cdecl stdMath_lrintf(float value)
 
 // Under the Intel compiler (rdModel3K.c) the body is C: that unit calls this helper (the debug build's call at
 // 0x00535E7F reaches the out-of-line copy) and retail inlines it as a plain `fsqrt` in the x87 stack.
-__inline float __cdecl stdMath_sqrtf(float value)
+static inline float stdMath_sqrtf(float value)
 {
     float r;
 #if defined(NONMATCHING_MATH) || defined(__ICL)

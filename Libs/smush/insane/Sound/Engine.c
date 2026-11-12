@@ -554,7 +554,7 @@ static int sound_Query(int a1, int tag, int* pA, int* pB)
     switch (tag) {
     case 1:
         if (pA) {
-            *pA = sound_GetVar((unsigned char)(int)pB);
+            *pA = sound_GetVar((unsigned char)(intptr_t)pB);
         }
         return 0;
     case 2:

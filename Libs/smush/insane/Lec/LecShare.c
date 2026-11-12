@@ -30,8 +30,9 @@ static int LecShare_BatchUnsubscribe(LecBatch* pTable);
 static void* LecShare_Enumerate(const char* pName, int index);
 static int LecShare_Count(const char* pName);
 static LecEntry* LecShare_Find(const char* pName);
-static int LecShare_Match(const char* pName, const char* pList);
-#define LEC_MATCH(n, l) ((const char*)LecShare_Match(n, l))
+// Port: returns the pointer directly; retail returned it as an int.
+static const char* LecShare_Match(const char* pName, const char* pList);
+#define LEC_MATCH(n, l) (LecShare_Match(n, l))
 static int LecShare_NameLen(const char* pName);
 static int LecShare_NullError(const char* pFormat, ...);
 static void LecShare_Strip(char* pName);
@@ -405,7 +406,7 @@ static LecEntry* LecShare_Find(const char* pName)
 
 #define LEC_SEP(c) ((c) < 0x21 || (c) > 0x7F || (c) == ',' || (c) == ';')
 
-static int LecShare_Match(const char* pName, const char* pList)
+static const char* LecShare_Match(const char* pName, const char* pList)
 {
     const char* pResult = NULL;
     int found = 0;
@@ -433,7 +434,7 @@ static int LecShare_Match(const char* pName, const char* pList)
             p++;
         }
         if (*p == 0) {
-            return (int)pResult;
+            return pResult;
         }
         p++;
         while (*p && LEC_SEP(*p)) {
@@ -451,11 +452,11 @@ static int LecShare_Match(const char* pName, const char* pList)
         }
         if (*q == 0 || found) {
             if (*p == 0) {
-                return (int)pResult;
+                return pResult;
             }
             *p++ = 0;
             if (!found) {
-                return (int)pResult;
+                return pResult;
             }
             found = 0;
         }
@@ -463,7 +464,7 @@ static int LecShare_Match(const char* pName, const char* pList)
             p++;
         }
     }
-    return (int)pResult;
+    return pResult;
 }
 
 static int LecShare_NameLen(const char* pName)

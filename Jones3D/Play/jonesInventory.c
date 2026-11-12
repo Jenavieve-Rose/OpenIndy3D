@@ -17,20 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(jonesInventory_countfit_1, 15)
-CF_PROTO(jonesInventory_countfit_2, 15)
-CF_PROTO(jonesInventory_countfit_3, 15)
-CF_PROTO(jonesInventory_countfit_4, 15)
-CF_PROTO(jonesInventory_countfit_5, 15)
-CF_PROTO(jonesInventory_countfit_6, 15)
-CF_PROTO(jonesInventory_countfit_7, 15)
-CF_PROTO(jonesInventory_countfit_8, 15)
-CF_PROTO(jonesInventory_countfit_9, 15)
-CF_PROTO(jonesInventory_countfit_10, 15)
-CF_PROTO(jonesInventory_countfit_11, 15)
-CF_PROTO(jonesInventory_countfit_12, 0)
-/* end count-fit */
+
 
 static SithGameStatistics* jonesInventory_pGameStatistics;
 static uint32_t jonesInventory_msecStatisticsGameTime;

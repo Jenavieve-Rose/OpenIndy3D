@@ -161,7 +161,7 @@ void J3DAPI sithPuppet_KeyCacheRemove(rdKeyframe* pKeyframe);
 
 SithPuppetTrack* J3DAPI sithPuppet_GetModeTrackImpl(const SithThing* pThing, SithPuppetSubMode submode);
 
-static __inline float J3DAPI sithPuppet_GetThingLocalVelocityAxis(const SithThing* pThing, size_t* pAxis, float* pVelX, float* pVelY, float* pVelZ);
+static inline float J3DAPI sithPuppet_GetThingLocalVelocityAxis(const SithThing* pThing, size_t* pAxis, float* pVelX, float* pVelY, float* pVelZ);
 
 int J3DAPI sithPuppet_Startup(void)
 {
@@ -280,7 +280,7 @@ void J3DAPI sithPuppet_RemoveAllTracks(SithThing* pThing)
             break;
         }
 
-        if ( pTrack->trackNum == (int)STDMEMORY_FREEDPTR )
+        if ( pTrack->trackNum == (int)(intptr_t)STDMEMORY_FREEDPTR )
         {
 #line 371
             stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Pup track list is messed up, pointer to freed memory!\n", 0, 0, 0, 0);
@@ -3401,20 +3401,7 @@ cleanup:
     return bError;
 }
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithPuppet_countfit_1, 15)
-CF_PROTO(sithPuppet_countfit_2, 15)
-CF_PROTO(sithPuppet_countfit_3, 15)
-CF_PROTO(sithPuppet_countfit_4, 15)
-CF_PROTO(sithPuppet_countfit_5, 15)
-CF_PROTO(sithPuppet_countfit_6, 15)
-CF_PROTO(sithPuppet_countfit_7, 15)
-CF_PROTO(sithPuppet_countfit_8, 15)
-CF_PROTO(sithPuppet_countfit_9, 15)
-CF_PROTO(sithPuppet_countfit_10, 15)
-CF_PROTO(sithPuppet_countfit_11, 8)
 
-/* end count-fit */
 
 rdKeyframe* J3DAPI sithPuppet_GetKeyframeByIndex(int index)
 {
@@ -3605,7 +3592,7 @@ void J3DAPI sithPuppet_KeyCacheRemove(rdKeyframe* pKeyframe)
     stdHashtbl_Remove(sithPuppet_pKeyHashtable, pKeyframe->aName);
 }
 
-static __inline float J3DAPI sithPuppet_GetThingLocalVelocityAxis(const SithThing* pThing, size_t* pAxis, float* pVelX, float* pVelY, float* pVelZ)
+static inline float J3DAPI sithPuppet_GetThingLocalVelocityAxis(const SithThing* pThing, size_t* pAxis, float* pVelX, float* pVelY, float* pVelZ)
 {
     const SithPhysicsInfo* pPhysics;
     rdVector3 localVel;

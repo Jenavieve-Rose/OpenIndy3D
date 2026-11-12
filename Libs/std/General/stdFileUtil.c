@@ -42,7 +42,7 @@ void J3DAPI stdFileUtil_DisposeFind(FindFileData* ffData)
 {
     FindFileData* pFind = ffData;
     if ( pFind && pFind->nFoundFiles ) {
-        _findclose((long)pFind->handle);
+        _findclose((intptr_t)pFind->handle);
     }
 
     if ( pFind ) {
@@ -56,7 +56,7 @@ void J3DAPI stdFileUtil_FindReset(FindFileData* ffData)
 {
     FindFileData* pFind = ffData;
     if ( pFind && pFind->nFoundFiles ) {
-        _findclose((long)pFind->handle);
+        _findclose((intptr_t)pFind->handle);
     }
 
     if ( pFind ) {
@@ -76,12 +76,12 @@ int J3DAPI stdFileUtil_FindNext(FindFileData* ffData, tFoundFileInfo* pFileInfo)
 
     if ( pFind->nFoundFiles++ )
     {
-        currentresult = _findnext((long)pFind->handle, &findInfo);
+        currentresult = _findnext((intptr_t)pFind->handle, &findInfo);
     }
     else
     {
         pFind->handle = (HANDLE)_findfirst(pFind->aSearchFilter, &findInfo);
-        currentresult = (int)pFind->handle;
+        currentresult = (intptr_t)pFind->handle == -1 ? -1 : 0; // Port: was (int)handle, a pointer truncation
     }
 
     if ( currentresult == -1 ) {

@@ -44,7 +44,7 @@ static void streamer_Fill(Stream* pStream, int limit);
 static int streamer_SetFile(Stream* pStream, const char* pName, int startOffset);
 static int streamer_Prime(Stream* pStream);
 static int streamer_IsActive(Stream* pStream);
-static int streamer_Advance(Stream* pStream, int n);
+static intptr_t streamer_Advance(Stream* pStream, int n);
 static int streamer_Cancel(Stream* pStream);
 static int streamer_InRange(Stream* pStream, int n);
 static int streamer_Percent(Stream* pStream);
@@ -288,7 +288,7 @@ static int streamer_IsActive(Stream* pStream)
     return 0;
 }
 
-static int streamer_Advance(Stream* pStream, int n)
+static intptr_t streamer_Advance(Stream* pStream, int n)
 {
     int len;
 
@@ -335,9 +335,9 @@ static int streamer_Advance(Stream* pStream, int n)
     if (!pStream->active && pStream->field20) {
         int t = pStream->field20;
         pStream->field20 = 0;
-        return (int)(pStream->pWrite + t);
+        return (intptr_t)(pStream->pWrite + t);
     }
-    return (int)pStream->pWrite;
+    return (intptr_t)pStream->pWrite;
 }
 
 static int streamer_Cancel(Stream* pStream)

@@ -166,6 +166,18 @@ int J3DAPI stdPlatform_LockHandle(int a1)
 tFileHandle J3DAPI stdFileOpen(const char* pFilename, const char* mode)
 {
     FILE* fh;
+#ifdef J3D_PORT
+    // Port: engine paths are built with '\'. Translate at the host boundary until stdFnames emits '/'
+    // (PORT-PLAN.md Phase 1, "Filesystem and VFS").
+    char aPath[1024];
+    size_t i;
+    for ( i = 0; pFilename[i] && i < sizeof(aPath) - 1; ++i )
+    {
+        aPath[i] = pFilename[i] == '\\' ? '/' : pFilename[i];
+    }
+    aPath[i] = '\0';
+    pFilename = aPath;
+#endif
     fh = fopen(pFilename, mode);
     return (tFileHandle)fh;
 }

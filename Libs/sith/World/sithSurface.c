@@ -29,17 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithSurface_countfit_1, 15)
-CF_PROTO(sithSurface_countfit_2, 15)
-CF_PROTO(sithSurface_countfit_3, 15)
-CF_PROTO(sithSurface_countfit_4, 15)
-CF_PROTO(sithSurface_countfit_5, 15)
-CF_PROTO(sithSurface_countfit_6, 15)
-CF_PROTO(sithSurface_countfit_7, 15)
-CF_PROTO(sithSurface_countfit_8, 10)
 
-/* end count-fit */
 
 static SithSurface* sithSurface_apUnsyncedSurfaces[32];
 // External: sithMulti_OpenGame clears it (debug build 0x004694D0); `= 0` keeps it in this block at the same offset.

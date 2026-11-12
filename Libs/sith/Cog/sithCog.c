@@ -42,21 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithCog_countfit_1, 15)
-CF_PROTO(sithCog_countfit_2, 15)
-CF_PROTO(sithCog_countfit_3, 15)
-CF_PROTO(sithCog_countfit_4, 15)
-CF_PROTO(sithCog_countfit_5, 15)
-CF_PROTO(sithCog_countfit_6, 15)
-CF_PROTO(sithCog_countfit_7, 15)
-CF_PROTO(sithCog_countfit_8, 15)
-CF_PROTO(sithCog_countfit_9, 15)
-CF_PROTO(sithCog_countfit_10, 15)
-CF_PROTO(sithCog_countfit_11, 15)
-CF_PROTO(sithCog_countfit_12, 15)
-CF_PROTO(sithCog_countfit_13, 21)
-/* end count-fit */
+
 
 #define SITHCOG_MAXGLOBALSYMBOLS 1024u
 #define SITHCOG_MAXSCRIPTS       256u

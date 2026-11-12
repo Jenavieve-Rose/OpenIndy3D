@@ -15,7 +15,7 @@ typedef struct StreamerInterface
     int  (*SetFile)(struct Stream* pStream, const char* pName, int startOffset);
     int  (*IsActive)(struct Stream* pStream);
     void (*Fill)(struct Stream* pStream, int limit);
-    int  (*Advance)(struct Stream* pStream, int n);
+    intptr_t (*Advance)(struct Stream* pStream, int n); // Port: intptr_t, it returns an address or a negative code
     void (*Reset)(struct Stream* pStream);
     int  (*Percent)(struct Stream* pStream);
 } StreamerInterface;

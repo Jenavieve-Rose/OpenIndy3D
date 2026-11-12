@@ -4,10 +4,7 @@
 
 #include <std/General/stdMath.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(rdMath_countfit_1, 15)
-CF_PROTO(rdMath_countfit_2, 9)
-/* end count-fit */
+
 
 /* The debug build's rdMath.c (0x512850..0x512D53, one /Od copy of every function below, all byte-identical to this text)
    takes absolute values with an inline `< 0.0f` ternary (fchs arm), not a fabs call: the same text as rdVector.c's

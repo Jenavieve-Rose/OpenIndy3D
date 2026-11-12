@@ -5,19 +5,7 @@
 
 #include <std/General/stdMemory.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(rdLight_countfit_1, 15)
-CF_PROTO(rdLight_countfit_2, 15)
-CF_PROTO(rdLight_countfit_3, 15)
-CF_PROTO(rdLight_countfit_4, 15)
-CF_PROTO(rdLight_countfit_5, 15)
-CF_PROTO(rdLight_countfit_6, 15)
-CF_PROTO(rdLight_countfit_7, 15)
-CF_PROTO(rdLight_countfit_8, 15)
-CF_PROTO(rdLight_countfit_9, 15)
-CF_PROTO(rdLight_countfit_10, 15)
-CF_PROTO(rdLight_countfit_11, 6)
-/* end count-fit */
+
 
 
 

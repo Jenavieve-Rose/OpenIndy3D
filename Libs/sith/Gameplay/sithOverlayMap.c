@@ -20,27 +20,7 @@
 
 #include <w32util/wuRegistry.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithOverlayMap_countfit_1, 30)
-CF_PROTO(sithOverlayMap_countfit_2, 30)
-CF_PROTO(sithOverlayMap_countfit_3, 30)
-CF_PROTO(sithOverlayMap_countfit_4, 30)
-CF_PROTO(sithOverlayMap_countfit_5, 30)
-CF_PROTO(sithOverlayMap_countfit_6, 30)
-CF_PROTO(sithOverlayMap_countfit_7, 30)
-CF_PROTO(sithOverlayMap_countfit_8, 30)
-CF_PROTO(sithOverlayMap_countfit_9, 30)
-CF_PROTO(sithOverlayMap_countfit_10, 30)
-CF_PROTO(sithOverlayMap_countfit_11, 30)
-CF_PROTO(sithOverlayMap_countfit_12, 30)
-CF_PROTO(sithOverlayMap_countfit_13, 30)
-CF_PROTO(sithOverlayMap_countfit_14, 30)
-CF_PROTO(sithOverlayMap_countfit_15, 30)
-CF_PROTO(sithOverlayMap_countfit_16, 30)
-CF_PROTO(sithOverlayMap_countfit_17, 30)
-CF_PROTO(sithOverlayMap_countfit_18, 30)
-CF_PROTO(sithOverlayMap_countfit_19, 18)
-/* end count-fit */
+
 #define SITHOVERLAYMAP_NUMZLEVELS 9u
 
 // Retail's private .bss block is 0x0055E8A0-0x0055E9B4 in this declaration

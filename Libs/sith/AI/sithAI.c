@@ -434,7 +434,7 @@ void J3DAPI sithAI_EmitEvent(SithAIControlBlock* pLocal, SithAIEventType event, 
             break;
 
         default:
-            cogParam = (int)pObject;
+            cogParam = (int)(intptr_t)pObject;
             bSendCogEvent = 1;
             break;
     }
@@ -599,7 +599,7 @@ int J3DAPI sithAI_ProcessUnhandledEvent(SithAIControlBlock* pLocal, SithAIEventT
             return 1;
 
         case SITHAI_EVENT_MODECHANGED:
-            prevMode = (SithAIMode)pObject;
+            prevMode = (SithAIMode)(intptr_t)pObject;
             if ( (pLocal->mode & SITHAI_MODE_CHASE_GOAL) != 0 && (prevMode & SITHAI_MODE_CHASE_GOAL) == 0 )
             {
                 if ( (pLocal->mode & SITHAI_MODE_NOCHASING) != 0 && pLocal->targetDistance > pLocal->pClass->sightDistance )

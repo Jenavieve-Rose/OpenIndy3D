@@ -13,13 +13,7 @@
 #include <math.h>
 #include <string.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(rdSprite_countfit_1, 15)
-CF_PROTO(rdSprite_countfit_2, 15)
-CF_PROTO(rdSprite_countfit_3, 15)
-CF_PROTO(rdSprite_countfit_4, 15)
-CF_PROTO(rdSprite_countfit_5, 3)
-/* end count-fit */
+
 
 rdMatrix34 rdSprite_aView = { 0 };
 

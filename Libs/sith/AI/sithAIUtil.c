@@ -213,7 +213,7 @@ void J3DAPI sithAIUtil_UpdateGoalSight(SithAIControlBlock* pLocal)
         }
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIUtil_countfit_1, 7) /* end count-fit */
+ 
 // returns target sight state:
 // 0 - target in sight
 // 1 - target too far away (dist > sightDistance)
@@ -340,7 +340,7 @@ int J3DAPI sithAIUtil_GetDistanceToTargetPos(SithThing* pViewer, rdVector3* star
 
     return 3;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIUtil_countfit_2, 2) /* end count-fit */
+ 
 int J3DAPI sithAIUtil_AIFire(SithAIControlBlock* pLocal, float minDist, float maxDist, float fireDot, float aimError, int weaponNum, SithAIUtilFireFlags flags, int burstCount)
 {
     SithThing* pShotTemplate;
@@ -1061,7 +1061,7 @@ static int J3DAPI sithAIUtil_SelectWpntLink(SithAIControlBlock* pLocal, unsigned
 
     return leadWpnt;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIUtil_countfit_3, 2) /* end count-fit */
+ 
 int J3DAPI sithAIUtil_AIAdvanceToNextWpnt(SithAIControlBlock* pLocal, int bNotify)
 {
     int thingNum;
@@ -1147,7 +1147,7 @@ int J3DAPI sithAIUtil_AIAdvanceToNextWpnt(SithAIControlBlock* pLocal, int bNotif
     return 0;
 }
 
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIUtil_countfit_4, 0) /* end count-fit */
+ 
 void J3DAPI sithAIUtil_CheckWpntMoveAlign(SithAIControlBlock* pLocal)
 {
     int wpntNumber;
@@ -1664,7 +1664,7 @@ int J3DAPI sithAIUtil_CanWalk(const SithAIControlBlock* pLocal, rdVector3* endPo
 
     return sithAIUtil_CanWalk_ExplicitSector(pLocal, endPos, pSector, pbNoCollision);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIUtil_countfit_5, 7) /* end count-fit */
+ 
 int J3DAPI sithAIUtil_CanWalk_ExplicitSector(const SithAIControlBlock* pLocal, const rdVector3* startPos, SithSector* pStartSector, int* pbNoCollision)
 {
     SithThing* pThing;
@@ -1814,7 +1814,7 @@ int J3DAPI sithAIUtil_CanWalk_ExplicitSector(const SithAIControlBlock* pLocal, c
     sithCollision_DecreaseStackLevel();
     return result;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIUtil_countfit_15, 131) /* end count-fit */
+ 
 int J3DAPI sithAIUtil_MakeRandPoint(SithAIControlBlock* pLocal, rdVector3* pPos, int flags, float angle, float* pDownCos, rdVector3* pDir, rdVector3* pDestPoint)
 {
     rdVector3 newDir;
@@ -2012,7 +2012,7 @@ int J3DAPI sithAIUtil_RetryMakeRandPoint(SithAIControlBlock* pLocal, rdVector3* 
     rdVector_Copy3(pDirection, &dir);
     return 1;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(sithAIUtil_countfit_6, 30, 8) CF_PROTO(sithAIUtil_countfit_14, 12) /* end count-fit */
+ 
 
 int J3DAPI sithAIUtil_CheckPathToPos(SithAIControlBlock* pLocal, SithSector* pStartSector, rdVector3* startPos, int flags, float minMoveDist, float moveDist, float radius, rdVector3* pDirection, rdVector3* a9)
 {
@@ -2468,7 +2468,7 @@ void J3DAPI sithAIUtil_AIPlaySoundMode(SithAIControlBlock* pLocal, unsigned int 
 
     if ( J3DINRANGE(mode, SITHSOUNDCLASS_CURIOUS, SITHSOUNDCLASS_RESERVED8) && sithAI_HasInstinct(pLocal, "talk") )
     {
-        sithAI_EmitEvent(pLocal, SITHAI_EVENT_TALK, (void*)mode);
+        sithAI_EmitEvent(pLocal, SITHAI_EVENT_TALK, (void*)(intptr_t)mode);
     }
     else
     {

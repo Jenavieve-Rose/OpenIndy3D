@@ -5,6 +5,8 @@
  * The 0x70-byte animation object (retail `Pcplay.c` allocates it, `Framestream.c` drives its chunk state machine at 0x0C-0x5C).
  * Member names are inferred from the accesses.
  */
+#include <stdint.h>
+
 typedef struct Stream Stream;
 
 typedef struct AnimPlay
@@ -42,7 +44,7 @@ typedef struct AnimPlay
 /* The `ANIMPLAY=insane` table Pcplay.c publishes (`animplay_interface`); SmushPlay subscribes to it as `ANIMPLAY.app`. */
 typedef struct AnimPlayTable
 {
-    int  (*Play)(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13);
+    int  (*Play)(intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13); // Port: intptr_t, a1 and a10 are pointers
     int  (*Create)(AnimPlay** ppPlay, const char* pName, int rate, int ringSize, int frameSize, int flags);
     int  (*GetTime)(AnimPlay* pPlay);
     int  (*Pace)(AnimPlay* pPlay, void* a2, int a3, int a4, int a5, void* a6, int* a7, int* a8, int a9, int a10);

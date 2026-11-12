@@ -1,5 +1,5 @@
 #include "sithAIMove.h"
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(sithAIMove_countfit_1, 30, 4) CF_PROTO(sithAIMove_countfit_5, 3) /* end count-fit */
+
 #include <sith/AI/sithAI.h>
 #include <sith/AI/sithAIUtil.h>
 #include <sith/Cog/sithCog.h>
@@ -20,7 +20,7 @@
 #ifdef J3D_DEBUG
 #include <sith/World/sithWorld.h>
 #endif
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_6, 30) CF_PROTO(sithAIMove_countfit_7, 0) /* end count-fit */
+ 
 #define RDMATH_INLINE_DISTANCEPOINTTOPLANE
 #include <rdroid/Math/rdMath.h>
 #include <rdroid/Math/rdMatrix.h>
@@ -161,7 +161,7 @@ void J3DAPI sithAIMove_Update(SithThing* pThing, float secDeltatTime)
         sithAIMove_UpdateMardukTail(pThing, secDeltatTime);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_8, 7) /* end count-fit */
+ 
 void J3DAPI sithAIMove_UpdateMineCar(SithAIControlBlock* pLocal, float secDeltaTime)
 {
     static float sithAIMove_flt_539D1C = 0.999f;
@@ -287,7 +287,7 @@ void J3DAPI sithAIMove_UpdateMineCar(SithAIControlBlock* pLocal, float secDeltaT
         pThing->moveStatus = SITHPLAYERMOVE_STILL;
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_9, 12) /* end count-fit */
+ 
 void J3DAPI sithAIMove_UpdateTurn(SithAIControlBlock* pLocal, float secDeltatTime)
 {
     static float sithAIMove_flt_539D28 = 0.999f;
@@ -1562,7 +1562,7 @@ void J3DAPI sithAIMove_AISetLookPos(SithAIControlBlock* pLocal, const rdVector3*
         sithAI_EmitEvent(pLocal, SITHAI_EVENT_UNKNOWN_40000, NULL);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_10, 3) /* end count-fit */
+ 
 void J3DAPI sithAIMove_AISetLookPosEyeLevel(SithAIControlBlock* pLocal, const rdVector3* targetPos)
 {
     rdVector3 eyePos;
@@ -1730,7 +1730,7 @@ int J3DAPI sithAIMove_AISetMoveTargetPos2(SithAIControlBlock* pLocal, const rdVe
 
     return 0;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_11, 10) /* end count-fit */
+ 
 int J3DAPI sithAIMove_StartSpecialMove(SithAIControlBlock* pLocal, int armedModeState)
 {
     SithThing* pOwner;
@@ -2023,7 +2023,7 @@ start_move:
 
     return 0;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_12, 1) /* end count-fit */
+ 
 void J3DAPI sithAIMove_FinishSpecialMove(SithAIControlBlock* pLocal, int type)
 {
     SithThing* pOwner;
@@ -2188,7 +2188,7 @@ void J3DAPI sithAIMove_ResetAILook(SithAIControlBlock* pLocal)
     rdVector_Copy3(&pLocal->goalLVec, &pLocal->pOwner->orient.lvec);
     sithAIUtil_AIClearMode(pLocal, SITHAI_MODE_TURNING);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_13, 24) /* end count-fit */
+ 
 void J3DAPI sithAIMove_UpdateBoss(SithAIControlBlock* pLocal, float secDeltaTime)
 {
     SithThing* pOwner;
@@ -2240,7 +2240,7 @@ void J3DAPI sithAIMove_UpdateBoss(SithAIControlBlock* pLocal, float secDeltaTime
         rdMatrix_Normalize34(&pOwner->orient);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_14, 3) /* end count-fit */
+ 
 void J3DAPI sithAIMove_UpdateHeadTrackTarget(SithAIControlBlock* pLocal, float secDeltaTime)
 {
     SithActorInfo* pActorInfo;
@@ -2408,7 +2408,7 @@ void J3DAPI sithAIMove_UpdateHeadTrackTarget(SithAIControlBlock* pLocal, float s
 
     sithActor_SetHeadPYR(pLocal->pOwner, &headPYR);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_15, 21) /* end count-fit */
+ 
 void J3DAPI sithAIMove_UpdateHeadTrackLookPos(SithAIControlBlock* pLocal, float secDeltaTime)
 {
     SithActorInfo* pActorInfo;
@@ -2487,7 +2487,7 @@ void J3DAPI sithAIMove_UpdateHeadTrackLookPos(SithAIControlBlock* pLocal, float 
         pLocal->mode &= ~SITHAI_MODE_UNKNOWN_80;
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_16, 14) /* end count-fit */
+ 
 
 void J3DAPI sithAIMove_GetQuetzStrikeAngles(SithAIControlBlock* pLocal, float* pYaw, float* pPitch, float* pHeadYaw, float* pHeadPitch)
 {
@@ -2649,7 +2649,7 @@ void J3DAPI sithAIMove_UpdateQuetzStrike(SithAIControlBlock* pLocal, float secDe
         }
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIMove_countfit_17, 17) /* end count-fit */
+ 
 void J3DAPI sithAIMove_GetQuetzAnim2Angles(SithAIControlBlock* pLocal, float* angle, float* a3, float* a4, float* a5)
 {
     rdVector3 targetPos;

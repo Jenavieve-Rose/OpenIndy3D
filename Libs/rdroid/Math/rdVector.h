@@ -92,7 +92,10 @@ void J3DAPI rdVector_Scale4(rdVector4* dest, const rdVector4* src, float scalar)
 
 void J3DAPI rdVector_Scale3Acc(rdVector3* v, float scalar); // Added from debug version
 
+#ifdef RDVECTOR_NO_INLINE
+// Port: only rdVector.c sees the external prototype; everyone else gets the static inline body below.
 void J3DAPI rdVector_InvScale3(rdVector3* dest, const rdVector3* src, float scalar);
+#endif
 
 
 
@@ -145,7 +148,7 @@ void J3DAPI rdVector_ExtractAngle(const rdVector3* v1, rdVector3* pyr);
 #endif
 
 #ifndef RDVECTOR_NO_INLINE
-__inline void J3DAPI rdVector_InvScale3(rdVector3* dest, const rdVector3* src, float scalar)
+static inline void J3DAPI rdVector_InvScale3(rdVector3* dest, const rdVector3* src, float scalar)
 {
     float invScalar = 1.0f / scalar;
     dest->x = ((src->x) * invScalar);
@@ -156,7 +159,7 @@ __inline void J3DAPI rdVector_InvScale3(rdVector3* dest, const rdVector3* src, f
 
 
 
-__inline float J3DAPI rdVector_Dist2(const rdVector2* a, const rdVector2* b)
+static inline float J3DAPI rdVector_Dist2(const rdVector2* a, const rdVector2* b)
 {
     float dx = a->x - b->x;
     float dy = a->y - b->y;

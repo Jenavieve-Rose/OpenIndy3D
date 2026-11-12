@@ -19,11 +19,7 @@
 #include <std/General/stdMemory.h>
 #include <std/General/stdUtil.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(rdModel3_countfit_1, 15)
-CF_PROTO(rdModel3_countfit_2, 15)
-CF_PROTO(rdModel3_countfit_3, 4)
-/* end count-fit */
+
 
 #define RDMODEL3_3DO_MAJVER      2
 #define RDMODEL3_3DO_MINVER_I    1

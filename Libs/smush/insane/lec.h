@@ -1,6 +1,8 @@
 #ifndef SMUSH_INSANE_LEC_H
 #define SMUSH_INSANE_LEC_H
 
+#include <stdint.h> /* port: intptr_t in the module interfaces */
+
 /*
  * LucasArts LEC module framework, as INSANE's modules use it.
  * Retail has no names for any of this: the member names below are descriptive inferences drawn from the

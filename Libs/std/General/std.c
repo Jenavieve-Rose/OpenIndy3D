@@ -37,6 +37,7 @@ void J3DAPI stdStartup(tHostServices* pHS)
     // load word_1839630 for ceilf, word_183962E for floorf and lrintf, and
     // word_183962C to restore the startup mode. The trailing reload of the saved
     // word has no consumer: an original oversight with no C expression.
+#ifndef NONMATCHING_MATH
     __asm fnstcw word ptr[word_183962C]
     __asm mov ax, word ptr[word_183962C]
     __asm mov ah, 0Bh
@@ -45,6 +46,7 @@ void J3DAPI stdStartup(tHostServices* pHS)
     __asm mov ah, 07h
     __asm mov word ptr[word_183962E], ax
     __asm mov ax, word ptr[word_183962C]
+#endif // Port: no x87 control word on arm64; stdMath.h uses its C bodies (NONMATCHING_MATH).
 
     std_bStdStartup = 1;
 }
@@ -56,7 +58,9 @@ void J3DAPI stdShutdown(void)
         return;
     }
 
+#ifndef NONMATCHING_MATH
     __asm fldcw word ptr[word_183962C]
+#endif
 
     stdMemory_Close();
     stdMemory_Shutdown();

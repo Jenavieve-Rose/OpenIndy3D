@@ -276,7 +276,7 @@ void J3DAPI rdModel3K_DrawMesh(const rdModel3Mesh* pMesh, const rdMatrix34* orie
 //   including its never-read `width`/`height` and the unused locals that hold the rest of its 0x1F0-byte frame.
 // The debug build has this helper out of line at 0x536540, between DrawMesh and Flush (the same body as
 // rdCache_AddToTextureCache); retail has expanded it into Flush and kept no copy. Name inferred.
-static __inline void J3DAPI rdModel3K_AddToTextureCache(tSystemTexture* pTex, StdColorFormatType format)
+static inline void J3DAPI rdModel3K_AddToTextureCache(tSystemTexture* pTex, StdColorFormatType format)
 {
     if (!pTex->pD3DCachedTex)
         std3D_AddToTextureCache(pTex, format);

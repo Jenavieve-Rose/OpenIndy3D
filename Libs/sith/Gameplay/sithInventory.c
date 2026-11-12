@@ -12,12 +12,7 @@
 
 #include <string.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithInventory_countfit_1, 15)
-CF_PROTO(sithInventory_countfit_2, 15)
-CF_PROTO(sithInventory_countfit_3, 19)
 
-/* end count-fit */
 
 int sithInventory_bInitInventory = 1;
 

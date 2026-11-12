@@ -27,6 +27,14 @@
 // Sound load constants and macros
 #define SOUND_LOADSTATICIDXMASK 0x12344321 // Mask for static sound index
 
+// Port: retail packed { SOUND_LOADSTATICIDXMASK, (uint32_t)pIdx } into a uint32_t[2]. The marker stays the first member,
+// so Sound_Load still recognises it through a uint32_t*, but the pointer now has room to be 64-bit.
+typedef struct sSoundStaticIdx
+{
+    uint32_t  mask;
+    uint32_t* pIdx;
+} SoundStaticIdx;
+
 // Sound handle constants & helper macros
 #define SOUND_HANDLE_ENTROPY_MAX   1111111 // Note, max 555555 handles per handle type (sound or channel)
 #define SOUND_HANDLE_MIN           1234
@@ -133,7 +141,7 @@ tSoundChannelHandle J3DAPI Sound_GenerateChannelHandle(void);
 size_t J3DAPI Sound_GetFreeCache(size_t bankNum, size_t requiredSize);
 void J3DAPI Sound_IncreaseFreeCache(size_t bankNum, size_t nSize);
 size_t J3DAPI Sound_WriteSoundFilepathToBank(size_t bankNum, const char* pName, size_t len);
-size_t J3DAPI Sound_GetDeltaTime(void);
+uint32_t J3DAPI Sound_GetDeltaTime(void);
 
 uint8_t* J3DAPI Sound_GetSoundBufferData(LPDIRECTSOUNDBUFFER pDSBuf, size_t* pDataSize, uint32_t* pbCompressed);
 int J3DAPI Sound_MemFileSeek(tFileHandle fh, int offset, int origin);
@@ -1035,7 +1043,7 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
     int nRead;
     SoundInfo* pSndInfo;
     size_t curPathPos;
-    uint32_t extraDataOffset;
+    uintptr_t extraDataOffset;
     tFileHandle fh;
     const uint8_t* pFilename;
     int wavType;
@@ -1049,7 +1057,7 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
     pFilename  = (const uint8_t*)&pFilepath[curPathPos];
 
     // Set bank number; for a static load the actual index is stored in the second element
-    bankNum = sndIdx && *sndIdx == SOUND_LOADSTATICIDXMASK ? (sndIdx = (uint32_t*)sndIdx[1], SOUNDBANK_STATIC_NUM) : SOUNDBANK_NORMAL_NUM;
+    bankNum = sndIdx && *sndIdx == SOUND_LOADSTATICIDXMASK ? (sndIdx = ((SoundStaticIdx*)sndIdx)->pIdx, SOUNDBANK_STATIC_NUM) : SOUNDBANK_NORMAL_NUM;
 
     while ( (--pFilename, curPathPos-- != 0) )
     {
@@ -1256,10 +1264,10 @@ tSoundHandle J3DAPI Sound_LoadStatic(const char* pFilename, uint32_t* sndIdx)
 {
     tSoundHandle hwndSnd;
 
-    uint32_t aSndIdx[2] = { SOUND_LOADSTATICIDXMASK, 0 };
-    aSndIdx[1] = (uint32_t)sndIdx;
+    SoundStaticIdx staticIdx = { SOUND_LOADSTATICIDXMASK, NULL };
+    staticIdx.pIdx = sndIdx;
 
-    hwndSnd = Sound_Load(pFilename, aSndIdx);
+    hwndSnd = Sound_Load(pFilename, &staticIdx.mask);
     soundbank_lastImportedBankNum = SOUNDBANK_STATIC_NUM;
     return hwndSnd;
 }

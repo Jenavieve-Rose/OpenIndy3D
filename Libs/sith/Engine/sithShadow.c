@@ -18,13 +18,7 @@
 #include <std/General/std.h>
 #include <std/General/stdUtil.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithShadow_countfit_1, 17)
-CF_PROTO(sithShadow_countfit_2, 17)
-CF_PROTO(sithShadow_countfit_3, 17)
-CF_PROTO(sithShadow_countfit_4, 9)
 
-/* end count-fit */
 
 static rdVector3 sithShadow_aVertices[4];
 static rdVector3 sithShadow_aTransformedVertices[STD_ARRAYLEN(sithShadow_aVertices)];

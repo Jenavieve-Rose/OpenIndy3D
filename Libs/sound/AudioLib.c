@@ -4,9 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(AudioLib_countfit_1, 1)
-/* end count-fit */
+
 
 #define AUDIOLIB_SWAP16(x) ((((uint16_t)(x) & 0xFFu) << 8) | ((uint16_t)(x) >> 8))
 #define AUDIOLIB_SWAP32(x) (((((x) >> 24) | (((x) >> 8) & 0xFF00)) | (((x) & 0xFF00) << 8)) | ((x) << 24))
@@ -82,7 +80,7 @@ uint16_t AudioLib_aDeltaTable[89 * 64] = { 0 };
 int AudioLib_bDeltaTableInitialized = 0;
 
 // Returns pointer to snd data
-const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pType, uint32_t* pSampleRate, uint32_t* pBitsPerSample, uint32_t* pNumChannels, uint32_t* pExtraInfo, uint32_t* pSoundDataSize, uint32_t* pExtraDataOffset, uint32_t* pSoundDataOffset)
+const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pType, uint32_t* pSampleRate, uint32_t* pBitsPerSample, uint32_t* pNumChannels, uint32_t* pExtraInfo, uint32_t* pSoundDataSize, uintptr_t* pExtraDataOffset, uint32_t* pSoundDataOffset)
 {
     int bCompressed;
     int count;
@@ -158,7 +156,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
             *pSoundDataOffset = size;
             if ( *pSoundDataOffset )
             {
-                *pExtraDataOffset = (uint32_t)(pData + 26);
+                *pExtraDataOffset = (uintptr_t)(pData + 26);
             }
             else
             {
@@ -225,7 +223,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
             size = *(uint32_t*)pData;
             if ( !memcmp(pData - 4, "sync", 4) && pExtraDataOffset && pSoundDataOffset )
             {
-                *pExtraDataOffset = (uint32_t)(pData + 4);
+                *pExtraDataOffset = (uintptr_t)(pData + 4);
                 *pSoundDataOffset = size;
             }
         } while ( pData < pEnd && memcmp(pData - 4, "data", 4) );
@@ -1333,6 +1331,87 @@ void J3DAPI AudioLib_UncompressBlock(tAudioCompressorState* pCompressorState, ui
         // Hand-written assembly: retail's
         // per-sample decoder is this hand-written block; the rest of the function is C.
         //
+#ifdef J3D_PORT
+        // Port: C translation of the x86 block below, instruction for instruction (PORT-PLAN.md Phase 4 verifies it
+        // against decoded output from the Windows build). pOut advances in samples, not bytes, so numChannels is not
+        // doubled and restored as the assembly does.
+        for ( ; numSamplesLeft > 0; --numSamplesLeft )
+        {
+            unsigned int mask;
+            unsigned int next;
+            int sample;
+
+            numBits = AudioLib_aStepBits[index];
+            signBit = 1 << (numBits - 1);
+            escape  = (uint8_t)(signBit - 1);
+            mask    = (unsigned int)signBit | escape;
+
+            bitPos += numBits;
+            code = ((unsigned int)bitBuffer >> (16 - bitPos)) & mask;
+            if ( bitPos > 7 )
+            {
+                bitPos -= 8;
+                bitBuffer = (uint16_t)((bitBuffer << 8) | *pIn++);
+            }
+
+            if ( code & (unsigned int)signBit )
+            {
+                code ^= (unsigned int)signBit;
+            }
+            else
+            {
+                signBit = 0;
+            }
+
+            if ( (uint8_t)code == escape )
+            {
+                // Escape: the next 16 bits are a raw sample. Not clamped.
+                unsigned int hi = ((unsigned int)bitBuffer << bitPos) & 0xFF00;
+                next = (uint16_t)((bitBuffer << 8) | *pIn++);
+                sample = (int16_t)(hi | ((next >> (8 - bitPos)) & 0xFF));
+                bitBuffer = (uint16_t)((next << 8) | *pIn++);
+            }
+            else
+            {
+                sample = AudioLib_aDeltaTable[(code << (7 - numBits)) | ((unsigned int)index << 6)];
+                if ( code & 0xFFFF )
+                {
+                    sample += (int)((unsigned int)AudioLib_aStepTable[index] >> (numBits - 1));
+                }
+
+                if ( signBit & 0xFFFF )
+                {
+                    sample = predSample - sample;
+                    if ( sample <= -32768 )
+                    {
+                        sample = -32768;
+                    }
+                }
+                else
+                {
+                    sample = predSample + sample;
+                    if ( sample >= 32767 )
+                    {
+                        sample = 32767;
+                    }
+                }
+            }
+
+            predSample = sample;
+            *pOut = (int16_t)sample;
+            pOut += numChannels;
+
+            index += AudioLib_aIndexTableTable[numBits][code];
+            if ( index <= 0 )
+            {
+                index = 0;
+            }
+            else if ( index >= 88 )
+            {
+                index = 88;
+            }
+        }
+#else
         __asm {
             push edi
             push esi
@@ -1475,6 +1554,7 @@ void J3DAPI AudioLib_UncompressBlock(tAudioCompressorState* pCompressorState, ui
             shr eax, 1
             mov numChannels, eax
         }
+#endif
 
         pCompressorState->aStepIndex[channel] = index;
         pCompressorState->aPrevSample[channel] = predSample;

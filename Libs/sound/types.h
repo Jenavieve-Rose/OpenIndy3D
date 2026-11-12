@@ -66,7 +66,7 @@ typedef struct sSoundSpatialInfo SoundSpatialInfo;
 
 typedef int (J3DAPI* SoundGetThingInfoCallback)(int thingID, SoundThingInfo* pInfo);
 typedef void (J3DAPI* SoundCalcListenerSoundMixFunc)(const SoundSpatialInfo*, float* volume, float* pan, float* pitch);
-typedef uint8_t* (J3DAPI* SoundDriverGetSoundBufferDataFunc)(LPDIRECTSOUNDBUFFER pDSBuf, uint32_t* pSoundDataSize, uint32_t* pbCompressed);
+typedef uint8_t* (J3DAPI* SoundDriverGetSoundBufferDataFunc)(LPDIRECTSOUNDBUFFER pDSBuf, size_t* pSoundDataSize, uint32_t* pbCompressed); // Port: size_t, as Sound_GetSoundBufferData defines it
 
 
 typedef struct sSoundInfo

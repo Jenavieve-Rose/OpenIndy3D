@@ -376,7 +376,8 @@ static void dbloc16_Free(void)
 
 static int dbloc16_Decode(void* a1, int a2, int a3, int a4, void* a5, const unsigned char* pData, int size, int mode, int a9, int a10)
 {
-    return dbloc16_DecodeFrame(a1, (MixerRect*)a2, a3, a4, a5, (Bl16Header*)pData, mode);
+    // Port: a2 is a clip rect passed as an int. Every caller passes 0, so it never holds a pointer that 64-bit could truncate.
+    return dbloc16_DecodeFrame(a1, (MixerRect*)(intptr_t)a2, a3, a4, a5, (Bl16Header*)pData, mode);
 }
 
 static int dbloc16_Query1(void)

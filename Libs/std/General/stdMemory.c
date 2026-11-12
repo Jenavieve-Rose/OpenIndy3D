@@ -107,7 +107,7 @@ void* J3DAPI stdMemory_Malloc(size_t size, const char* pFilename, size_t line)
 
     pHeader = (tMemoryHeader*)pInfo;
     pHeader->number = stdMemory_curState.totalAllocs;
-    pHeader->id = (uint32_t)pHeader;
+    pHeader->id = (uint32_t)(uintptr_t)pHeader;
     pHeader->size = size;
     pHeader->pFilename = pFilename;
     pHeader->line = line;
@@ -135,7 +135,7 @@ void J3DAPI stdMemory_Free(void* pBytes)
     int bBreak = 0;
     tMemoryHeader* pHeader = (tMemoryHeader*)pBytes - 1;
 #line 325
-    STD_ASSERTREL((pHeader != NULL) && ((DWORD)pHeader == pHeader->id));
+    STD_ASSERTREL((pHeader != NULL) && ((DWORD)(uintptr_t)pHeader == pHeader->id));
     if ( pHeader->number == breakAllocNum )
     {
         bBreak = 1;
@@ -178,14 +178,14 @@ void* J3DAPI stdMemory_Realloc(void* pBytes, size_t size, const char* pFilename,
     allocationSz = size + sizeof(tMemoryHeap);
     pHeader = (tMemoryHeader*)pBytes - 1;
 #line 399
-    STD_ASSERTREL((pHeader != NULL) && ((DWORD)pHeader == pHeader->id));
+    STD_ASSERTREL((pHeader != NULL) && ((DWORD)(uintptr_t)pHeader == pHeader->id));
     oldSize = pHeader->size;
     pInfo = std_pHS->pRealloc(pHeader, allocationSz);
     if ( !pInfo ) {
         return NULL;
     }
     pHeader = (tMemoryHeader*)pInfo;
-    pHeader->id = (DWORD)pHeader;
+    pHeader->id = (DWORD)(uintptr_t)pHeader;
     pHeader->size = size;
     pHeader->pFilename = pFilename;
     pHeader->line = line;

@@ -4,14 +4,7 @@
 
 #include "sithThing.h"
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithThing_countfit_1, 15)
-CF_PROTO(sithThing_countfit_2, 15)
-CF_PROTO(sithThing_countfit_3, 15)
-CF_PROTO(sithThing_countfit_4, 13)
 
-
-/* end count-fit */
 
 #include <rdroid/Engine/rdPuppet.h>
 #include <rdroid/Engine/rdThing.h>
@@ -280,7 +273,7 @@ int J3DAPI sithThing_Startup(void)
 
     for ( adjNum = 1; adjNum < (int)STD_ARRAYLEN(sithThing_aStrThingArgs); ++adjNum )
     {
-        stdHashtbl_Add(sithThing_pParseHashtbl, sithThing_aStrThingArgs[adjNum], (void*)adjNum);
+        stdHashtbl_Add(sithThing_pParseHashtbl, sithThing_aStrThingArgs[adjNum], (void*)(intptr_t)adjNum);
     }
 
     sithThing_curSignature  = 1;

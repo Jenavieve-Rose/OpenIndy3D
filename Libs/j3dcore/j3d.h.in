@@ -27,27 +27,19 @@
 #endif
 
 // Platform specific definitions
-#ifdef _WIN32
-#   ifndef NDEBUG
-#       define J3D_DEBUG 1
-#   endif
-#   ifndef STRICT
-#       define STRICT
-#   endif
-#   define WIN32_LEAN_AND_MEAN
-#   include <Windows.h>
-#   define strcmpi _strcmpi
-#   define strncmpi _strnicmp
-#   define wstrcmpi _wcsicmp
-#   define wstrncmpi _wcsnicmp
-#else
-    // TODO: define J3D_DEBUG
-    typedef int      BOOL;
-    typedef uint8_t  BYTE;
-    typedef uint16_t WORD;
+// Port: the _WIN32 branch (Windows.h, _strcmpi) is replaced. Win32 types that otherwise-portable code still names come
+// from platform/win32_shim.h, which is debt to be deleted (PORT-PLAN.md, Phase 7).
+#ifndef NDEBUG
+#   define J3D_DEBUG 1
 #endif
-
-
+#include <string.h>
+#include <strings.h>
+#include <wchar.h>
+#include <win32_shim.h>
+#define strcmpi   strcasecmp
+#define strncmpi  strncasecmp
+#define wstrcmpi  wcscasecmp
+#define wstrncmpi wcsncasecmp
 
 // String equivalence macros
 # define streq(s1, s2) (strcmp(s1, s2) == 0)
@@ -63,14 +55,9 @@
 # define wstrneqi(s1, s2, n) (wstrncmpi(s1, s2, n) == 0)
 
 #ifndef J3DNORETURN
-#  if defined(_MSC_VER) && _MSC_VER < 1200
-/* VC5 has no noreturn declspec. */
-#    define J3DNORETURN
-#  else
-#    define J3DNORETURN __declspec(noreturn)
-#  endif
+#  define J3DNORETURN _Noreturn
 #endif
-#define J3DAPI __cdecl
+#define J3DAPI
 
 // TODO: Detect if C23 and N3030 - Enhanced Enumerations is supported
 //       In this case define macro as: #define J3D_ENUM_TYPE(x) : x

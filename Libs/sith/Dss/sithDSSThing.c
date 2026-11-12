@@ -32,36 +32,7 @@
 #include <std/General/stdUtil.h>
 #include <std/Win95/stdComm.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithDSSThing_countfit_1, 30)
-CF_PROTO(sithDSSThing_countfit_2, 30)
-CF_PROTO(sithDSSThing_countfit_3, 30)
-CF_PROTO(sithDSSThing_countfit_4, 30)
-CF_PROTO(sithDSSThing_countfit_5, 30)
-CF_PROTO(sithDSSThing_countfit_6, 30)
-CF_PROTO(sithDSSThing_countfit_7, 30)
-CF_PROTO(sithDSSThing_countfit_8, 30)
-CF_PROTO(sithDSSThing_countfit_9, 30)
-CF_PROTO(sithDSSThing_countfit_10, 30)
-CF_PROTO(sithDSSThing_countfit_11, 30)
-CF_PROTO(sithDSSThing_countfit_12, 30)
-CF_PROTO(sithDSSThing_countfit_13, 30)
-CF_PROTO(sithDSSThing_countfit_14, 30)
-CF_PROTO(sithDSSThing_countfit_15, 30)
-CF_PROTO(sithDSSThing_countfit_16, 30)
-CF_PROTO(sithDSSThing_countfit_17, 30)
-CF_PROTO(sithDSSThing_countfit_18, 30)
-CF_PROTO(sithDSSThing_countfit_19, 30)
-CF_PROTO(sithDSSThing_countfit_20, 30)
-CF_PROTO(sithDSSThing_countfit_21, 30)
-CF_PROTO(sithDSSThing_countfit_22, 30)
-CF_PROTO(sithDSSThing_countfit_23, 30)
-CF_PROTO(sithDSSThing_countfit_24, 30)
-CF_PROTO(sithDSSThing_countfit_25, 30)
-CF_PROTO(sithDSSThing_countfit_26, 30)
-CF_PROTO(sithDSSThing_countfit_27, 30)
-CF_PROTO(sithDSSThing_countfit_28, 10)
-/* end count-fit */
+
 
 int J3DAPI sithDSSThing_Pos(const SithThing* pThing, DPID toID, unsigned int dpFlags)
 {
@@ -965,7 +936,7 @@ int J3DAPI sithDSSThing_ProcessFire(const SithMessage* pMsg)
 {
     uint8_t* pCurDSSMsgData_ = (uint8_t*)&pMsg->data[0];
     SithThing* pTemplate = NULL;
-    tSoundHandle hSnd = NULL;
+    tSoundHandle hSnd = 0;
     int idx;
     SithThing* pShooter;
     SithFireProjectileFlags flags;

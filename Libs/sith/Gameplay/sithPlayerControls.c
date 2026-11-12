@@ -272,7 +272,7 @@ void J3DAPI sithPlayerControls_PuppetCallback(SithThing* pThing, int track, rdKe
     {
         if ( markerType == RDKEYMARKER_ATTACK )
         {
-            tSoundHandle hSnd = NULL;
+            tSoundHandle hSnd = 0;
             hSnd = Sound_GetSoundHandle(0x8003);
             if ( hSnd )
             {
@@ -281,7 +281,7 @@ void J3DAPI sithPlayerControls_PuppetCallback(SithThing* pThing, int track, rdKe
         }
         else if ( markerType == RDKEYMARKER_SWING )
         {
-            tSoundHandle hSnd = NULL;
+            tSoundHandle hSnd = 0;
             hSnd = Sound_GetSoundHandle(0x8064);
             if ( hSnd )
             {
@@ -290,7 +290,7 @@ void J3DAPI sithPlayerControls_PuppetCallback(SithThing* pThing, int track, rdKe
         }
         else if ( markerType == RDKEYMARKER_ACTIVATERIGHTARMREST )
         {
-            tSoundHandle hSnd = NULL;
+            tSoundHandle hSnd = 0;
             hSnd = Sound_GetSoundHandle(0x8018);
             if ( hSnd )
             {
@@ -2557,7 +2557,7 @@ void J3DAPI sithPlayerControls_ProcessJewelFlyMove(SithThing* pThing, float secD
         sithInventory_SetSwimmingInventory(pThing, 1);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(sithPlayerControls_countfit_1, 30, 15) CF_PROTO(sithPlayerControls_countfit_17, 4) /* end count-fit */
+ 
 void J3DAPI sithPlayerControls_ProcessFlyAndUnderwaterMove(SithThing* pThing, float secDeltaTime)
 {
     float turnScale = 1.0f;
@@ -2963,7 +2963,7 @@ int J3DAPI sithPlayerControls_ProcessDeadPlayer(SithThing* pThing, float secDelt
 {
     return 1;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPlayerControls_countfit_2, 9) /* end count-fit */
+ 
 void J3DAPI sithPlayerControls_ProcessJumpForwardMove(SithThing* pThing, float secDeltaTime)
 {
     SithPhysicsInfo* pPhysics = &pThing->moveInfo.physics;
@@ -3083,7 +3083,7 @@ void J3DAPI sithPlayerControls_ProcessJumpForwardMove(SithThing* pThing, float s
         rdMatrix_TransformVector34Acc(&pPhysics->thrust, &orient);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPlayerControls_countfit_3, 6) /* end count-fit */
+ 
 void J3DAPI sithPlayerControls_ProcessSwimMove(SithThing* pThing, float secDeltaTime)
 {
     float moveScale = 1.0f;
@@ -3740,7 +3740,7 @@ void J3DAPI sithPlayerControls_ProcessWeaponAim(SithThing* pThing, float secDelt
         }
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPlayerControls_countfit_4, 30) CF_PROTO(sithPlayerControls_countfit_5, 24) /* end count-fit */
+ 
 int J3DAPI sithPlayerControls_CanAimAtPos(SithThing* pThing, const rdVector3* pStartPos, const rdVector3* pAimPos, float cosMaxAngle, float cosMinAngle, float cosAimAngle, float maxDist)
 {
     float dist;
@@ -3864,7 +3864,7 @@ int J3DAPI sithPlayerControls_GetPushPullMoveNorm(rdVector3* moveNorm, const rdV
         return 0;
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPlayerControls_countfit_6, 5) /* end count-fit */
+ 
 int J3DAPI sithPlayerControls_CheckWaterLedge(SithThing* pThing)
 {
     int ledgeType;
@@ -3980,7 +3980,7 @@ int J3DAPI sithPlayerControls_CheckWaterLedge(SithThing* pThing)
 
     return ledgeType;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(sithPlayerControls_countfit_7, 30, 7) CF_PROTO(sithPlayerControls_countfit_14, 21) /* end count-fit */
+ 
 int J3DAPI sithPlayerControls_SearchForCollisions(SithThing* pThing, rdVector3* moveNorm, SithSurface** ppHitSurf, SithThing** ppHitThing, rdModel3** ppHitModel, rdFace** ppHitFace, rdModel3Mesh** ppHitMesh, int someType)
 {
     SithPhysicsInfo* pPhysics = &pThing->moveInfo.physics;  // unreferenced; the debug build's frame keeps its slot
@@ -4263,7 +4263,7 @@ SithSurface* J3DAPI sithPlayerControls_SearchForClimbSurface(SithThing* pThing, 
 
     return pClimbSurface;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPlayerControls_countfit_16, 16) /* end count-fit */
+ 
 int J3DAPI sithPlayerControls_TryBoardVehicle(SithThing* pThing, int bBoard)
 {
     SithThing* pVehicle;
@@ -4892,7 +4892,7 @@ void J3DAPI sithPlayerControls_SetVehicleBoardedThing(SithThing* pThing)
 {
     sithPlayerControls_pVehicleBoardedThing = pThing;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPlayerControls_countfit_18, 5) /* end count-fit */
+ 
 signed int J3DAPI sithPlayerControls_CanStrafeMove(SithThing* pThing, int bMoveRight)
 {
     int bCanMove;

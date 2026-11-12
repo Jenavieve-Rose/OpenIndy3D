@@ -641,7 +641,7 @@ static LRESULT CALLBACK JonesDialog_SubclassDialogWindowProc(HWND hwnd, UINT uMs
 
     lpSubclassData = NULL;
     lpfnWndProc = NULL;
-    lpSubclassData = (JonesDialogData*)GetWindowLong(hwnd, GWL_USERDATA);
+    lpSubclassData = (JonesDialogData*)GetWindowLongPtr(hwnd, GWL_USERDATA);
     if ( lpSubclassData && lpSubclassData->dwSize == sizeof(JonesDialogData) )
     {
         lpfnWndProc = lpSubclassData->lpfnWndProc;
@@ -837,7 +837,7 @@ static BOOL CALLBACK JonesDialog_SubclassDialogProc(HWND hwnd, UINT uMsg, WPARAM
 
     pData = NULL;
     pfPrevHook = NULL;
-    pData = (JonesDialogData*)GetWindowLong(hwnd, GWL_USERDATA);
+    pData = (JonesDialogData*)GetWindowLongPtr(hwnd, GWL_USERDATA);
     if ( pData && pData->dwSize == sizeof(JonesDialogData) )
     {
         pfPrevHook = (WNDPROC)pData->lpfnPrevHook;
@@ -846,14 +846,14 @@ static BOOL CALLBACK JonesDialog_SubclassDialogProc(HWND hwnd, UINT uMsg, WPARAM
     switch ( uMsg )
     {
         case WM_INITDIALOG:
-            SetWindowLong(hwnd, GWL_USERDATA, lParam);
+            SetWindowLongPtr(hwnd, GWL_USERDATA, lParam);
             pData = (JonesDialogData*)lParam;
             if ( pData && pData->dwSize == sizeof(JonesDialogData) )
             {
                 pfPrevHook = (WNDPROC)pData->lpfnPrevHook;
-                pData->lpfnWndProc = (WNDPROC)GetWindowLong(hwnd, GWL_WNDPROC);
-                pData->lpUserData = (LPVOID)GetWindowLong(hwnd, GWL_USERDATA);
-                SetWindowLong(hwnd, GWL_WNDPROC, (LONG)JonesDialog_SubclassDialogWindowProc);
+                pData->lpfnWndProc = (WNDPROC)GetWindowLongPtr(hwnd, GWL_WNDPROC);
+                pData->lpUserData = (LPVOID)GetWindowLongPtr(hwnd, GWL_USERDATA);
+                SetWindowLongPtr(hwnd, GWL_WNDPROC, (LONG_PTR)JonesDialog_SubclassDialogWindowProc);
                 lParam = pData->lPrevCustData;
             }
 
@@ -944,7 +944,7 @@ static UINT CALLBACK JonesDialog_SubclassFileDialogProc(HWND hDlg, UINT uMsg, WP
         hParent = hDlg;
     }
 
-    pData = (JonesDialogData*)GetWindowLong(hDlg, GWL_USERDATA);
+    pData = (JonesDialogData*)GetWindowLongPtr(hDlg, GWL_USERDATA);
     if ( pData && pData->dwSize == sizeof(JonesDialogData) )
     {
         pfPrevHook = pData->lpfnPrevHook;
@@ -955,7 +955,7 @@ static UINT CALLBACK JonesDialog_SubclassFileDialogProc(HWND hDlg, UINT uMsg, WP
         case WM_INITDIALOG:
             lpOpenFileName = (LPOPENFILENAMEA)lParam;
             pData = (JonesDialogData*)lpOpenFileName->lCustData;
-            SetWindowLong(hDlg, GWL_USERDATA, (LONG)pData);
+            SetWindowLongPtr(hDlg, GWL_USERDATA, (LONG_PTR)pData);
             JonesDialog_dword_5532EC = 0;
             if ( pData && pData->dwSize == sizeof(JonesDialogData) )
             {
@@ -964,9 +964,9 @@ static UINT CALLBACK JonesDialog_SubclassFileDialogProc(HWND hDlg, UINT uMsg, WP
 
                 lpOpenFileName->lCustData = pData->lPrevCustData;
                 pfPrevHook = pData->lpfnPrevHook;
-                pData->lpfnWndProc = (WNDPROC)GetWindowLong(hDlg, GWL_WNDPROC);
-                pData->lpUserData = (LPVOID)GetWindowLong(hDlg, GWL_USERDATA);
-                SetWindowLong(hDlg, GWL_WNDPROC, (LONG)JonesDialog_SubclassDialogWindowProc);
+                pData->lpfnWndProc = (WNDPROC)GetWindowLongPtr(hDlg, GWL_WNDPROC);
+                pData->lpUserData = (LPVOID)GetWindowLongPtr(hDlg, GWL_USERDATA);
+                SetWindowLongPtr(hDlg, GWL_WNDPROC, (LONG_PTR)JonesDialog_SubclassDialogWindowProc);
                 lParam = (LPARAM)lpOpenFileName;
 
                 if ( JonesDialog_cursorInfo.numHandels < 10 )
@@ -982,11 +982,11 @@ static UINT CALLBACK JonesDialog_SubclassFileDialogProc(HWND hDlg, UINT uMsg, WP
                 if ( pData->pExtraData )
                 {
                     pData = pData->pExtraData;
-                    pData->lpfnWndProc = (WNDPROC)GetWindowLong(hParent, GWL_WNDPROC);
-                    pData->lpUserData = (LPVOID)GetWindowLong(hParent, GWL_USERDATA);
+                    pData->lpfnWndProc = (WNDPROC)GetWindowLongPtr(hParent, GWL_WNDPROC);
+                    pData->lpUserData = (LPVOID)GetWindowLongPtr(hParent, GWL_USERDATA);
                     GetWindowRect(hParent, &pData->rcWindow);
-                    SetWindowLong(hParent, GWL_WNDPROC, (LONG)JonesDialog_SubclassDialogWindowProc);
-                    SetWindowLong(hParent, GWL_USERDATA, (LONG)pData);
+                    SetWindowLongPtr(hParent, GWL_WNDPROC, (LONG_PTR)JonesDialog_SubclassDialogWindowProc);
+                    SetWindowLongPtr(hParent, GWL_USERDATA, (LONG_PTR)pData);
                 }
 
                 result = CallWindowProc((WNDPROC)pfPrevHook, hDlg, uMsg, wParam, lParam);
@@ -1201,7 +1201,7 @@ int J3DAPI JonesDialog_ShowDialog(LPCSTR lpTemplateName, HWND hWnd, DLGPROC lpDi
     JonesDialogGameState gameState;
     int result;
 
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     if ( !JonesMain_HasStarted() )
     {
         return DialogBoxParam(hInstance, lpTemplateName, hWnd, lpDialogFunc, dwInitParam);

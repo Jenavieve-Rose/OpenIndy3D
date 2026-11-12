@@ -27,7 +27,7 @@ void J3DAPI rdFont_Free(rdFont* pFont);
 void J3DAPI rdFont_SetFontColor(const rdFontColor apColor);
 
 // Returns normalized Y in screen pixels that can be used in draw line funcs
-__inline float rdFont_GetNormY(float y)
+static inline float rdFont_GetNormY(float y)
 {
     return (y / RD_REF_HEIGHT);
 }

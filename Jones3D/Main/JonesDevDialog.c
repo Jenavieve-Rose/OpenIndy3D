@@ -147,7 +147,7 @@ int J3DAPI JonesDevDialog_ShowDevDialog(HWND hWnd, JonesState* pConfig)
     HINSTANCE hInstance;
     int res;
 
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
     res = DialogBoxParam(hInstance, (LPCSTR)101, hWnd, JonesDevDialog_DevDialogProc, (LPARAM)pConfig);
     return res;
@@ -160,7 +160,7 @@ int J3DAPI JonesMain_ShowDisplayOptions(HWND hWnd, JonesState* pConfig)
     HINSTANCE hInstance;
     int res;
 
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
     res = DialogBoxParam(hInstance, (LPCSTR)106, hWnd, JonesDevDialog_DevDialogProc, (LPARAM)pConfig);
     return res;
@@ -333,7 +333,7 @@ int J3DAPI JonesDevDialog_InitDevDialog(HWND hDlg, WPARAM wParam, LPARAM lParam)
         }
     }
 
-    SetWindowLong(hDlg, DWL_USER, lParam); // Set config to dialog handle
+    SetWindowLongPtr(hDlg, DWL_USER, lParam); // Set config to dialog handle
 
     CheckDlgButton(hDlg, 1007, pConfig->bDevMode);// Dev mode
 
@@ -349,7 +349,7 @@ void J3DAPI JonesDevDialog_DevDialogHandleCommand(HWND hWnd, int controlId, LPAR
     int curIdx;
 
 
-    pState = (JonesState*)GetWindowLong(hWnd, DWL_USER);
+    pState = (JonesState*)GetWindowLongPtr(hWnd, DWL_USER);
     switch ( controlId )
     {
         case 1030: // Display settings

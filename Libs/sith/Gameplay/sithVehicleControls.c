@@ -1330,7 +1330,7 @@ static int J3DAPI sithVehicleControls_FindRaftExitSurfacePos(SithThing* pThing, 
 
     return result;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithVehicleControls_countfit_1, 15) /* end count-fit */
+ 
 void J3DAPI sithVehicleControls_ProcessRaftPlayerMove(SithThing* pThing, float secDeltaTime)
 {
     float fwdRotThrust;
@@ -2038,7 +2038,7 @@ void J3DAPI sithVehicleControls_ProcessRaftPlayerMove(SithThing* pThing, float s
             dist = rdVector_Dist3(&sithVehicleControls_curRaftState.exitSurfPos, &pThing->pos);
             if ( dist > sithVehicleControls_raftExitReachDist )
             {
-                /* count-fit: placeholder declarations, not reconstructed source */ CF_EXTERNS(sithVehicleControls_countfit_2, 11) /* end count-fit */ rdVector3 dir;
+                 rdVector3 dir;
 
                 rdVector_Sub3(&dir, &sithVehicleControls_curRaftState.exitSurfPos, &pThing->pos);
                 rdVector_Normalize3Acc(&dir);

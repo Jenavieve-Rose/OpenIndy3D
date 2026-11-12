@@ -19,7 +19,7 @@
 #include <sith/World/sithTemplate.h>
 #include <sith/World/sithThing.h>
 #include <sith/World/sithWorld.h>
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_1, 28) /* end count-fit */
+ 
 #define RDMATH_INLINE_DISTANCEPOINTTOPLANE
 #include <rdroid/Math/rdMath.h>
 #include <rdroid/Math/rdMatrix.h>
@@ -76,7 +76,7 @@ struct sSithPhysicsTrackFaceData
 };
 
 static void J3DAPI sithPhysics_UpdateThingPhysics(SithThing* pThing, float secDeltaTime);
-static __inline void J3DAPI sithPhysics_GetAttachedSurfaceInfo(SithThing* pThing, rdVector3* pOutNormal, float* pOutDistance, float* pOutDragFactor);
+static inline void J3DAPI sithPhysics_GetAttachedSurfaceInfo(SithThing* pThing, rdVector3* pOutNormal, float* pOutDistance, float* pOutDragFactor);
 static void J3DAPI sithPhysics_InitMineCarExhaustDefault(SithThing* pThing, SithVehicleExhaustInfo* pExhaustInfo);
 
 int sithPhysics_dword_58540C = 0;
@@ -678,7 +678,7 @@ float J3DAPI sithPhysics_GetThingHeight(const SithThing* pThing)
 // (0x481922-0x481FDE) while sithPhysics_UpdateThing above still calls it out of
 // line: VC5's /Ob1 per-caller budget expands one copy of a body this size but
 // not two (definition order does not decide it).
-static __inline void J3DAPI sithPhysics_UpdateThingPhysics(SithThing* pThing, float secDeltaTime)
+static inline void J3DAPI sithPhysics_UpdateThingPhysics(SithThing* pThing, float secDeltaTime)
 {
     SithPhysicsInfo* pPhysics;
     SithPhysicsFlags flags;
@@ -1039,7 +1039,7 @@ void J3DAPI sithPhysics_UpdateClimbingThingPhysics(SithThing* pThing, float secD
         rdVector_Scale3(&pCurrentPhysics->deltaVelocity, &pCurrentPhysics->velocity, secDeltaTime);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_2, 26) /* end count-fit */
+ 
 void J3DAPI sithPhysics_UpdateAttachedThingPhysics(SithThing* pThing, float secDeltaTime)
 {
     float dragFactor;
@@ -1694,7 +1694,7 @@ static void J3DAPI sithPhysics_UpdateTrackVehicleFx(SithThing* pThing, SithMineC
             break;
     }
 }
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_3, 4) /* end count-fit */
+
 static void J3DAPI sithPhysics_UpdateVehicleChassis(SithThing* pThing, SithVehicleChassisInfo* pChasisInfo, float secDeltaTime)
 {
     SithPhysicsInfo* pPhysics = &pThing->moveInfo.physics;
@@ -2107,7 +2107,7 @@ void J3DAPI sithPhysics_InitTrackTruckState(SithThing* pThing, SithMineCarState*
     pState->unknown9 = 0.8f;
     pState->bUpdateSparks = 0;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_4, 6) /* end count-fit */
+ 
 void J3DAPI sithPhysics_UpdateMineCarPhysics(SithThing* pThing, float secDeltaTime)
 {
     SithMineCarState* pState;
@@ -2363,7 +2363,7 @@ static int J3DAPI sithPhysics_GetWaterNormalAtPos(const SithThing* pThing, float
 
     return bNoFloor;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_5, 3) /* end count-fit */
+ 
 static void J3DAPI sithPhysics_GetWaterThrust(SithThing* pThing, rdVector3* a2, rdVector3* pOutThrust, float msDeltaTime)
 {
     SithCollision* pCollision;
@@ -2427,7 +2427,7 @@ static void J3DAPI sithPhysics_GetWaterThrust(SithThing* pThing, rdVector3* a2, 
         rdVector_ScaleAdd3Acc(pOutThrust, &dir, msDeltaTime);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_6, 30) CF_PROTO(sithPhysics_countfit_7, 28) /* end count-fit */
+ 
 // update physics
 void J3DAPI sithPhysics_UpdateRaftPhysics(SithThing* pThing, float secDeltaTime)
 {
@@ -2762,7 +2762,7 @@ void J3DAPI sithPhysics_UpdateRaftPhysics(SithThing* pThing, float secDeltaTime)
 
 // Retail pushes this assert's __LINE__ (3498) in UpdateAttachedThingPhysics, UpdateMineCarPhysics and
 // UpdateRaftPhysics: one function defined here and inlined into all three. Name and interface inferred.
-static __inline void J3DAPI sithPhysics_GetAttachedSurfaceInfo(SithThing* pThing, rdVector3* pOutNormal, float* pOutDistance, float* pOutDragFactor)
+static inline void J3DAPI sithPhysics_GetAttachedSurfaceInfo(SithThing* pThing, rdVector3* pOutNormal, float* pOutDistance, float* pOutDragFactor)
 {
 #line 3498
     SITH_ASSERTREL(pThing->attach.flags);
@@ -3122,7 +3122,7 @@ error:
     memset(&pPhysics->thrust, 0, sizeof(rdVector3));
     memset(pOutMoveDelta, 0, sizeof(rdVector3));
 }
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_8, 10) /* end count-fit */
+
 int J3DAPI sithPhysics_ProcessTrackFace(SithThing* pThing, rdFace* pFace, const rdVector3* pMoveDir, const rdVector3* pRightDir, const rdVector3* pPos, SithPhysicsTrackFaceData* pData)
 {
     size_t aFrontRights[2]; /* release-chosen type: /Od code is the same for size_t and int */
@@ -3711,7 +3711,7 @@ static int J3DAPI sithPhysics_UpdateJeepWheelContact(SithThing* pThing, SithJeep
 
     sithCollision_DecreaseStackLevel();
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_9, 8) /* end count-fit */
+ 
 static int J3DAPI sithPhysics_UpdateJeepWheels(SithThing* pThing, SithJeepState* pState, float secDeltaTime)
 {
     float scale;
@@ -4197,7 +4197,7 @@ static signed int J3DAPI sithPhysics_CreateJeepUserBlock(SithThing* pThing)
 
     return 1;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_10, 8) /* end count-fit */
+ 
 static void J3DAPI sithPhysics_UpdateJeepFx(SithThing* pThing, SithVehicleEngineFxState* pFxState, float secDeltaTime)
 {
     SithJeepState* pJeepState;
@@ -4400,7 +4400,7 @@ static void J3DAPI sithPhysics_UpdateJeepFx(SithThing* pThing, SithVehicleEngine
         }
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(sithPhysics_countfit_11, 30, 3) CF_PROTO(sithPhysics_countfit_12, 10) /* end count-fit */
+ 
 void J3DAPI sithPhysics_UpdateJeepPhysics(SithThing* pThing, float secDeltaTime)
 {
     SithJeepState* pState;
@@ -4458,7 +4458,7 @@ void J3DAPI sithPhysics_UpdateJeepPhysics(SithThing* pThing, float secDeltaTime)
         && pThing->moveStatus != SITHPLAYERMOVE_UNKNOWN_82
         && pThing->moveStatus != SITHPLAYERMOVE_UNKNOWN_83 )
     {
-        /* count-fit: placeholder declarations, not reconstructed source */ CF_EXTERNS(sithPhysics_countfit_13, 24) /* end count-fit */ rdVector3 dir;
+         rdVector3 dir;
         float dot;
 
         rdVector_Normalize3(&dir, &pPhysics->velocity);
@@ -4516,7 +4516,7 @@ void J3DAPI sithPhysics_UpdateJeepPhysics(SithThing* pThing, float secDeltaTime)
     }
     else if ( pThing->moveStatus == SITHPLAYERMOVE_UNKNOWN_83 )
     {
-        /* count-fit: placeholder declarations, not reconstructed source */ CF_EXTERNS(sithPhysics_countfit_14, 24) /* end count-fit */ rdVector3 dir;
+         rdVector3 dir;
         float dot;
 
         rdVector_ScaleAdd3Acc(&pPhysics->velocity, &pThing->orient.uvec, RD_MULTIPLY(sithPhysics_flt_538DC0, secDeltaTime));
@@ -4800,4 +4800,4 @@ void J3DAPI sithPhysics_UpdateJeepPhysics(SithThing* pThing, float secDeltaTime)
     sithPhysics_UpdateJeepFx(pThing, &pThing->userblock.pJeep->fxstate, secDeltaTime);
     sithPhysics_UpdateExhaustFx(pThing, &pThing->userblock.pJeep->exhaustInfo, secDeltaTime);
 }
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithPhysics_countfit_15, 4) /* end count-fit */
+

@@ -73,10 +73,10 @@ int framestream_Tick(FrameStream* pFrames, void* a2, int a3, int a4, int a5, voi
         switch (pFrames->tag) {
         case FS_FLHD:
             framestream_Fetch(pFrames, pFrames->chunkSize);
-            if ((int)pFrames->pCur == -1) {
+            if ((intptr_t)pFrames->pCur == -1) {
                 return 5;
             }
-            if ((int)pFrames->pCur == -2) {
+            if ((intptr_t)pFrames->pCur == -2) {
                 return -2;
             }
             animplay_pFrame->Parse(pFrames->pCur, pFrames->chunkSize);
@@ -84,20 +84,20 @@ int framestream_Tick(FrameStream* pFrames, void* a2, int a3, int a4, int a5, voi
             continue;
         case FS_ANNO:
             framestream_Fetch(pFrames, pFrames->chunkSize);
-            if ((int)pFrames->pCur == -1) {
+            if ((intptr_t)pFrames->pCur == -1) {
                 return 5;
             }
-            if ((int)pFrames->pCur == -2) {
+            if ((intptr_t)pFrames->pCur == -2) {
                 return -2;
             }
             pFrames->tag = FS_NULL;
             continue;
         case FS_FRME:
             framestream_Fetch(pFrames, pFrames->chunkSize);
-            if ((int)pFrames->pCur == -1) {
+            if ((intptr_t)pFrames->pCur == -1) {
                 return 5;
             }
-            if ((int)pFrames->pCur == -2) {
+            if ((intptr_t)pFrames->pCur == -2) {
                 return -2;
             }
             pFrames->tag = FS_NULL;
@@ -140,10 +140,10 @@ int framestream_Tick(FrameStream* pFrames, void* a2, int a3, int a4, int a5, voi
             return (pFrames->frame >= pFrames->frameCount - 1) ? 4 : 0;
         case FS_SHDR:
             framestream_Fetch(pFrames, pFrames->chunkSize);
-            if ((int)pFrames->pCur == -1) {
+            if ((intptr_t)pFrames->pCur == -1) {
                 return 5;
             }
-            if ((int)pFrames->pCur == -2) {
+            if ((intptr_t)pFrames->pCur == -2) {
                 return -2;
             }
             pFrames->tag = FS_NULL;
@@ -157,10 +157,10 @@ int framestream_Tick(FrameStream* pFrames, void* a2, int a3, int a4, int a5, voi
                 pFrames->paused = 1;
             }
             framestream_Fetch(pFrames, 8);
-            if ((int)pFrames->pCur == -1) {
+            if ((intptr_t)pFrames->pCur == -1) {
                 return 5;
             }
-            if ((int)pFrames->pCur == -2) {
+            if ((intptr_t)pFrames->pCur == -2) {
                 return -2;
             }
             if (pFrames->pCur != NULL) {
@@ -215,7 +215,7 @@ static void framestream_Fetch(FrameStream* pFrames, int size)
     }
     else {
         pFrames->pCur = (void*)animplay_pStreamer->Advance(pFrames->pStream, size);
-        if ((int)pFrames->pCur != -1 && pFrames->pCur == NULL) {
+        if ((intptr_t)pFrames->pCur != -1 && pFrames->pCur == NULL) {
             pFrames->frame = -1;
             pFrames->open = 0;
         }

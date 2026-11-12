@@ -26,10 +26,7 @@
 
 #include <sound/Sound.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithWhip_countfit_1, 0)
-CF_PROTO(sithWhip_countfit_2, 0)
-/* end count-fit */
+
 
 // Camera offsets for whip aim at target
 static rdVector3 sithWhip_vecCameraOffsetWhipClimbAim     = { 0.0f , -0.1f , 0.02f };

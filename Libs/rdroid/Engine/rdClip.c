@@ -1080,7 +1080,7 @@ void J3DAPI rdClip_ClipFacePVS(rdClipFrustum* pFrustrum, const rdPrimit3* pSrc, 
 
     pDest->numVertices = rdClip_Face3WPVS(pFrustrum, pDest->aVertices, pSrc->numVertices);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(rdClip_countfit_1, 13) /* end count-fit */
+ 
 int J3DAPI rdClip_Face3WPVS(rdClipFrustum* pFrustrum, rdVector3* aVertices, int numVertices)
 {
     float prevProjX;
@@ -1431,7 +1431,7 @@ int J3DAPI rdClip_Face3WPVS(rdClipFrustum* pFrustrum, rdVector3* aVertices, int 
 
     return clipindex;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(rdClip_countfit_2, 26) /* end count-fit */
+ 
 int J3DAPI rdClip_Face3W(const rdClipFrustum* pFrustrum, rdVector3* aVertices, int numVertices)
 {
     float prevProjX;
@@ -2865,7 +2865,7 @@ int J3DAPI rdClip_Face3SOrtho(const rdClipFrustum* pFrustrum, rdVector3* aVertic
 
     return clipindex;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(rdClip_countfit_3, 30) CF_PROTO(rdClip_countfit_4, 6) /* end count-fit */
+ 
 int J3DAPI rdClip_Face3GS(const rdClipFrustum* pFrustrum, rdVector3* aVertices, rdVector4* aIntensities, int numVertices)
 {
     float prevProjX;
@@ -4599,7 +4599,7 @@ int J3DAPI rdClip_Face3GTOrtho(const rdClipFrustum* pFrustrum, rdVector3* aVerti
 
     return clipindex;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(rdClip_countfit_5, 5) /* end count-fit */
+ 
 int J3DAPI rdClip_Face3T(const rdClipFrustum* pFrustrum, rdVector3* aVertices, rdVector2* aTexVertices, rdVector4* aIntensities, int numVertices)
 {
     float prevProjX;

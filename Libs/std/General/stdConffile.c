@@ -292,7 +292,7 @@ int J3DAPI stdConffile_ReadLine(void)
 
     while ( !bEnd && nRead > 0 )
     {
-        bRead = std_pHS->pFileGets(openFile, pLine, nRead);
+        bRead = std_pHS->pFileGets(openFile, pLine, nRead) != NULL;
         if ( !bRead )
         {
             return 0;

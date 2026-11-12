@@ -30,7 +30,7 @@ int animplay_Register(LecShare* pShare, void* pParam);
 static void animplay_Unregister(void);
 static int animplay_Startup(void);
 static void animplay_Shutdown(void);
-static int animplay_Play(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13);
+static int animplay_Play(intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13);
 static int animplay_Create(AnimPlay** ppPlay, const char* pName, int rate, int ringSize, int frameSize, int flags);
 static int animplay_GetTime(AnimPlay* pPlay);
 static int animplay_Pace(AnimPlay* pPlay, void* a2, int a3, int a4, int a5, void* a6, int* a7, int* a8, int a9, int a10);
@@ -40,8 +40,8 @@ static void animplay_SetRate(AnimPlay* pPlay, int rate);
 static void animplay_Rewind(AnimPlay* pPlay);
 static int animplay_IsDone(AnimPlay* pPlay);
 static int animplay_Step(AnimPlay* pPlay, void* a2, int a3, int a4, int a5, void* a6, int* a7, int* a8, int a9, int a10);
-static void animplay_TickCallback(int index, int param);
-static void animplay_PaceCallback(int index, int param);
+static void animplay_TickCallback(int index, intptr_t param);
+static void animplay_PaceCallback(int index, intptr_t param);
 static const char* animplay_DebugName(int index);
 static void animplay_SetDebug(int flags);
 static int animplay_GetDebug(void);
@@ -143,7 +143,7 @@ static void animplay_Shutdown(void)
     }
 }
 
-static int animplay_Play(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13)
+static int animplay_Play(intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13)
 {
     AnimPlay* pPlay;
     LecBitmapHeader* pBitmap;
@@ -214,9 +214,9 @@ static int animplay_Create(AnimPlay** ppPlay, const char* pName, int rate, int r
             *ppPlay = pPlay;
             if (framestream_Reset(pPlay) == 0) {
                 if (framestream_Open(*ppPlay, pName, flags, -1, -1, 0) == 0) {
-                    pPlay->hTick = animplay_timer->Alloc(animplay_TickCallback, 1, 2, (int)pPlay);
+                    pPlay->hTick = animplay_timer->Alloc(animplay_TickCallback, 1, 2, (intptr_t)pPlay);
                     if (pPlay->hTick) {
-                        pPlay->hPace = animplay_timer->Alloc(animplay_PaceCallback, pPlay->interval, 8, (int)pPlay);
+                        pPlay->hPace = animplay_timer->Alloc(animplay_PaceCallback, pPlay->interval, 8, (intptr_t)pPlay);
                         if (pPlay->hPace) {
                             pPlay->done = 0;
                             return 0;
@@ -357,12 +357,12 @@ static int animplay_Step(AnimPlay* pPlay, void* a2, int a3, int a4, int a5, void
     return 6;
 }
 
-static void animplay_TickCallback(int index, int param)
+static void animplay_TickCallback(int index, intptr_t param)
 {
     ((AnimPlay*)param)->ticks++;
 }
 
-static void animplay_PaceCallback(int index, int param)
+static void animplay_PaceCallback(int index, intptr_t param)
 {
     AnimPlay* pPlay = (AnimPlay*)param;
 

@@ -32,11 +32,7 @@
 #include <std/General/stdMath.h>
 #include <std/Win95/stdComm.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
 
-
-CF_PROTO(sithCogFunctionThing_countfit_1, 2)
-/* end count-fit */
 /* Forward prototypes of the cog functions; the parameter is left unnamed (release-chosen prototype style). */
 void J3DAPI sithCogFunctionThing_IsGhostVisible(SithCog*);
 void J3DAPI sithCogFunctionThing_SetThingAlpha(SithCog*);

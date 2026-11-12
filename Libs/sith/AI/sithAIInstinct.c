@@ -108,7 +108,7 @@ void J3DAPI sithAIInstinct_InitInstincts(void)
     sithAI_RegisterInstinct("humancombatmove", (SithAIInstinctFunc)sithAIInstinct_HumanCombatMove, 2, 0x1104805, 0x80901);
     sithAI_RegisterInstinct("feargunshot", (SithAIInstinctFunc)sithAIInstinct_FearGunshot, 6, 0x800, 2);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIInstinct_countfit_1, 28) /* end count-fit */
+ 
 int J3DAPI sithAIInstinct_Listen(SithAIControlBlock* pLocal, SithAIInstinct* pInstinct, SithAIInstinctState* pState, SithAIEventType event, SithThing* pThing)
 {
     SithThing* pListener;
@@ -359,7 +359,7 @@ int J3DAPI sithAIInstinct_LookForTarget(SithAIControlBlock* pLocal, SithAIInstin
 
     if ( event == SITHAI_EVENT_MODECHANGED && pObject )
     {
-        newMode = (SithAIMode)pObject;
+        newMode = (SithAIMode)(intptr_t)pObject;
         if ( (pLocal->mode & SITHAI_MODE_HUNTING) != 0 && (newMode & SITHAI_MODE_HUNTING) == 0 )
         {
             SITHAI_PARAM(pState, 0) = sithTime_secGameTime;
@@ -672,7 +672,7 @@ int J3DAPI sithAIInstinct_Hop(SithAIControlBlock* pLocal, SithAIInstinct* pInsti
     sithAIUtil_AIPlaySoundMode(pLocal, SITHSOUNDCLASS_JUMP);
     return 0;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIInstinct_countfit_2, 0) /* end count-fit */
+ 
 int J3DAPI sithAIInstinct_HoverDrift(SithAIControlBlock* pLocal, SithAIInstinct* pInstinct, SithAIInstinctState* pState, SithAIEventType event, void* pObject)
 {
     rdVector3 direction;
@@ -803,7 +803,7 @@ int J3DAPI sithAIInstinct_Talk(SithAIControlBlock* pLocal, SithAIInstinct* pInst
             break;
 
         case SITHAI_EVENT_MODECHANGED:
-            arg = (int)pObject;
+            arg = (int)(intptr_t)pObject;
             if ( (pLocal->mode & SITHAI_MODE_UNKNOWN_100000) != 0 && (arg & SITHAI_MODE_UNKNOWN_100000) == 0 )
             {
                 sithSoundMixer_StopAllSoundsThing(pLocal->pOwner);
@@ -840,7 +840,7 @@ int J3DAPI sithAIInstinct_Talk(SithAIControlBlock* pLocal, SithAIInstinct* pInst
                 return 0;
             }
 
-            arg = (int)pObject;
+            arg = (int)(intptr_t)pObject;
             hChannel = sithSoundClass_PlayModeRandom(pLocal->pOwner, (SithSoundClassMode)arg);
             bSuccess = 1;
             break;
@@ -902,7 +902,7 @@ int J3DAPI sithAIInstinct_OpenDoors(SithAIControlBlock* pLocal, SithAIInstinct* 
     pState->msecNextUpdate = sithTime_msecGameTime + 1000;
     return 0;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIInstinct_countfit_3, 30) CF_PROTO(sithAIInstinct_countfit_4, 10) /* end count-fit */
+ 
 int J3DAPI sithAIInstinct_Jump(SithAIControlBlock* pLocal, SithAIInstinct* pInstinct, SithAIInstinctState* pState, SithAIEventType event, void* pObject)
 {
     rdVector3 upPos;
@@ -2357,7 +2357,7 @@ int J3DAPI sithAIInstinct_HumanCombatMove(SithAIControlBlock* pLocal, SithAIInst
     switch ( event )
     {
         case SITHAI_EVENT_MODECHANGED:
-            mode = (SithAIMode)pObject;
+            mode = (SithAIMode)(intptr_t)pObject;
             if ( (pLocal->mode & SITHAI_MODE_CHASE_GOAL) != 0 && (mode & SITHAI_MODE_CHASE_GOAL) == 0 )
             {
                 if ( (pLocal->mode & SITHAI_MODE_UNKNOWN_1000000) != 0 )
@@ -2648,7 +2648,7 @@ int J3DAPI sithAIInstinct_Roam(SithAIControlBlock* pLocal, SithAIInstinct* pInst
 
     if ( event == SITHAI_EVENT_MODECHANGED && pThing )
     {
-        mode = (SithAIMode)pThing;
+        mode = (SithAIMode)(intptr_t)pThing; // SITHAI_EVENT_MODECHANGED carries the mode in the object slot
         if ( (pLocal->mode & SITHAI_MODE_SEARCHING) != 0 && (mode & SITHAI_MODE_SEARCHING) == 0 )
         {
             pState->msecNextUpdate = sithTime_msecGameTime + pInstinct->intArg[0];
@@ -2754,7 +2754,7 @@ int J3DAPI sithAIInstinct_ReturnHome(SithAIControlBlock* pLocal, SithAIInstinct*
     switch ( event )
     {
         case SITHAI_EVENT_MODECHANGED:
-            prevMode = (SithAIMode)pObject;
+            prevMode = (SithAIMode)(intptr_t)pObject;
             if ( (pLocal->mode & SITHAI_MODE_SEARCHING) != 0 && (prevMode & SITHAI_MODE_SEARCHING) == 0 )
             {
                 sithAIMove_AISetMovePos(pLocal, &pLocal->homePos, 1.2f);
@@ -2857,7 +2857,7 @@ int J3DAPI sithAIInstinct_Flee(SithAIControlBlock* pLocal, SithAIInstinct* pInst
             case SITHAI_EVENT_MODECHANGED:
                 if ( pThing )
                 {
-                    mode = (SithAIMode)pThing;
+                    mode = (SithAIMode)(intptr_t)pThing; // SITHAI_EVENT_MODECHANGED carries the mode in the object slot
                     if ( (pLocal->mode & SITHAI_MODE_FLEEING) != 0 && (mode & SITHAI_MODE_FLEEING) == 0 )
                     {
                         rdVector_Neg3Acc(&direction);
@@ -3422,7 +3422,7 @@ int J3DAPI sithAIInstinct_BasicFallow(SithAIControlBlock* pLocal, SithAIInstinct
 
     return 0;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIInstinct_countfit_5, 9) /* end count-fit */
+ 
 int J3DAPI sithAIInstinct_WallCrawl(SithAIControlBlock* pLocal, SithAIInstinct* pInstinct, SithAIInstinctState* pState, SithAIEventType event, SithSurface* pSurface)
 {
     SithThing* pThing;
@@ -3737,7 +3737,7 @@ void J3DAPI sithAIInstinct_SnakeFindMovePos(SithAIControlBlock* pLocal, rdVector
         rdVector_Copy3(pMovePos, &pThing->pos);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithAIInstinct_countfit_6, 8) /* end count-fit */
+ 
 signed int J3DAPI sithAIInstinct_SnakeFollow(SithAIControlBlock* pLocal, SithAIInstinct* pInstinct, SithAIInstinctState* pState, SithAIEventType event, void* pObject)
 {
     static float sithAIInstinct_flt_539A78 = 2.0f;

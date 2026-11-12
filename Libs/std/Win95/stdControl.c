@@ -81,7 +81,7 @@ static const DXStatus stdControl_aDIStatusTbl[34] = {
     { DIERR_EFFECTPLAYING,          "DIERR_EFFECTPLAYING" }
 };
 
-static __inline void J3DAPI stdControl_UpdateKeyState(int keyId, int bPressed, unsigned int tickTime);
+static inline void J3DAPI stdControl_UpdateKeyState(int keyId, int bPressed, unsigned int tickTime);
 void J3DAPI stdControl_InitJoysticks(void);
 void J3DAPI stdControl_InitKeyboard(int bForeground);
 void J3DAPI stdControl_InitMouse(void);
@@ -675,7 +675,7 @@ void J3DAPI stdControl_SetAxisFlags(size_t axis, StdControlAxisFlag flags)
     stdControl_aAxes[axis].flags |= flags;
 }
 
-static __inline void J3DAPI stdControl_UpdateKeyState(int keyId, int bPressed, unsigned int tickTime)
+static inline void J3DAPI stdControl_UpdateKeyState(int keyId, int bPressed, unsigned int tickTime)
 {
     if ( bPressed && !stdControl_aKeyInfo[keyId] )
     {

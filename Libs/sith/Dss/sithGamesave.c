@@ -32,9 +32,7 @@
 
 #include <w32util/wuRegistry.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithGamesave_countfit_1, 13)
-/* end count-fit */
+
 
 #define SITHSAVEGAME_THUMBBPP        24
 #define SITHSAVEGAME_THUMBSIZE       ((SITHSAVEGAME_THUMB_WIDTH * SITHSAVEGAME_THUMB_HEIGHT * SITHSAVEGAME_THUMBBPP) / 8) // 0x9000

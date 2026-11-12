@@ -178,7 +178,7 @@ static void zfilio_close(ZfileHandle* pFile)
             gzclose(pFile->hFile);
         }
         else {
-            zfilio_pFilio->Close((int)pFile->hFile);
+            zfilio_pFilio->Close((FilioHandle)pFile->hFile);
         }
     }
     if (pFile) {
@@ -202,7 +202,7 @@ static int zfilio_read(ZfileHandle* pFile, void* pBuf, int size)
             pFile->pos += size;
             return rc;
         }
-        rc = zfilio_pFilio->Read((int)pFile->hFile, pBuf, size);
+        rc = zfilio_pFilio->Read((FilioHandle)pFile->hFile, pBuf, size);
     }
     return rc;
 }
@@ -218,7 +218,7 @@ static int zfilio_write(ZfileHandle* pFile, const void* pBuf, int size)
             pFile->pos += size;
             return rc;
         }
-        rc = zfilio_pFilio->Write((int)pFile->hFile, pBuf, size);
+        rc = zfilio_pFilio->Write((FilioHandle)pFile->hFile, pBuf, size);
     }
     return rc;
 }
@@ -231,7 +231,7 @@ static int zfilio_tell(ZfileHandle* pFile)
         if (pFile->isGz) {
             return pFile->pos;
         }
-        pos = zfilio_pFilio->Tell((int)pFile->hFile);
+        pos = zfilio_pFilio->Tell((FilioHandle)pFile->hFile);
     }
     return pos;
 }
@@ -253,7 +253,7 @@ static int zfilio_seek(ZfileHandle* pFile, int offset, int whence)
             }
         }
         else {
-            return zfilio_pFilio->Seek((int)pFile->hFile, offset, whence);
+            return zfilio_pFilio->Seek((FilioHandle)pFile->hFile, offset, whence);
         }
     }
 }
@@ -265,7 +265,7 @@ static void zfilio_flush(ZfileHandle* pFile)
             gzflush(pFile->hFile, 4);
         }
         else {
-            zfilio_pFilio->Flush((int)pFile->hFile);
+            zfilio_pFilio->Flush((FilioHandle)pFile->hFile);
         }
     }
 }

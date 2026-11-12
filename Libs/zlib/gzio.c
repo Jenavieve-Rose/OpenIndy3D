@@ -35,7 +35,7 @@ typedef struct gz_stream {
     z_stream stream;
     int      z_err;   /* error code for last stream operation */
     int      z_eof;   /* set if end of input file */
-    int      file;    /* .gz file (FILIO handle) */
+    intptr_t file;    /* .gz file (FILIO handle; port: intptr_t, it holds a pointer) */
     Byte     *inbuf;  /* input buffer */
     Byte     *outbuf; /* output buffer */
     uLong    crc;     /* crc32 of uncompressed data */
@@ -52,7 +52,7 @@ local int do_flush        OF((gzFile file, int flush));
 local int    get_byte     OF((gz_stream *s));
 local void   check_header OF((gz_stream *s));
 local int    destroy      OF((gz_stream *s));
-local void   putLong      OF((int file, uLong x));
+local void   putLong      OF((intptr_t file, uLong x));
 local uLong  getLong      OF((gz_stream *s));
 
 /* ===========================================================================
@@ -143,7 +143,7 @@ local gzFile gz_open (path, mode, fd)
     s->stream.avail_out = Z_BUFSIZE;
 
     errno = 0;
-    s->file = fd < 0 ? zfilio_pFilio->Open(path, fmode) : (int)fdopen(fd, fmode);
+    s->file = fd < 0 ? zfilio_pFilio->Open(path, fmode) : (intptr_t)fdopen(fd, fmode);
 
     if (s->file == 0) {
         return destroy(s), (gzFile)Z_NULL;
@@ -768,7 +768,7 @@ int ZEXPORT gzeof (file)
    Outputs a long in LSB order to the given file
 */
 local void putLong (file, x)
-    int file;
+    intptr_t file;
     uLong x;
 {
     int n;

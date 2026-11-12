@@ -125,7 +125,7 @@ typedef struct sLoadGameDialogData
     HDC hdcThumbnail;
     char aFilePath[128];
     HBITMAP hThumbnail;
-    int pfThubnailProc;
+    LONG_PTR pfThubnailProc; // Port: a WNDPROC, was int
     int bFolderSel;
     int unknown36;
     int unknown37;
@@ -136,7 +136,7 @@ typedef struct sSaveGameDialogData
     HDC hdcThumbnail;
     char aFilePath[128];
     HBITMAP hThumbnail;
-    int pfThumbnailProc;
+    LONG_PTR pfThumbnailProc; // Port: a WNDPROC, was int
     int bFolderSel;
 } SaveGameDialogData;
 
@@ -1033,9 +1033,9 @@ int J3DAPI jonesConfig_GameOverDialogInit(HWND hDlg, int a2, LPARAM lParam);
 void J3DAPI jonesConfig_GameOverDialog_HandleWM_COMMAND(HWND hWnd, int ctrlID, LPARAM lParam, int notifyCode);
 
 BOOL CALLBACK jonesConfig_StatisticsDialogProc(HWND hwnd, UINT uMsg, WPARAM wPAram, LPARAM lParam);
-void J3DAPI jonesConfig_StatisticProc_HandleWM_HSCROLL(int a1, HWND hWnd, UINT sbCode, int nThumbPos);
+void J3DAPI jonesConfig_StatisticProc_HandleWM_HSCROLL(HWND a1, HWND hWnd, UINT sbCode, int nThumbPos);
 int J3DAPI jonesConfig_DrawImageOnDialogItem(HWND hDlg, HDC hdcWnd, HDC hdcCtrl, int nIDDlgItem, HBITMAP hImage, HBITMAP hMask);
-int J3DAPI jonesConfig_SetStatisticsDialogForLevel(HWND hDlg, int levelNum, int* a3);
+int J3DAPI jonesConfig_SetStatisticsDialogForLevel(HWND hDlg, int levelNum, intptr_t* a3);
 void J3DAPI jonesConfig_DrawStatisticDialogIQPoints(HWND hwnd, JonesDialogImageInfo** ppImageInfo, int dlgID, int iqpoints);
 int J3DAPI jonesConfig_InitStatisticDialog(HWND hDlg, int a2, LPARAM lParam);
 void J3DAPI jonesConfig_StatisticProc_HandleWM_COMMAND(HWND hWnd, int nResult, LPARAM lParam, int notifyCode);
@@ -1986,7 +1986,7 @@ int J3DAPI jonesConfig_ShowMessageDialog(HWND hWnd, const char* pTitle, const ch
     HINSTANCE hInstance;
     int dlgResult;
 
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
     memset(&data, 0, sizeof(data));
 
@@ -2021,7 +2021,7 @@ BOOL CALLBACK jonesConfig_MessageDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam,
 
         case WM_DESTROY:
         {
-            JonesMessageDialogData* pData = (JonesMessageDialogData*)GetWindowLong(hwnd, DWL_USER);
+            JonesMessageDialogData* pData = (JonesMessageDialogData*)GetWindowLongPtr(hwnd, DWL_USER);
             HWND hIconCtrl = GetDlgItem(hwnd, 1201);
             jonesConfig_ResetDialogFont(hwnd, jonesConfig_hFontMessageDialog);
 
@@ -2054,7 +2054,7 @@ void J3DAPI jonesConfig_InitMessageDialogIcon(HWND hWnd, JonesMessageDialogData*
     HICON hIcon;
     HANDLE img;
 
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     if ( !pData )
     {
         return;
@@ -2092,7 +2092,7 @@ int J3DAPI jonesConfig_InitMessageDialogData(HWND hDlg, int a2, LPARAM lParam)
     jonesConfig_InitMessageDialogIcon(hDlg, pCurData);
     pText = pCurData->aText;
     jonesConfig_SetTextControl(hDlg, hTextCtrl, pText);
-    SetWindowLong(hDlg, DWL_USER, (LONG)lParam);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)lParam);
     return 1;
 }
 
@@ -2352,7 +2352,7 @@ error:
     jonesConfig_FreeControlScheme(pScheme);
     return NULL;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(jonesConfig_countfit_30, 30, 112) CF_PROTO(jonesConfig_countfit_129, 14) /* end count-fit */
+ 
 int J3DAPI jonesConfig_LoadControlScheme(const char* pFilePath, JonesControlsScheme* pConfig)
 {
     int result = 0; // debug build: initialised, never read
@@ -3432,7 +3432,7 @@ BOOL CALLBACK jonesConfig_ResetWindowFontCallback(HWND hWnd, LPARAM lparam)
 {
     HFONT hfont;
 
-    hfont = (HFONT)GetWindowLong(hWnd, GWL_USERDATA);
+    hfont = (HFONT)GetWindowLongPtr(hWnd, GWL_USERDATA);
     SendMessage(hWnd, WM_SETFONT, (WPARAM)hfont, 0);  // 0 - don't repaint
     return TRUE;
 }
@@ -3520,7 +3520,7 @@ void J3DAPI jonesConfig_SetWindowFontAndPosition(HWND hCtrl, JonesDialogFontInfo
         SendMessage(hCtrl, WM_SETFONT, (WPARAM)pFontInfo->hFont, 1); // 1 - repaint
         if ( HIWORD(pFontInfo->dialogID) != JONESCONFIG_NOFONTSCALEMASK )
         {
-            SetWindowLong(hCtrl, GWL_USERDATA, (LONG)pFontInfo->hControlFont);
+            SetWindowLongPtr(hCtrl, GWL_USERDATA, (LONG_PTR)pFontInfo->hControlFont);
         }
     }
 
@@ -3539,7 +3539,7 @@ void J3DAPI jonesConfig_SetWindowFontAndPosition(HWND hCtrl, JonesDialogFontInfo
 
     if ( HIWORD(pFontInfo->dialogID) == JONESCONFIG_NOFONTSCALEMASK )
     {
-        LONG dlgID = (LONG)GetWindowLong(hCtrl, GWL_USERDATA);
+        LONG dlgID = (LONG_PTR)GetWindowLongPtr(hCtrl, GWL_USERDATA);
         HWND dlgItem1137 = GetDlgItem(hParent, 1137);
         if ( dlgID == 159 || dlgID == 154 )     // load/save dialogs
         {
@@ -3577,7 +3577,7 @@ void J3DAPI jonesConfig_SetWindowFontAndPosition(HWND hCtrl, JonesDialogFontInfo
     {
         HWND hwndParent;
 
-        LONG dlgID =(LONG)GetWindowLong(hCtrl, GWL_USERDATA); // TODO: UNUSED
+        LONG dlgID =(LONG_PTR)GetWindowLongPtr(hCtrl, GWL_USERDATA); // TODO: UNUSED
 
         hwndParent = GetParent(hParent);
         if ( hwndParent )
@@ -3828,7 +3828,7 @@ int J3DAPI jonesConfig_GetSaveGameFilePath(HWND hWnd, char* pOutFilePath)
         return 2;
     }
 
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
     memset(aCurDir, 0, sizeof(aCurDir));
     GetCurrentDirectory(STD_ARRAYLEN(aCurDir), aCurDir);
@@ -3843,7 +3843,7 @@ int J3DAPI jonesConfig_GetSaveGameFilePath(HWND hWnd, char* pOutFilePath)
 
     ofn.lStructSize       = sizeof(OPENFILENAME);
     ofn.hwndOwner         = hWnd;
-    ofn.hInstance         = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    ofn.hInstance         = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     ofn.lpstrFilter       = aFilterStr;
     ofn.lpstrCustomFilter = NULL;
     ofn.nMaxCustFilter    = 0;
@@ -3914,12 +3914,12 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
             SaveGameDialogData* pData;
 
             pOfNotify = (OFNOTIFY*)lParam;
-            pData     = (SaveGameDialogData*)GetWindowLong(hDlg, DWL_USER);
+            pData     = (SaveGameDialogData*)GetWindowLongPtr(hDlg, DWL_USER);
             switch ( pOfNotify->hdr.code )
             {
                 case CDN_INITDONE:
-                    SetWindowLong(GetDlgItem(hDlg, 1125), GWL_USERDATA, 154);
-                    SetWindowLong(GetDlgItem(hDlg, 1115), GWL_USERDATA, 154);
+                    SetWindowLongPtr(GetDlgItem(hDlg, 1125), GWL_USERDATA, 154);
+                    SetWindowLongPtr(GetDlgItem(hDlg, 1115), GWL_USERDATA, 154);
 
                     jonesConfig_hFontSaveGameDlg = jonesConfig_InitDialog(GetParent(hDlg), NULL, JONESCONFIG_NOFONTSCALE(154));
                     jonesConfig_hFontSaveGameDlg = jonesConfig_InitDialog(hDlg, jonesConfig_hFontSaveGameDlg, 154);
@@ -4050,7 +4050,7 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                             jonesConfig_ShowMessageDialog(hDlg, "JONES_STR_SAVEGM", aErrorText, 141);
                         }
 
-                        SetWindowLong(hDlg, DWL_MSGRESULT, 1);
+                        SetWindowLongPtr(hDlg, DWL_MSGRESULT, 1);
                         result = 1;
                     }
                     else if ( strlen(aPath) > 0 )
@@ -4061,7 +4061,7 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                         // Retail bug: passes the dialog data itself, not its aFilePath, as the file path
                         if ( jonesConfig_ShowOverwriteSaveGameDlg(hDlg, (const char*)pData) != 1 )
                         {
-                            SetWindowLong(hDlg, DWL_MSGRESULT, 1);
+                            SetWindowLongPtr(hDlg, DWL_MSGRESULT, 1);
                             result = 1;
                         }
                         else
@@ -4079,7 +4079,7 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
 
         case WM_PAINT:
         {
-            SaveGameDialogData* pData = (SaveGameDialogData*)GetWindowLong(hDlg, DWL_USER); // debug build: read, never used
+            SaveGameDialogData* pData = (SaveGameDialogData*)GetWindowLongPtr(hDlg, DWL_USER); // debug build: read, never used
             UpdateWindow(GetDlgItem(hDlg, 1125));
             UpdateWindow(GetDlgItem(hDlg, 1115));
             result = 1;
@@ -4088,7 +4088,7 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
 
         case WM_DESTROY:
         {
-            HDC* hdc = (HDC*)GetWindowLong(hDlg, DWL_USER);
+            HDC* hdc = (HDC*)GetWindowLongPtr(hDlg, DWL_USER);
             DeleteDC(*hdc);
             *hdc = NULL;
             break;
@@ -4121,10 +4121,10 @@ int J3DAPI jonesConfig_SaveGameDialogInit(HWND hDlg, int a2, LPOPENFILENAME lpOf
     pData->hdcThumbnail = CreateCompatibleDC(GetDC(GetDlgItem(hDlg, 1125)));
 
     hThumbnail = GetDlgItem(hDlg, 1125); // ??
-    pData->pfThumbnailProc = GetWindowLong(hThumbnail, GWL_WNDPROC);
-    SetWindowLong(hThumbnail, GWL_WNDPROC, (LONG)jonesConfig_SaveGameThumbnailPaintProc);
+    pData->pfThumbnailProc = GetWindowLongPtr(hThumbnail, GWL_WNDPROC);
+    SetWindowLongPtr(hThumbnail, GWL_WNDPROC, (LONG_PTR)jonesConfig_SaveGameThumbnailPaintProc);
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
 
     GetWindowRect(hDlg, &dlgWndRect);
     GetWindowRect(hThumbnail, &thumbWndRect);
@@ -4159,8 +4159,8 @@ LRESULT CALLBACK jonesConfig_SaveGameThumbnailPaintProc(HWND hWnd, UINT uMsg, WP
     HBITMAP hThumbnail;
     PAINTSTRUCT ps;
 
-    hwndParent = (HWND)GetWindowLong(hWnd, GWL_HWNDPARENT);
-    pData      = (SaveGameDialogData*)GetWindowLong(hwndParent, DWL_USER);
+    hwndParent = (HWND)GetWindowLongPtr(hWnd, GWL_HWNDPARENT);
+    pData      = (SaveGameDialogData*)GetWindowLongPtr(hwndParent, DWL_USER);
     switch ( uMsg )
     {
         case WM_PAINT:
@@ -4248,7 +4248,7 @@ BOOL CALLBACK jonesConfig_ExitGameDlgProc(HWND hWnd, UINT uMsg, WPARAM wparam, L
             HDC hmemdc;
             LONG userData;
 
-            userData = GetWindowLong(hWnd, DWL_USER); // unused
+            userData = GetWindowLongPtr(hWnd, DWL_USER); // unused
             hIcon  = GetDlgItem(hWnd, 1182);
             hdc    = BeginPaint(hIcon, &ps);
             hmemdc = CreateCompatibleDC(hdc);
@@ -4340,14 +4340,14 @@ int J3DAPI jonesConfig_GameSaveSetData(HWND hDlg, int a2, LPARAM lParam)
             break;
     }
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)lParam);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)lParam);
     return 1;
 }
 }
 
 void J3DAPI jonesConfig_MsgBoxDlg_HandleWM_COMMAND(HWND hWnd, int nResult, LPARAM lParam, int notifyCode)
 {
-    GameSaveMsgBoxData* pData = (GameSaveMsgBoxData*)GetWindowLong(hWnd, DWL_USER);
+    GameSaveMsgBoxData* pData = (GameSaveMsgBoxData*)GetWindowLongPtr(hWnd, DWL_USER);
 
     switch ( nResult )
     {
@@ -4427,7 +4427,7 @@ int J3DAPI jonesConfig_GetLoadGameFilePath(HWND hWnd, char* pDestNdsPath)
 
     ofn.lStructSize       = sizeof(OPENFILENAME);
     ofn.hwndOwner         = hWnd;
-    ofn.hInstance         = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    ofn.hInstance         = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     ofn.lpstrFilter       = aFilterStr;
     ofn.lpstrCustomFilter = NULL;
     ofn.nMaxCustFilter    = 0;
@@ -4498,7 +4498,7 @@ void* J3DAPI jonesConfig_GameFileDialog_HandleWM_COMMAND(HWND hWnd, int nResult,
 {
     // Retail pushes the full WM_COMMAND decode at both call sites (add esp,0x10)
 
-    void* pData = (void*)GetWindowLong(hWnd, DWL_USER);
+    void* pData = (void*)GetWindowLongPtr(hWnd, DWL_USER);
     switch ( nResult ) /* retail bug: no return value; the debug build is the same */
     {
     }
@@ -4530,16 +4530,16 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
             LoadGameDialogData* pData;
 
             pOfNotify = (OFNOTIFY*)lParam;
-            pData     = (LoadGameDialogData*)GetWindowLong(hDlg, DWL_USER);
+            pData     = (LoadGameDialogData*)GetWindowLongPtr(hDlg, DWL_USER);
 #line 4118
             stdPrintf(std_pHS->pStatusPrint, J3D_FILE, __LINE__, "code: %i\n", pOfNotify->hdr.code, 0, 0, 0);
 
             switch ( pOfNotify->hdr.code )
             {
                 case CDN_INITDONE:
-                    SetWindowLong(GetDlgItem(hDlg, 1120), GWL_USERDATA, 159);
-                    SetWindowLong(GetDlgItem(hDlg, 1117), GWL_USERDATA, 159);
-                    SetWindowLong(GetDlgItem(hDlg, 1163), GWL_USERDATA, 159);
+                    SetWindowLongPtr(GetDlgItem(hDlg, 1120), GWL_USERDATA, 159);
+                    SetWindowLongPtr(GetDlgItem(hDlg, 1117), GWL_USERDATA, 159);
+                    SetWindowLongPtr(GetDlgItem(hDlg, 1163), GWL_USERDATA, 159);
 
                     jonesConfig_hFontLoadGameDlg = jonesConfig_InitDialog(GetParent(hDlg), NULL, JONESCONFIG_NOFONTSCALE(159));
                     jonesConfig_hFontLoadGameDlg = jonesConfig_InitDialog(hDlg, jonesConfig_hFontLoadGameDlg, 159);
@@ -4609,7 +4609,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                             jonesConfig_ShowMessageDialog(hDlg, "JONES_STR_LOADGM", aMessage, 139);
                         }
 
-                        SetWindowLong(hDlg, DWL_MSGRESULT, 1);
+                        SetWindowLongPtr(hDlg, DWL_MSGRESULT, 1);
                         result = TRUE;
                         break;
                     }
@@ -4627,7 +4627,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                             jonesConfig_ShowMessageDialog(hDlg, "JONES_STR_LOADGM", aMessage, 139);
                         }
 
-                        SetWindowLong(hDlg, DWL_MSGRESULT, 1);
+                        SetWindowLongPtr(hDlg, DWL_MSGRESULT, 1);
                         result = TRUE;
                     }
                     else if ( JonesMain_HasStarted()
@@ -4635,7 +4635,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                         && (sithPlayer_pLocalPlayerThing->flags & SITH_TF_DESTROYED) == 0
                         && jonesConfig_ShowLoadGameWarningMsgBox(hDlg) != 1 )
                     {
-                        SetWindowLong(hDlg, DWL_MSGRESULT, 1);
+                        SetWindowLongPtr(hDlg, DWL_MSGRESULT, 1);
                         result = TRUE;
                     }
                     else
@@ -4696,7 +4696,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
 
         case WM_PAINT:
         {
-            LoadGameDialogData* pData = (LoadGameDialogData*)GetWindowLong(hDlg, DWL_USER);
+            LoadGameDialogData* pData = (LoadGameDialogData*)GetWindowLongPtr(hDlg, DWL_USER);
             if ( !pData->bFolderSel )
             {
                 UpdateWindow(GetDlgItem(hDlg, 1163));
@@ -4709,7 +4709,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
 
         case WM_DESTROY:
         {
-            LoadGameDialogData* pData = (LoadGameDialogData*)GetWindowLong(hDlg, DWL_USER);
+            LoadGameDialogData* pData = (LoadGameDialogData*)GetWindowLongPtr(hDlg, DWL_USER);
             DeleteDC(pData->hdcThumbnail);
             DeleteObject(pData->hThumbnail);
             pData->hThumbnail   = NULL;
@@ -4759,9 +4759,9 @@ BOOL J3DAPI jonesConfig_LoadGameDialogInit(HWND hDlg, int a2, LPOPENFILENAME pof
     pData->hdcThumbnail = CreateCompatibleDC(GetDC(GetDlgItem(hDlg, 1163)));
 
     hThumbnail = GetDlgItem(hDlg, 1163);
-    pData->pfThubnailProc = GetWindowLong(hThumbnail, GWL_WNDPROC);
-    SetWindowLong(hThumbnail, GWL_WNDPROC, (LONG)jonesConfig_LoadGameThumbnailPaintProc);
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    pData->pfThubnailProc = GetWindowLongPtr(hThumbnail, GWL_WNDPROC);
+    SetWindowLongPtr(hThumbnail, GWL_WNDPROC, (LONG_PTR)jonesConfig_LoadGameThumbnailPaintProc);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
 
     GetWindowRect(hDlg, &dlgWinRect);
     GetWindowRect(hThumbnail, &thumbWinRect);
@@ -4812,8 +4812,8 @@ LRESULT CALLBACK jonesConfig_LoadGameThumbnailPaintProc(HWND hWnd, UINT uMsg, WP
     HBITMAP hThumbnail;
     PAINTSTRUCT ps;
 
-    hwndParent = (HWND)GetWindowLong(hWnd, GWL_HWNDPARENT);
-    pData      = (LoadGameDialogData*)GetWindowLong(hwndParent, DWL_USER);
+    hwndParent = (HWND)GetWindowLongPtr(hWnd, GWL_HWNDPARENT);
+    pData      = (LoadGameDialogData*)GetWindowLongPtr(hwndParent, DWL_USER);
     switch ( uMsg )
     {
         case WM_PAINT:
@@ -4850,7 +4850,7 @@ LRESULT CALLBACK jonesConfig_LoadGameThumbnailPaintProc(HWND hWnd, UINT uMsg, WP
 
 int J3DAPI jonesConfig_ShowGamePlayOptions(HWND hWnd)
 {
-    HINSTANCE hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     int dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(112), hWnd, jonesConfig_GamePlayOptionsProc, 0);
     return dlgResult;
 }
@@ -5167,7 +5167,7 @@ int J3DAPI jonesConfig_ShowControlOptions(HWND hWnd)
     memset(&config, 0, sizeof(config));
     if ( jonesConfig_CopyControlConfig(&jonesConfig_controlOptions_curControlConfig, &config) )
     {
-        hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+        hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
         curresult = JonesDialog_ShowDialog(MAKEINTRESOURCE(111), hWnd, jonesConfig_ControlOptionsDialogProc, (LPARAM)&config);
         if ( curresult == 1 )
@@ -5332,7 +5332,7 @@ BOOL CALLBACK jonesConfig_ControlOptionsDialogProc(HWND hwnd, UINT umsg, WPARAM 
 
     return bResult;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(jonesConfig_countfit_1, 14) /* end count-fit */
+ 
 int J3DAPI jonesConfig_InitControlOptionsDialog(HWND hDlg, int a2, LPARAM lParam)
 {
     JonesControlsConfig* pConfig = (JonesControlsConfig*)lParam;
@@ -5435,7 +5435,7 @@ int J3DAPI jonesConfig_InitControlOptionsDialog(HWND hDlg, int a2, LPARAM lParam
         EnableWindow(hDlgItem, 0);
     }
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pConfig);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pConfig);
     return 1;
 }
 
@@ -5444,7 +5444,7 @@ void J3DAPI jonesConfig_ControlOptions_HandleWM_COMMAND(HWND hWnd, int ctrlID, L
     JonesControlsConfig* pConfig;
 
 
-    pConfig = (JonesControlsConfig*)GetWindowLongA(hWnd, DWL_USER);
+    pConfig = (JonesControlsConfig*)GetWindowLongPtrA(hWnd, DWL_USER);
 
     switch ( ctrlID )
     {
@@ -5598,7 +5598,7 @@ int J3DAPI jonesConfig_ControlOptions_UpdateButtons(HWND hDlg)
         return EnableWindow(GetDlgItem(hDlg, 1022), 1);
     }
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(jonesConfig_countfit_2, 29) /* end count-fit */
+ 
 void J3DAPI jonesConfig_ControlOptions_DeleteScheme(HWND hDlg, JonesControlsConfig* pConfig)
 {
     int schemeNum = 0;
@@ -5923,7 +5923,7 @@ void J3DAPI jonesConfig_ControlOptions_CreateNewScheme(HWND hDlg, JonesControlsC
 
 int J3DAPI jonesConfig_ShowCreateControlSchemeDialog(HWND hWnd, JonesCreateControlSchemeDialogData* pData)
 {
-    HINSTANCE hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     int dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(116), hWnd, jonesConfig_CreateControlSchemeProc, (LPARAM)pData);
     return dlgResult;
 }
@@ -5966,7 +5966,7 @@ int J3DAPI jonesConfig_InitCreateControlScheme(HWND hDlg, int a2, LPARAM lParam)
     SetFocus(hwndEditCtrl);
     Edit_LimitText(hwndEditCtrl, 60);
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
     return 0; // should it return 1 ?
 }
 
@@ -5978,7 +5978,7 @@ void J3DAPI jonesConfig_CreateControlScheme_Handle_WM_COMMAND(HWND hDlg, int ctr
     const char* pCurInvalidChars;
     CHAR paName[128];
 
-    JonesCreateControlSchemeDialogData* pData = (JonesCreateControlSchemeDialogData*)GetWindowLongA(hDlg, DWL_USER);
+    JonesCreateControlSchemeDialogData* pData = (JonesCreateControlSchemeDialogData*)GetWindowLongPtrA(hDlg, DWL_USER);
 
 
     switch ( ctrlID )
@@ -6064,7 +6064,7 @@ void J3DAPI jonesConfig_CreateControlScheme_Handle_WM_COMMAND(HWND hDlg, int ctr
 
 int J3DAPI jonesConfig_ShowEditControlShemeDialog(HWND hWnd, JonesEditControlSchemeDialogData* pData)
 {
-    HINSTANCE hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     int dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(115), hWnd, jonesConfig_EditControlSchemeProc, (LPARAM)pData);
     return dlgResult;
 }
@@ -6089,7 +6089,7 @@ BOOL CALLBACK jonesConfig_EditControlSchemeProc(HWND hWnd, UINT uMsg, WPARAM wPa
         {
             // Update cur selected list state
             NMHDR* pNM = (NMHDR*)lParam;
-            JonesEditControlSchemeDialogData* pData = (JonesEditControlSchemeDialogData*)GetWindowLong(hWnd, DWL_USER);
+            JonesEditControlSchemeDialogData* pData = (JonesEditControlSchemeDialogData*)GetWindowLongPtr(hWnd, DWL_USER);
 
             switch ( pNM->code )
             {
@@ -6167,7 +6167,7 @@ int J3DAPI jonesConfig_InitEditControlSchemeDlg(HWND hDlg, int a2, LPARAM lParam
         EnableWindow(GetDlgItem(hDlg, 1099), 0);
     }
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
     return 1;
 }
 
@@ -6271,7 +6271,7 @@ void J3DAPI jonesConfig_EditControlScheme_SetListScheme(HWND hCtrl, int ctrlID, 
 }
 void J3DAPI jonesConfig_EditControlScheme_Handle_WM_COMMAND(HWND hDlg, int ctrlID, LPARAM lParam, int notifyCode)
 {
-    JonesEditControlSchemeDialogData* pData = (JonesEditControlSchemeDialogData*)GetWindowLong(hDlg, DWL_USER);
+    JonesEditControlSchemeDialogData* pData = (JonesEditControlSchemeDialogData*)GetWindowLongPtr(hDlg, DWL_USER);
 
     switch ( ctrlID )
     {
@@ -6695,7 +6695,7 @@ int J3DAPI jonesConfig_ShowAssignKeyDialog(HWND hWnd, JonesAssignKeyDialogData* 
     JonesReAssignKeyDialogData redata;
     size_t functionNum, offset;
 
-    instance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    instance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
     do
     {
@@ -6834,7 +6834,7 @@ BOOL CALLBACK jonesConfig_AssignKeyDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, 
 
         case WM_TIMER:
         {
-            JonesAssignKeyDialogData* pData = (JonesAssignKeyDialogData*)GetWindowLong(hWnd, DWL_USER);
+            JonesAssignKeyDialogData* pData = (JonesAssignKeyDialogData*)GetWindowLongPtr(hWnd, DWL_USER);
             if ( pData && !pData->bLocked )
             {
                 jonesConfig_AssignControlKey_ReadKey(hWnd, wParam);
@@ -6888,7 +6888,7 @@ int J3DAPI jonesConfig_InitAssignKeyDlg(HWND hDlg, int a2, LPARAM lParam)
     }
 
     SetTimer(hDlg, 1u, 100u, 0); // Set timer to periodically check for pressed key
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
     return 1;
 }
 
@@ -6896,7 +6896,7 @@ void J3DAPI jonesConfig_AssignControlKey_ReadKey(HWND hWnd, WPARAM wParam)
 {
     // Function checks if any of the key was pressed, and that case assings kid to pData->mapKeyDlgResult  and ends dialog
 
-    JonesAssignKeyDialogData* pData = (JonesAssignKeyDialogData*)GetWindowLong(hWnd, DWL_USER);
+    JonesAssignKeyDialogData* pData = (JonesAssignKeyDialogData*)GetWindowLongPtr(hWnd, DWL_USER);
 
     int bJoyActive = wuRegistry_GetIntEx("Joystick Control", 0);
     int bPressedKey = 0;
@@ -7115,7 +7115,7 @@ void J3DAPI jonesConfig_AssignKeyDlg_HandleWM_COMMAND(HWND hWnd, int ctrlID, LPA
 
 int J3DAPI jonesConfig_ShowReassignKeyMsgBox(HWND hWnd, JonesReAssignKeyDialogData* pData)
 {
-    HINSTANCE hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     int dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(120), hWnd, jonesConfig_ReassignKeyDialogProc, (LPARAM)pData);
     return dlgResult;
 }
@@ -7231,13 +7231,13 @@ int J3DAPI jonesConfig_InitReassignKeyDialog(HWND hDlg, int a2, LPARAM lParam)
         SetWindowText(hCtrl, aControlName);
     }
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
     return 1;
 }
 
 void J3DAPI jonesConfig_ReassignKeyDlg_HandleWM_COMMAND(HWND hWnd, unsigned int cntrlId, LPARAM lParam, unsigned int notifyCode)
 {
-    JonesReAssignKeyDialogData* pInfo = (JonesReAssignKeyDialogData*)GetWindowLong(hWnd, DWL_USER);
+    JonesReAssignKeyDialogData* pInfo = (JonesReAssignKeyDialogData*)GetWindowLongPtr(hWnd, DWL_USER);
     JonesControlsScheme* pScheme = pInfo->pAssignKeyData->pScheme;
     HWND hList;
 
@@ -7314,7 +7314,7 @@ int J3DAPI jonesConfig_ShowDisplaySettingsDialog(HWND hWnd, StdDisplayEnvironmen
 
     JonesDisplaySettingsDialogData dlgData;
 
-    hModule = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hModule = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
     dlgData.pSettings   = pDSettings;
     dlgData.pDisplayEnv = pDisplayEnv;
@@ -7406,7 +7406,7 @@ BOOL CALLBACK jonesConfig_DisplaySettingsDialogProc(HWND hWnd, UINT uMsg, WPARAM
 
             if ( jonesConfig_displaySettings_bUpdateSliderText )
             {
-                pData = (JonesDisplaySettingsDialogData*)GetWindowLong(hWnd, DWL_USER);
+                pData = (JonesDisplaySettingsDialogData*)GetWindowLongPtr(hWnd, DWL_USER);
                 jonesConfig_HandleWM_HSCROLL(hWnd, (HWND)lParam, LOWORD(wParam), (short)HIWORD(wParam));
 
                 hCtrl = GetDlgItem(hWnd, 1050);
@@ -7643,7 +7643,7 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
         ComboBox_SetCurSel(hCBColorDepth, 0);
     }
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
     return 1;
 }
 
@@ -7676,7 +7676,7 @@ void J3DAPI jonesConfig_DisplaySettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, 
     JonesDisplaySettings* pSettings;
     StdDisplayEnvironment* pDisplayEnv;
 
-    pData = (JonesDisplaySettingsDialogData*)GetWindowLong(hWnd, DWL_USER);
+    pData = (JonesDisplaySettingsDialogData*)GetWindowLongPtr(hWnd, DWL_USER);
 
     pSettings = pData->pSettings;
     pDisplayEnv = pData->pDisplayEnv;
@@ -7890,7 +7890,7 @@ int J3DAPI jonesConfig_DisplaySettings_Get3DDeviceSupportsBPP(const StdDisplayIn
 
     return 0;
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(jonesConfig_countfit_3, 30, 15) CF_PROTO(jonesConfig_countfit_18, 15) /* end count-fit */
+ 
 int J3DAPI jonesConfig_InitAdvanceDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lParam)
 {
     JonesDisplaySettingsDialogData* pData = (JonesDisplaySettingsDialogData*)lParam;
@@ -8031,7 +8031,7 @@ int J3DAPI jonesConfig_InitAdvanceDisplaySettingsDialog(HWND hDlg, int a2, LPARA
     SendMessage(hFogSliderCtrl, TBM_SETPOS, /*re-draw=*/TRUE, (LPARAM)sithRender_fogDensity);
     SendMessage(hFogSliderCtrl, TBM_SETPAGESIZE, 0, 5u);
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
     return 1;
 }
 
@@ -8042,7 +8042,7 @@ void J3DAPI jonesConfig_AdvanceDisplaySettings_HandleWM_COMMAND(HWND hDlg, int c
     JonesDisplaySettings* pSettings;
 
 
-    pData = (JonesDisplaySettingsDialogData*)GetWindowLong(hDlg, DWL_USER);
+    pData = (JonesDisplaySettingsDialogData*)GetWindowLongPtr(hDlg, DWL_USER);
     pSettings = pData->pSettings;
     pDisplayEnvironment = pData->pDisplayEnv;
 
@@ -8186,7 +8186,7 @@ void J3DAPI jonesConfig_SoundSettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, LP
 
 int J3DAPI jonesConfig_ShowSoundSettingsDialog(HWND hWnd, JonesSoundSettings* pData)
 {
-    HINSTANCE hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     int dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(113), hWnd, jonesConfig_SoundSettingsDialogProc, (LPARAM)pData);
     return dlgResult;
 }
@@ -8287,7 +8287,7 @@ int J3DAPI jonesConfig_InitSoundSettingsDialog(HWND hDlg, int a2, LPARAM lParam)
     hCtrl = GetDlgItem(hDlg, 1051);
     CheckDlgButton(hDlg, 1051, pData->bReverseSound);
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)pData);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
     return 1;
 }
 
@@ -8297,7 +8297,7 @@ void J3DAPI jonesConfig_SoundSettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, LP
     HWND hCtrl;
     int cursliderPos;
 
-    pCurSettings = (JonesSoundSettings*)GetWindowLong(hWnd, DWL_USER);
+    pCurSettings = (JonesSoundSettings*)GetWindowLongPtr(hWnd, DWL_USER);
 
     switch ( ctrlID )
     {
@@ -8454,13 +8454,13 @@ int J3DAPI jonesConfig_GameOverDialogInit(HWND hDlg, int a2, LPARAM lParam)
     }
 
     strcpy(pData->pRestoreFilename, paFileName);
-    SetWindowLong(hDlg, DWL_USER, (LONG)lParam);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)lParam);
     return 1;
 }
 
 void J3DAPI jonesConfig_GameOverDialog_HandleWM_COMMAND(HWND hWnd, int ctrlID, LPARAM lParam, int notifyCode)
 {
-    GameOverDialogData* pData = (GameOverDialogData*)GetWindowLong(hWnd, DWL_USER);
+    GameOverDialogData* pData = (GameOverDialogData*)GetWindowLongPtr(hWnd, DWL_USER);
 
     switch ( ctrlID )
     {
@@ -8488,7 +8488,7 @@ void J3DAPI jonesConfig_GameOverDialog_HandleWM_COMMAND(HWND hWnd, int ctrlID, L
 
 int J3DAPI jonesConfig_ShowStatisticsDialog(HWND hWnd, SithGameStatistics* pStatistics)
 {
-    int dwInitArg[3];
+    intptr_t dwInitArg[3]; // Port: { JonesDialogImageInfo*, SithGameStatistics*, scroll position }, was int
     JonesDialogImageInfo imageInfo;
     int curresult;
 
@@ -8497,8 +8497,8 @@ int J3DAPI jonesConfig_ShowStatisticsDialog(HWND hWnd, SithGameStatistics* pStat
         return 2;
     }
 
-    dwInitArg[0] = (int)&imageInfo;
-    dwInitArg[1] = (int)pStatistics;
+    dwInitArg[0] = (intptr_t)&imageInfo;
+    dwInitArg[1] = (intptr_t)pStatistics;
     memset((void*)dwInitArg[0], 0, sizeof(imageInfo));
     curresult = JonesDialog_ShowDialog(MAKEINTRESOURCE(164), hWnd, jonesConfig_StatisticsDialogProc, (LPARAM)dwInitArg);
     return curresult;
@@ -8535,13 +8535,13 @@ BOOL CALLBACK jonesConfig_StatisticsDialogProc(HWND hwnd, UINT uMsg, WPARAM wPAr
         {
             DRAWITEMSTRUCT* pDrawItem;
             int ctlID;
-            int* pData;
+            intptr_t* pData;
             JonesDialogImageInfo* pImageInfo;
             RECT rect;
 
             pDrawItem  = (DRAWITEMSTRUCT*)lParam;
             ctlID      = wPAram;
-            pData      = (int*)GetWindowLong(hwnd, DWL_USER);
+            pData      = (intptr_t*)GetWindowLongPtr(hwnd, DWL_USER);
             pImageInfo = *(JonesDialogImageInfo**)pData;
             if ( !pImageInfo->unknown4 )
             {
@@ -8563,17 +8563,17 @@ BOOL CALLBACK jonesConfig_StatisticsDialogProc(HWND hwnd, UINT uMsg, WPARAM wPAr
 
         case WM_HSCROLL:
         {
-            int* pData;
+            intptr_t* pData;
             HWND hScroll;
             HWND hTextStatTitle;
             int scrollPos;
             int minPos;
             int maxPos;
 
-            pData          = (int*)GetWindowLong(hwnd, DWL_USER);
+            pData          = (intptr_t*)GetWindowLongPtr(hwnd, DWL_USER);
             hScroll        = GetDlgItem(hwnd, 1162);
             hTextStatTitle = GetDlgItem(hwnd, 1158);
-            jonesConfig_StatisticProc_HandleWM_HSCROLL((int)hwnd, (HWND)lParam, LOWORD(wPAram), (short)HIWORD(wPAram));
+            jonesConfig_StatisticProc_HandleWM_HSCROLL(hwnd, (HWND)lParam, LOWORD(wPAram), (short)HIWORD(wPAram));
             scrollPos = GetScrollPos(hScroll, SB_CTL);
             if ( scrollPos != pData[2] )
             {
@@ -8656,7 +8656,7 @@ BOOL CALLBACK jonesConfig_StatisticsDialogProc(HWND hwnd, UINT uMsg, WPARAM wPAr
     return bResult;
 }
 
-void J3DAPI jonesConfig_StatisticProc_HandleWM_HSCROLL(int a1, HWND hWnd, UINT sbCode, int nThumbPos)
+void J3DAPI jonesConfig_StatisticProc_HandleWM_HSCROLL(HWND a1, HWND hWnd, UINT sbCode, int nThumbPos)
 {
     int curPos;
     SCROLLINFO scrlInfo;
@@ -8745,7 +8745,7 @@ int J3DAPI jonesConfig_DrawImageOnDialogItem(HWND hDlg, HDC hdcWnd, HDC hdcCtrl,
     }
 }
 
-int J3DAPI jonesConfig_SetStatisticsDialogForLevel(HWND hDlg, int levelNum, int* a3)
+int J3DAPI jonesConfig_SetStatisticsDialogForLevel(HWND hDlg, int levelNum, intptr_t* a3)
 {
     int curv3;
     int curv4;
@@ -8913,7 +8913,7 @@ void J3DAPI jonesConfig_DrawStatisticDialogIQPoints(HWND hwnd, JonesDialogImageI
 
 int J3DAPI jonesConfig_InitStatisticDialog(HWND hDlg, int a2, LPARAM lParam)
 {
-    int* pData = (int*)lParam;
+    intptr_t* pData = (intptr_t*)lParam;
     HDC* v4;
     HWND hV10;
     SCROLLINFO scrlInfo;
@@ -8941,7 +8941,7 @@ int J3DAPI jonesConfig_InitStatisticDialog(HWND hDlg, int a2, LPARAM lParam)
     SendMessage(GetDlgItem(hDlg, 1162), SBM_SETSCROLLINFO, TRUE, (LPARAM)&scrlInfo);
 
     pData[2] = scrlInfo.nMax;
-    SetWindowLong(hDlg, DWL_USER, (LONG)lParam);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)lParam);
     return 1;
 }
 
@@ -8953,7 +8953,7 @@ void J3DAPI jonesConfig_StatisticProc_HandleWM_COMMAND(HWND hWnd, int nResult, L
 
     // Retail pushes the full WM_COMMAND decode (add esp,0x10)
 
-    ppImageInfo = (JonesDialogImageInfo**)GetWindowLong(hWnd, DWL_USER);
+    ppImageInfo = (JonesDialogImageInfo**)GetWindowLongPtr(hWnd, DWL_USER);
     pCurImageInfo = *ppImageInfo;
     pCurStatistics = (SithGameStatistics*)ppImageInfo[1]; // debug build reads the statistics pointer; unused
     switch ( nResult )
@@ -9045,7 +9045,7 @@ int CALLBACK jonesConfig_LevelCompletedDialogProc(HWND hWnd, UINT uMsg, WPARAM w
         case WM_PAINT:
         {
             PAINTSTRUCT paint;
-            tLevelCompletedDialogState* pState = (tLevelCompletedDialogState*)GetWindowLong(hWnd, DWL_USER);
+            tLevelCompletedDialogState* pState = (tLevelCompletedDialogState*)GetWindowLongPtr(hWnd, DWL_USER);
             JonesDialogImageInfo* pImageInfo = pState->pIQImageInfo;
             HWND hImgCtrl = GetDlgItem(hWnd, 1135);
             HDC hdcImg = BeginPaint(hImgCtrl, &paint);
@@ -9117,13 +9117,13 @@ int J3DAPI jonesConfig_InitLevelCompletedDialog(HWND hDlg, int wParam, LPARAM lP
     sprintf(szText, "%i ", pState->totalTreasureValue);
     SetWindowText(GetDlgItem(hDlg, 1156), szText);
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)lParam);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)lParam);
     return 1;
 }
 
 void J3DAPI jonesConfig_ChapterCompleteDialog_HandleWM_COMMAND(HWND hWnd, int wParam, LPARAM lParam, int notifyCode)
 {
-    tLevelCompletedDialogState* pState = (tLevelCompletedDialogState*)GetWindowLong(hWnd, DWL_USER);
+    tLevelCompletedDialogState* pState = (tLevelCompletedDialogState*)GetWindowLongPtr(hWnd, DWL_USER);
 
 
     switch ( wParam )
@@ -9182,7 +9182,7 @@ int CALLBACK jonesConfig_StoreDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPA
         case WM_NOTIFY:
         {
             LPNMHDR pNMHdr = (LPNMHDR)lparam;
-            tStoreCartState* pCart = (tStoreCartState*)GetWindowLong(hwnd, DWL_USER);
+            tStoreCartState* pCart = (tStoreCartState*)GetWindowLongPtr(hwnd, DWL_USER);
             switch ( pNMHdr->code )
             {
                 case NM_DBLCLK:
@@ -9244,7 +9244,7 @@ int J3DAPI jonesConfig_StoreHandleDragEvent(HWND hwnd, HWND hDlgCtrl)
     LONG dx;
     LONG dy;
 
-    tStoreCartState* pCart = (tStoreCartState*)GetWindowLong(hwnd, DWL_USER);
+    tStoreCartState* pCart = (tStoreCartState*)GetWindowLongPtr(hwnd, DWL_USER);
     int numSelected = ListView_GetSelectedCount(hDlgCtrl);
 
     SetCapture(hwnd);
@@ -9277,7 +9277,7 @@ int J3DAPI jonesConfig_StoreHandleDragEvent(HWND hwnd, HWND hDlgCtrl)
             ImageList_DragLeave(hwnd);
             ReleaseCapture();
             pCart->bDragging = 0;
-            return; /* retail bug: no return value here or at the end; the debug build is the same */
+            return 0; /* retail bug: no return value here or at the end; the debug build is the same. Port: 0, clang rejects a bare return */
         }
     }
 
@@ -9289,7 +9289,7 @@ int J3DAPI jonesConfig_StoreHandleDragEvent(HWND hwnd, HWND hDlgCtrl)
 
 void J3DAPI jonesConfig_StoreDialog_HandleWM_MBUTTONUP(HWND hWnd)
 {
-    tStoreCartState* pCart = (tStoreCartState*)GetWindowLong(hWnd, DWL_USER);
+    tStoreCartState* pCart = (tStoreCartState*)GetWindowLongPtr(hWnd, DWL_USER);
     RECT currect;
     POINT cursorPos;
     if ( pCart->bDragging )
@@ -9339,7 +9339,7 @@ BOOL J3DAPI jonesConfig_StoreDialog_HandleWM_MOUSEFIRST(HWND hWnd)
     dy = cursorPos.y - bounds.top;
     return ImageList_DragMove(dx, dy);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(jonesConfig_countfit_20, 28) /* end count-fit */
+ 
 int J3DAPI jonesConfig_InitStoreDialog(HWND hDlg, int a2, LPARAM lParam)
 {
     HWND hwndAvailableList;
@@ -9383,7 +9383,7 @@ int J3DAPI jonesConfig_InitStoreDialog(HWND hDlg, int a2, LPARAM lParam)
     pCurCart->total         = 0;
     jonesConfig_UpdateBalances(hDlg, pCurCart);
 
-    SetWindowLong(hDlg, DWL_USER, lParam);
+    SetWindowLongPtr(hDlg, DWL_USER, lParam);
     return 1;
 }
 
@@ -9398,7 +9398,7 @@ int J3DAPI jonesConfig_StoreInitItemIcons(HWND hWnd, tStoreCartState* pCart)
         return 0;
     }
 
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     for ( i = 0; i < (int)STD_ARRAYLEN(JonesHud_aStoreItems); ++i )
     {
         pCart->aItemIcons[i] = LoadIconA(hInstance, MAKEINTRESOURCE(JonesHud_aStoreItems[i].iconID));
@@ -9530,7 +9530,7 @@ void J3DAPI jonesConfig_UpdateBalances(HWND hDlg, tStoreCartState* pCart)
 
     SetWindowText(GetDlgItem(hDlg, 1174), aText); // 1174 - balance
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(jonesConfig_countfit_21, 21) /* end count-fit */
+ 
 void J3DAPI jonesConfig_AddStoreCartItem(HWND hDlg, tStoreCartState* pCart)
 {
     int cost = 0;
@@ -9705,7 +9705,7 @@ int J3DAPI jonesConfig_InitPurchaseMessageBox(HWND hDlg, int a2, LPARAM lParam);
 
 void J3DAPI jonesConfig_StoreDialog_HandleWM_COMMAND(HWND hWnd, int nResult, LPARAM lParam, int notifyCode)
 {
-    tStoreCartState* pCart = (tStoreCartState*)GetWindowLong(hWnd, DWL_USER);
+    tStoreCartState* pCart = (tStoreCartState*)GetWindowLongPtr(hWnd, DWL_USER);
 
     switch ( nResult )
     {
@@ -9864,7 +9864,7 @@ int J3DAPI jonesConfig_ShowDialogInsertCD(HWND hWnd, LPARAM dwInitParam)
     HINSTANCE hInstance;
 
     ShowCursor(1);
-    hInstance = (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     btnNum = JonesDialog_ShowDialog(MAKEINTRESOURCE(167), hWnd, jonesConfig_DialogInsertCDProc, dwInitParam);
     return btnNum; // 1 - ok or 2 - quit 
 }
@@ -9925,13 +9925,13 @@ int J3DAPI jonesConfig_InitDialogInsertCD(HWND hDlg, int a2, LPARAM lParam)
             break;
     }
 
-    SetWindowLong(hDlg, DWL_USER, (LONG)lParam);
+    SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)lParam);
     return 1;
 }
 
 void J3DAPI jonesConfig_InsertCD_HandleWM_COMMAND(HWND hWnd, int nResult, LPARAM lParam, int notifyCode)
 {
-    int cdNum = (int)GetWindowLong(hWnd, DWL_USER);
+    int cdNum = (int)GetWindowLongPtr(hWnd, DWL_USER);
 
 
     switch ( nResult )

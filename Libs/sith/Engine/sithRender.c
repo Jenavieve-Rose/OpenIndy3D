@@ -1,5 +1,5 @@
 #include "sithRender.h"
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithRender_countfit_7, 5) CF_PROTO(sithRender_countfit_8, 0) /* end count-fit */
+
 #include <rdroid/Engine/rdCamera.h>
 #include <rdroid/Engine/rdClip.h>
 #include <rdroid/Engine/rdKeyframe.h>
@@ -39,12 +39,7 @@
 #include <math.h>
 #include <j3dcore/types.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithRender_countfit_1, 11)
-CF_PROTO(sithRender_countfit_2, 5)
-CF_PROTO(sithRender_countfit_3, 0)
 
-/* end count-fit */
 
 #define SITHRENDER_MAXTHINGLIGHTS  RDCAMERA_MAX_LIGHTS / 2 // 64; note this var must not exceed RDCAMERA_MAX_LIGHTS-1
 #define SITHRENDER_MAXSECTORLIGHTS (RDCAMERA_MAX_LIGHTS - SITHRENDER_MAXTHINGLIGHTS)
@@ -702,10 +697,7 @@ void J3DAPI sithRender_BuildVisibleSector(SithSector* pSector, const rdClipFrust
     sithRender_aThingSectors[sithRender_numThingSectors++] = pSector;
 }
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithRender_countfit_6, 15)
-CF_PROTO(sithRender_countfit_10, 3)
-/* end count-fit */
+
 
 void J3DAPI sithRender_RenderSectors(void)
 {
@@ -1247,9 +1239,7 @@ int J3DAPI sithRender_RenderThing(SithThing* pThing)
     return resultCode;
 }
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithRender_countfit_5, 5)
-/* end count-fit */
+
 
 void J3DAPI sithRender_RenderAlphaAdjoins(void)
 {

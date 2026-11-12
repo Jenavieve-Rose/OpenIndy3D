@@ -8,14 +8,7 @@
 
 #include <math.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(std3D_countfit_1, 15)
-CF_PROTO(std3D_countfit_2, 15)
-CF_PROTO(std3D_countfit_3, 15)
-CF_PROTO(std3D_countfit_4, 15)
-CF_PROTO(std3D_countfit_5, 15)
-CF_PROTO(std3D_countfit_6, 13)
-/* end count-fit */
+
 
 #define STD3D_DEFAULT_MAX_VERTICES 512
 

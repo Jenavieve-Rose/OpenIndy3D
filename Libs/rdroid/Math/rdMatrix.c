@@ -1,7 +1,7 @@
 #define RDMATRIX_NO_INLINE
 
 #include "rdMatrix.h"
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(rdMatrix_countfit_40, 2) /* end count-fit */
+
 #include "rdVector.h"
 #include <rdroid/Main/rdroid.h>
 
@@ -131,7 +131,7 @@ void J3DAPI rdMatrix_BuildCamera34(rdMatrix34* mat, const rdVector3* pyr, const 
 
     rdVector_Neg3(&mat->dvec, pos);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(rdMatrix_countfit_1, 30, 8) CF_PROTO(rdMatrix_countfit_9, 28) /* end count-fit */
+ 
 void J3DAPI rdMatrix_InvertOrtho34(rdMatrix34* dest, const rdMatrix34* src)
 {
     float x;
@@ -354,7 +354,7 @@ void J3DAPI rdMatrix_BuildScale44(rdMatrix44* mat, const rdVector3* scale)
     mat->vA.w = 1.0f;
     memset(&mat->vD, 0, sizeof(rdVector3));
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(rdMatrix_countfit_50, 30, 6) CF_PROTO(rdMatrix_countfit_56, 1) /* end count-fit */
+ 
 void J3DAPI rdMatrix_BuildFromVectorAngle34(rdMatrix34* mat, const rdVector3* vec, float angle)
 {
     float xx;
@@ -706,7 +706,7 @@ void J3DAPI rdMatrix_Multiply44(rdMatrix44* dest, const rdMatrix44* a, const rdM
     dest->vD.z = RD_MULTIPLY(a->vA.z, b->vD.x) + RD_MULTIPLY(a->vB.z, b->vD.y) + RD_MULTIPLY(a->vC.z, b->vD.z) + RD_MULTIPLY(a->vD.z, b->vD.w);
     dest->vD.w = RD_MULTIPLY(a->vA.w, b->vD.x) + RD_MULTIPLY(a->vB.w, b->vD.y) + RD_MULTIPLY(a->vC.w, b->vD.z) + RD_MULTIPLY(a->vD.w, b->vD.w);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTOS(rdMatrix_countfit_10, 30, 13) CF_PROTO(rdMatrix_countfit_23, 16) /* end count-fit */
+ 
 void J3DAPI rdMatrix_PreMultiply34(rdMatrix34* a, const rdMatrix34* b)
 {
     rdMatrix34 acpy;
@@ -926,7 +926,7 @@ void J3DAPI rdMatrix_GetRowVector44(rdMatrix44* mat, int row, rdVector4* vec)
 {
     rdVector_Copy3((rdVector3*)vec, (rdVector3*)&((rdVector4*)mat)[row]);
 }
- /* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(rdMatrix_countfit_30, 30) CF_PROTO(rdMatrix_countfit_31, 0) /* end count-fit */
+ 
 void J3DAPI rdMatrix_TransformVector34(rdVector3* dest, const rdVector3* src, const rdMatrix34* mat)
 {
 #line 1611

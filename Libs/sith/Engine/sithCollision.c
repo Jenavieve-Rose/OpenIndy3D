@@ -44,19 +44,19 @@ static int bCollideStartup;
 
 SithSurface* J3DAPI sithCollision_RaycastSector(SithSector* pStartSector, const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, SithCollisionType* hitType);
 
-static __inline SithCollision* J3DAPI sithCollision_PopClosest(void);
+static inline SithCollision* J3DAPI sithCollision_PopClosest(void);
 
 int sithCollision_dword_17F1090;
 rdVector3 sithCollision_vec17F10A0;
 
-static __inline void J3DAPI sithCollision_ResetCurStack(void);
-static __inline float J3DAPI sithCollision_BuildCollisionList(SithSector* pSector, SithThing* pThing, const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, int searchFlags);
-static __inline int J3DAPI sithCollision_CheckSectorSearched(const SithSector* pSector);
-static __inline int J3DAPI sithCollision_AddSearchedSector(SithSector* pSector);
-static __inline int J3DAPI sithCollision_IsThingCollidable(const SithThing* pThing, int searchFlags);
-static __inline int J3DAPI sithCollision_CanThingsCollide(const SithThing* pThing1, const SithThing* pThing2, int collflags);
-static __inline int J3DAPI sithCollision_CheckSearchFilter(SithThing* pThing1, SithThing* pThing2);
-static __inline int J3DAPI sithCollision_CanPassAdjoin(SithSurfaceAdjoinFlag adjflags, int colflags);
+static inline void J3DAPI sithCollision_ResetCurStack(void);
+static inline float J3DAPI sithCollision_BuildCollisionList(SithSector* pSector, SithThing* pThing, const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, int searchFlags);
+static inline int J3DAPI sithCollision_CheckSectorSearched(const SithSector* pSector);
+static inline int J3DAPI sithCollision_AddSearchedSector(SithSector* pSector);
+static inline int J3DAPI sithCollision_IsThingCollidable(const SithThing* pThing, int searchFlags);
+static inline int J3DAPI sithCollision_CanThingsCollide(const SithThing* pThing1, const SithThing* pThing2, int collflags);
+static inline int J3DAPI sithCollision_CheckSearchFilter(SithThing* pThing1, SithThing* pThing2);
+static inline int J3DAPI sithCollision_CanPassAdjoin(SithSurfaceAdjoinFlag adjflags, int colflags);
 
 void J3DAPI sithCollision_Startup(void)
 {
@@ -1107,7 +1107,7 @@ void J3DAPI sithCollision_DecreaseStackLevel(void)
     SITH_ASSERTREL(stackLevel < SITHCOLLISION_STACKSIZE);
     --stackLevel;
 }
-/* count-fit: placeholder declarations, not reconstructed source */ CF_PROTO(sithCollision_countfit_1, 10) /* end count-fit */
+
 float J3DAPI sithCollision_SearchForThingCollisions(const SithSector* pSector, SithThing* pThing, const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, int searchFlags)
 {
     SithThing* currentObj;
@@ -2238,7 +2238,7 @@ SithThing* J3DAPI sithCollision_FindActivatedThing(SithThing* pThing, int* pbFou
     return 0;
 }
 
-static __inline float J3DAPI sithCollision_BuildCollisionList(SithSector* pSector, SithThing* pThing, const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, int searchFlags)
+static inline float J3DAPI sithCollision_BuildCollisionList(SithSector* pSector, SithThing* pThing, const rdVector3* startPos, const rdVector3* moveNorm, float moveDist, float radius, int searchFlags)
 {
     float v8;
 
@@ -2265,7 +2265,7 @@ static __inline float J3DAPI sithCollision_BuildCollisionList(SithSector* pSecto
     return v8;
 }
 
-static __inline int J3DAPI sithCollision_IsThingCollidable(const SithThing* pThing, int searchFlags)
+static inline int J3DAPI sithCollision_IsThingCollidable(const SithThing* pThing, int searchFlags)
 {
     if ( pThing->collide.type == SITH_COLLIDE_NONE || (pThing->flags & (SITH_TF_DISABLED | SITH_TF_DESTROYED)) != 0 )
     {
@@ -2280,7 +2280,7 @@ static __inline int J3DAPI sithCollision_IsThingCollidable(const SithThing* pThi
     return 1;
 }
 
-static __inline int J3DAPI sithCollision_CanThingsCollide(const SithThing* pThing1, const SithThing* pThing2, int collflags)
+static inline int J3DAPI sithCollision_CanThingsCollide(const SithThing* pThing1, const SithThing* pThing2, int collflags)
 {
     if ( pThing1 == pThing2 || !aCollideResults[pThing1->type][pThing2->type].pProcessFunc )
     {
@@ -2382,13 +2382,13 @@ static __inline int J3DAPI sithCollision_CanThingsCollide(const SithThing* pThin
     return 1;
 }
 
-static __inline void J3DAPI sithCollision_ResetCurStack(void)
+static inline void J3DAPI sithCollision_ResetCurStack(void)
 {
     aNumStackEntries[stackLevel] = 0;
     aNumSectors[stackLevel] = 0;
 }
 
-static __inline int J3DAPI sithCollision_AddSearchedSector(SithSector* pSector)
+static inline int J3DAPI sithCollision_AddSearchedSector(SithSector* pSector)
 {
     if ( aNumSectors[stackLevel] == STD_ARRAYLEN(apSearchedSectors[stackLevel]) )
     {
@@ -2401,7 +2401,7 @@ static __inline int J3DAPI sithCollision_AddSearchedSector(SithSector* pSector)
     return 1;
 }
 
-static __inline int J3DAPI sithCollision_CheckSectorSearched(const SithSector* pSector)
+static inline int J3DAPI sithCollision_CheckSectorSearched(const SithSector* pSector)
 {
     unsigned int i;
 
@@ -2468,7 +2468,7 @@ void J3DAPI sithCollision_PushSurfaceCollision(SithSurface* pSurf, float distanc
     }
 }
 
-static __inline SithCollision* J3DAPI sithCollision_PopClosest(void)
+static inline SithCollision* J3DAPI sithCollision_PopClosest(void)
 {
     SithCollision* pCollision;
     float distance;
@@ -2501,7 +2501,7 @@ static __inline SithCollision* J3DAPI sithCollision_PopClosest(void)
     return pClosest;
 }
 
-static __inline int J3DAPI sithCollision_CheckSearchFilter(SithThing* pThing1, SithThing* pThing2)
+static inline int J3DAPI sithCollision_CheckSearchFilter(SithThing* pThing1, SithThing* pThing2)
 {
     float dot;
 
@@ -2527,7 +2527,7 @@ static __inline int J3DAPI sithCollision_CheckSearchFilter(SithThing* pThing1, S
     return 1;
 }
 
-static __inline int J3DAPI sithCollision_CanPassAdjoin(SithSurfaceAdjoinFlag adjflags, int colflags)
+static inline int J3DAPI sithCollision_CanPassAdjoin(SithSurfaceAdjoinFlag adjflags, int colflags)
 {
     if ( (colflags & 4) != 0 )
     {

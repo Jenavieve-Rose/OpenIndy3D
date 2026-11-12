@@ -40,22 +40,7 @@
 #include <std/General/stdUtil.h>
 #include <std/Win95/stdComm.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithWeapon_countfit_1, 30)
-CF_PROTO(sithWeapon_countfit_2, 30)
-CF_PROTO(sithWeapon_countfit_3, 30)
-CF_PROTO(sithWeapon_countfit_4, 30)
-CF_PROTO(sithWeapon_countfit_5, 30)
-CF_PROTO(sithWeapon_countfit_6, 30)
-CF_PROTO(sithWeapon_countfit_7, 30)
-CF_PROTO(sithWeapon_countfit_8, 30)
-CF_PROTO(sithWeapon_countfit_9, 30)
-CF_PROTO(sithWeapon_countfit_10, 30)
-CF_PROTO(sithWeapon_countfit_11, 30)
-CF_PROTO(sithWeapon_countfit_12, 30)
-CF_PROTO(sithWeapon_countfit_13, 30)
-CF_PROTO(sithWeapon_countfit_14, 7)
-/* end count-fit */
+
 #define SITHWEAPON_MAX_PROJECTILE_RICOCHETS 6
 
 static int sithWeapon_bGenBloodsplort = 1;

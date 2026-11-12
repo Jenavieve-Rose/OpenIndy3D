@@ -10,10 +10,7 @@
 
 #include <std/General/stdMath.h>
 
-/* count-fit: placeholder declarations, not reconstructed source */
-CF_PROTO(sithRenderSky_countfit_1, 12)
 
-/* end count-fit */
 
 // Ceiling sky globals
 static float ceilingSkyElevation;
