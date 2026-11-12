@@ -95,6 +95,19 @@ int J3DAPI JonesFile_Open(tHostServices* pEnv, const char* pInstallPath, const c
     }
 
     // Add path to current working dir
+#ifdef J3D_PORT
+    // Port: retail's Indy3D.exe lives in, and runs from, <install>\Resource, so this root ("." ) was the resource
+    // folder: that is where the loose files that override GOB contents are found (the 1.2 update's patched cogs in
+    // Resource\Cog). The port runs from anywhere, so with a CD path set the root is its resource folder instead. Only
+    // loose files are searched here; that folder's GOBs are already open as the CD resource.
+    if ( JonesFile_aResources[JF_RES_CD].aPath[0] )
+    {
+        strncpy(JonesFile_aResources[JF_RES_CWD].aPath, JonesFile_aResources[JF_RES_CD].aPath, sizeof(JonesFile_aResources[JF_RES_CWD].aPath) - 1);
+        JonesFile_aResources[JF_RES_CWD].aPath[sizeof(JonesFile_aResources[JF_RES_CWD].aPath) - 1] = '\0';
+        JonesFile_aResources[JF_RES_CWD].numGobFiles = 0;
+    }
+    else
+#endif
     JonesFile_OpenResource(&JonesFile_aResources[JF_RES_CWD], ".");
 
     memset(JonesFile_aFileHandles, 0, sizeof(JonesFile_aFileHandles));

@@ -177,6 +177,19 @@ tFileHandle J3DAPI stdFileOpen(const char* pFilename, const char* mode)
     pFilename = aPath;
 #endif
     fh = fopen(pFilename, mode);
+#ifdef J3D_PORT
+    // Port: J3D_TRACE_FILES=1 logs every host file open that succeeds (which loose files override GOB contents)
+    static int bTrace = -1;
+    if ( bTrace < 0 )
+    {
+        const char* pTrace = getenv("J3D_TRACE_FILES");
+        bTrace = pTrace && *pTrace && *pTrace != '0';
+    }
+    if ( bTrace && fh )
+    {
+        fprintf(stderr, "[file] %s (%s)\n", pFilename, mode);
+    }
+#endif
     return (tFileHandle)fh;
 }
 
