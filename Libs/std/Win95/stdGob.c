@@ -236,6 +236,16 @@ GobFileHandle* J3DAPI stdGob_FileOpen(Gob* pGob, const char* aName)
     strncpy(stdGob_aEntryNameBuff, aName, sizeof(stdGob_aEntryNameBuff) - 1);
     stdGob_aEntryNameBuff[sizeof(stdGob_aEntryNameBuff) - 1] = 0;
     stdUtil_ToLower(stdGob_aEntryNameBuff);
+#ifdef J3D_PORT
+    // Port: stdFnames builds paths with '/', GOB directories store '\'.
+    for ( char* pCh = stdGob_aEntryNameBuff; *pCh; ++pCh )
+    {
+        if ( *pCh == '/' )
+        {
+            *pCh = '\\';
+        }
+    }
+#endif
 
     pEntry = (tGobFileEntry*)stdHashtbl_Find(pGob->pDirHash, stdGob_aEntryNameBuff);
     if ( !pEntry )

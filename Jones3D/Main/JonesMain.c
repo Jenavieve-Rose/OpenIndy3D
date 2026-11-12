@@ -1830,15 +1830,7 @@ int J3DAPI JonesMain_Restore(const char* pNdsFilePath)
     }
 
     {
-    const char* pNdsFilename = strrchr(pNdsFilePath, '\\');
-    if ( !pNdsFilename )
-    {
-        pNdsFilename = pNdsFilePath;
-    }
-    else
-    {
-        ++pNdsFilename;
-    }
+    const char* pNdsFilename = stdFnames_FindMedName(pNdsFilePath); // Port: was strrchr '\\', paths may also use '/'
 
     {
     char aQSaveFilename[128];
@@ -2790,7 +2782,7 @@ J3DNORETURN void J3DAPI JonesMain_Assert(const char* pErrorText, const char* pSr
     i = 0;
     while ( pSrcFile[i] )
     {
-        if ( pSrcFile[i] == '\\' )
+        if ( pSrcFile[i] == '\\' || pSrcFile[i] == '/' ) // Port: also '/'
         {
             bFoundFilename = 1;
             filenamePos    = i;

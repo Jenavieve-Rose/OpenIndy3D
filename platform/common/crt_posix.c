@@ -21,12 +21,61 @@
 #include <io.h>
 #include <Windows.h>
 
+#include <platform/common/host_path.h>
+
 static DWORD crt_lastError = 0;
 
 /* ----------------------------------------------------------------------------------------------------------------
- * Paths. The engine builds paths with '\'; these calls accept either separator.
+ * Paths. The engine builds paths with '\' and any letter case; see host_path.h.
  * -------------------------------------------------------------------------------------------------------------- */
-static void crt_ToPosixPath(char* pDst, size_t size, const char* pSrc)
+
+// Replaces the component pPath[start, end) with the spelling of a case-insensitive match in its parent directory.
+// Returns 0 if there is no match. A case-only change keeps the length, so the edit is in place.
+static int crt_ResolveComponent(char* pPath, size_t start, size_t end)
+{
+    char aDir[1024];
+    if ( start == 0 )
+    {
+        strcpy(aDir, ".");
+    }
+    else if ( start == 1 )
+    {
+        strcpy(aDir, "/");
+    }
+    else
+    {
+        size_t dirLen = start - 1; // without the separator
+        if ( dirLen >= sizeof(aDir) )
+        {
+            return 0;
+        }
+        memcpy(aDir, pPath, dirLen);
+        aDir[dirLen] = '\0';
+    }
+
+    DIR* pDir = opendir(aDir);
+    if ( !pDir )
+    {
+        return 0;
+    }
+
+    int bFound = 0;
+    size_t len = end - start;
+    struct dirent* pEntry;
+    while ( (pEntry = readdir(pDir)) != NULL )
+    {
+        if ( strlen(pEntry->d_name) == len && strncasecmp(pEntry->d_name, pPath + start, len) == 0 )
+        {
+            memcpy(pPath + start, pEntry->d_name, len);
+            bFound = 1;
+            break;
+        }
+    }
+    closedir(pDir);
+    return bFound;
+}
+
+void J3DHost_ToPosixPath(char* pDst, size_t size, const char* pSrc)
 {
     size_t i;
     for ( i = 0; pSrc[i] && i < size - 1; ++i )
@@ -34,6 +83,43 @@ static void crt_ToPosixPath(char* pDst, size_t size, const char* pSrc)
         pDst[i] = pSrc[i] == '\\' ? '/' : pSrc[i];
     }
     pDst[i] = '\0';
+
+    struct stat st;
+    if ( !pDst[0] || lstat(pDst, &st) == 0 )
+    {
+        return; // the common case: spelled right, or nothing to resolve
+    }
+
+    // Walk the components. Each one that exists as spelled is kept; one that does not is matched case-insensitively.
+    // The first that has no match at all ends the walk: it and everything after it is a name to be created.
+    size_t start = pDst[0] == '/' ? 1 : 0;
+    while ( pDst[start] )
+    {
+        size_t end = start;
+        while ( pDst[end] && pDst[end] != '/' )
+        {
+            ++end;
+        }
+
+        if ( end > start )
+        {
+            char saved = pDst[end];
+            pDst[end] = '\0';
+            int bExists = lstat(pDst, &st) == 0;
+            pDst[end] = saved;
+
+            if ( !bExists && !crt_ResolveComponent(pDst, start, end) )
+            {
+                return;
+            }
+        }
+
+        if ( !pDst[end] )
+        {
+            break;
+        }
+        start = end + 1;
+    }
 }
 
 /* ----------------------------------------------------------------------------------------------------------------
@@ -78,7 +164,7 @@ static int crt_FindFill(CrtFind* pFind, struct _finddata_t* pInfo)
 intptr_t _findfirst(const char* pFilespec, struct _finddata_t* pFileInfo)
 {
     char aSpec[1024];
-    crt_ToPosixPath(aSpec, sizeof(aSpec), pFilespec);
+    J3DHost_ToPosixPath(aSpec, sizeof(aSpec), pFilespec);
 
     CrtFind* pFind = calloc(1, sizeof(CrtFind));
     if ( !pFind )
@@ -180,7 +266,7 @@ BOOL WINAPI FindClose(HANDLE hFindFile)
 int _mkdir(const char* pPath)
 {
     char aPath[1024];
-    crt_ToPosixPath(aPath, sizeof(aPath), pPath);
+    J3DHost_ToPosixPath(aPath, sizeof(aPath), pPath);
     return mkdir(aPath, 0755);
 }
 
@@ -198,14 +284,14 @@ BOOL WINAPI CreateDirectoryA(LPCSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurity
 BOOL WINAPI RemoveDirectoryA(LPCSTR lpPathName)
 {
     char aPath[1024];
-    crt_ToPosixPath(aPath, sizeof(aPath), lpPathName);
+    J3DHost_ToPosixPath(aPath, sizeof(aPath), lpPathName);
     return rmdir(aPath) == 0;
 }
 
 BOOL WINAPI DeleteFileA(LPCSTR lpFileName)
 {
     char aPath[1024];
-    crt_ToPosixPath(aPath, sizeof(aPath), lpFileName);
+    J3DHost_ToPosixPath(aPath, sizeof(aPath), lpFileName);
     return unlink(aPath) == 0;
 }
 
@@ -228,7 +314,7 @@ DWORD WINAPI GetCurrentDirectoryA(DWORD nBufferLength, LPSTR lpBuffer)
 BOOL WINAPI SetCurrentDirectoryA(LPCSTR lpPathName)
 {
     char aPath[1024];
-    crt_ToPosixPath(aPath, sizeof(aPath), lpPathName);
+    J3DHost_ToPosixPath(aPath, sizeof(aPath), lpPathName);
     return chdir(aPath) == 0;
 }
 

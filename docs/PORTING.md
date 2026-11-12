@@ -65,6 +65,28 @@ fixed in Phase 0. They are layout-neutral for anything read from disk; the on-di
 
 - `std/General/std.c`: the x87 control-word code is compiled out; `stdMath.h` uses its `NONMATCHING_MATH` C bodies.
 - `sound/AudioLib.c`: the inline-asm sample loop has a C translation (verified in Phase 4).
-- `std/General/stdPlatform.c`: file opens translate `\` to `/` at the host boundary (temporary, until Phase 1's
-  `stdFnames` change).
 - `Jones3D/Display/jonesConfig.c`: one function with a bare `return;` in a non-void function (a retail bug) returns 0.
+
+## Phase 1: headless boot
+
+### Settings and data root
+
+- `platform/common/wuRegistry_file.c` replaces the registry (and the Phase 0 in-memory store). Same value names, stored
+  in `~/Library/Application Support/J3DPort/settings.ini` (`J3D_SETTINGS` overrides the path). Format and lookup order
+  are documented at the top of the file. `J3D_REG_<name>` environment variables override any value.
+- `Data Root` (from `--data <dir>`, `J3D_DATA`, or the file) is the folder that holds `RESOURCE/`. It is the default for
+  `Source Dir`, `User Path` and `Install Path`, so JonesFile's install and CD roots both resolve to the player's data.
+- `Start Mode`, `Debug Mode` and `Verbosity` default to 0, 1 and 2 (start game, console log, verbose) until the GUI
+  exists. They are defaults, not stored values.
+
+### Paths
+
+- `stdFnames` accepts `\` and `/` as separators and builds paths with `/`.
+- `stdGob_FileOpen` folds `/` to `\` before its directory lookup; names inside GOBs are unchanged.
+- `platform/common/host_path.h`: `J3DHost_ToPosixPath` is the single engine-to-host path conversion, used by
+  `stdFileOpen` and every CRT/kernel32 path call in `crt_posix.c`. It translates `\` and resolves each component
+  case-insensitively when the path does not exist as spelled.
+- Parsers that looked only for `\` also accept `/`: `stdFileFromPath` (object names of cogs, models, particles),
+  the `__FILE__` stripping in `stdPrintf`, `stdPlatform_Assert` and `JonesMain`'s assert handler, the NDS file name in
+  `JonesMain`, and the install-path prefixing in `sithMain`. The `jonesConfig.c` path code is left for Phase 6.
+- `stdFnames_Concat` checks for an empty `path1` before reading `path1[len - 1]` (retail read one byte before the buffer).

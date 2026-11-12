@@ -1,14 +1,32 @@
 #include "stdFnames.h"
 
+#ifdef J3D_PORT
+// Port: paths accept '\' and '/' as separators and are built with '/' (PORT-PLAN.md Phase 1, "Filesystem and VFS").
+// Names inside GOBs keep '\'; stdGob_FileOpen folds '/' before its lookup.
+#  define STDFNAMES_SEP '/'
+#  define STDFNAMES_ISSEP(c) ((c) == '\\' || (c) == '/')
+
+static char* stdFnames_FindLastSep(const char* pPath)
+{
+    const char* pBack  = strrchr(pPath, '\\');
+    const char* pSlash = strrchr(pPath, '/');
+    return (char*)(pBack > pSlash ? pBack : pSlash);
+}
+#else
+#  define STDFNAMES_SEP '\\'
+#  define STDFNAMES_ISSEP(c) ((c) == '\\')
+#  define stdFnames_FindLastSep(pPath) strrchr(pPath, '\\')
+#endif
+
 const char* J3DAPI stdFnames_FindMedName(const char* pFilePath)
 {
-    const char* pName = strrchr(pFilePath, '\\');
+    const char* pName = stdFnames_FindLastSep(pFilePath);
     if ( !pName )
     {
         return pFilePath;
     }
 
-    while ( *pName == '\\' )
+    while ( STDFNAMES_ISSEP(*pName) )
     {
         pName++;
     }
@@ -85,7 +103,7 @@ void J3DAPI stdFnames_StripDirAndExt(char* pPath)
         pName = pFound + 1;
     }
 
-    pFound = strrchr(pName, '\\');
+    pFound = stdFnames_FindLastSep(pName);
     if ( pFound )
     {
         pName = pFound + 1;
@@ -126,7 +144,7 @@ void J3DAPI stdFnames_CopyDir(char* pOut, int size, const char* pPath)
 
     strncpy(pOut, pPath, size - 1);
     pOut[size - 1] = 0;
-    pSlash = strrchr(pOut, '\\');
+    pSlash = stdFnames_FindLastSep(pOut);
     if ( pSlash )
     {
         *pSlash = 0;
@@ -145,13 +163,13 @@ char* J3DAPI stdFnames_Concat(char* path1, const char* path2, int size)
 {
     int len = strlen(path1);
 
-    if ( path1[len - 1] != '\\' && len < size - 1 && *path1 )
+    if ( *path1 && !STDFNAMES_ISSEP(path1[len - 1]) && len < size - 1 )
     {
-        path1[len] = '\\';
+        path1[len] = STDFNAMES_SEP;
         path1[++len]   = '\0';
     }
 
-    if ( *path2 == '\\' ) {
+    if ( STDFNAMES_ISSEP(*path2) ) {
         path2++;
     }
 

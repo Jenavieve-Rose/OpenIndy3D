@@ -9,6 +9,10 @@
 
 #include <stdio.h>
 
+#ifdef J3D_PORT
+#include <platform/common/host_path.h>
+#endif
+
 static char std_filePrintBuffer[2048] = { 0 };
 static int stdPlatform_bAssert = 0;
 
@@ -109,7 +113,7 @@ J3DNORETURN void J3DAPI stdPlatform_Assert(const char* pErrorStr, const char* pF
     pos = 0;
     while ( pFilename[pos] )
     {
-        if ( pFilename[pos] == '\\' )
+        if ( pFilename[pos] == '\\' || pFilename[pos] == '/' ) // Port: also '/'
         {
             bFoundSep = 1;
             fnpos     = pos;
@@ -167,15 +171,9 @@ tFileHandle J3DAPI stdFileOpen(const char* pFilename, const char* mode)
 {
     FILE* fh;
 #ifdef J3D_PORT
-    // Port: engine paths are built with '\'. Translate at the host boundary until stdFnames emits '/'
-    // (PORT-PLAN.md Phase 1, "Filesystem and VFS").
+    // Port: engine paths may use '\' and any letter case; resolve them to a host path (platform/common/host_path.h).
     char aPath[1024];
-    size_t i;
-    for ( i = 0; pFilename[i] && i < sizeof(aPath) - 1; ++i )
-    {
-        aPath[i] = pFilename[i] == '\\' ? '/' : pFilename[i];
-    }
-    aPath[i] = '\0';
+    J3DHost_ToPosixPath(aPath, sizeof(aPath), pFilename);
     pFilename = aPath;
 #endif
     fh = fopen(pFilename, mode);

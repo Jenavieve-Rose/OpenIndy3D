@@ -84,7 +84,7 @@ int J3DAPI stdPrintf(tPrintfFunc pfPrint, const char* pFilePath, unsigned int li
         i = 0;
         while ( pFilePath[i] )
         {
-            if ( pFilePath[i] == '\\' )
+            if ( pFilePath[i] == '\\' || pFilePath[i] == '/' ) // Port: also '/'
             {
                 bFnFound = 1;
                 fnIdx = i;
@@ -132,6 +132,14 @@ const char* J3DAPI stdFileFromPath(const char* pPath)
 {
     const char* pFilename = pPath;
     pFilename = strrchr(pPath, '\\');
+    {
+        // Port: paths may also use '/'; the last separator of either kind wins.
+        const char* pSlash = strrchr(pPath, '/');
+        if ( pSlash > pFilename )
+        {
+            pFilename = pSlash;
+        }
+    }
     if ( pFilename )
     {
         return pFilename + 1;

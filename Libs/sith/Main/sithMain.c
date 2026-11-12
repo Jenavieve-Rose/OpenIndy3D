@@ -775,13 +775,13 @@ const char* J3DAPI sithGetPath(char* aOutPath, const char* pSithStrName, int bPr
                 if ( strlen(aInstallPath) > 0 && bPrependInstallDirPath )
                 {
                     char* pFilename = name;
-                    char* pStripName = strchr(pFilename, '\\');
+                    char* pStripName = strpbrk(pFilename, "\\/"); // Port: was strchr '\\', paths may also use '/'
                     if ( pStripName )
                     {
                         pFilename = pStripName + 1;
                     }
 
-                    while ( pFilename && *pFilename == '\\' )
+                    while ( pFilename && (*pFilename == '\\' || *pFilename == '/') )
                     {
                         ++pFilename;
                     }

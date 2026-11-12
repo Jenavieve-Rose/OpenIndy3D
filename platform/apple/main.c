@@ -3,6 +3,9 @@
  *
  * The decomp's entry is WinMain (Jones3D/Main/JonesMain.c), which takes the single-instance mutex and hands off to
  * wkernel_Run. That call chain is kept: main() rebuilds the command line WinMain expects and calls it.
+ *
+ * Port options are taken out of argv before the rest is joined, so the engine's own parser never sees them:
+ *   --data <dir>   game data root, the folder that holds RESOURCE/ (sets J3D_DATA; see wuRegistry_file.c)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +17,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 int main(int argc, char** argv)
 {
-    // Join argv[1..] with spaces, as the Windows loader hands WinMain everything after the program name.
+    // Join the remaining argv[1..] with spaces, as the Windows loader hands WinMain everything after the program name.
     size_t len = 1;
     for ( int i = 1; i < argc; i++ )
     {
@@ -29,7 +32,19 @@ int main(int argc, char** argv)
 
     for ( int i = 1; i < argc; i++ )
     {
-        if ( i > 1 )
+        if ( strcmp(argv[i], "--data") == 0 )
+        {
+            if ( i + 1 >= argc )
+            {
+                fprintf(stderr, "%s: --data needs a directory\n", argv[0]);
+                free(pCmdLine);
+                return EXIT_FAILURE;
+            }
+            setenv("J3D_DATA", argv[++i], 1);
+            continue;
+        }
+
+        if ( pCmdLine[0] )
         {
             strcat(pCmdLine, " ");
         }
