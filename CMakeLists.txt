@@ -151,16 +151,17 @@ target_link_libraries(platform PUBLIC j3d_common)
 # ---------------------------------------------------------------------------------------------------------------------
 # The game: Jones3D shell + the app entry point.
 # ---------------------------------------------------------------------------------------------------------------------
+# The game shell is a library so the test harnesses can link it without the app entry point.
 file(GLOB_RECURSE J3D_GAME_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/Jones3D/*.c)
-add_executable(jones3d
-    ${J3D_GAME_SOURCES}
-    ${J3D_ROOT}/platform/apple/main.c
-)
-target_link_libraries(jones3d PRIVATE
+add_library(jones3d_game STATIC ${J3D_GAME_SOURCES})
+target_link_libraries(jones3d_game PUBLIC
     j3d_common
     sith smush sound rdroid std zlib
     platform
 )
+
+add_executable(jones3d ${J3D_ROOT}/platform/apple/main.c)
+target_link_libraries(jones3d PRIVATE jones3d_game)
 set_target_properties(jones3d PROPERTIES
     OUTPUT_NAME jones3d
     XCODE_GENERATE_SCHEME ON
@@ -168,3 +169,25 @@ set_target_properties(jones3d PROPERTIES
 )
 # The static libraries reference each other in cycles (sith <-> std <-> platform); let the linker resolve them.
 target_link_options(jones3d PRIVATE LINKER:-no_warn_duplicate_libraries)
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Tests (PORT-PLAN.md Phase 1). They need the player's game data: configure with -DJ3D_TEST_DATA=<folder holding
+# RESOURCE/>, then run ctest. Without it the targets still build but no tests are registered.
+# ---------------------------------------------------------------------------------------------------------------------
+set(J3D_TEST_DATA "" CACHE PATH "Game data root (the folder holding RESOURCE/) for the tests")
+
+# Each test is one program: tests/<name>.c plus the shared engine startup and crash handlers in tests/harness.c.
+#   levelload  loads the static world and every level through the binary .cnd section loaders
+#   cogcheck   compiles every .cog in the GOBs through the engine's lookup (loose overrides included)
+set(J3D_TESTS levelload cogcheck)
+
+enable_testing()
+foreach(test IN LISTS J3D_TESTS)
+    add_executable(${test} ${J3D_ROOT}/tests/${test}.c ${J3D_ROOT}/tests/harness.c)
+    target_link_libraries(${test} PRIVATE jones3d_game)
+    target_link_options(${test} PRIVATE LINKER:-no_warn_duplicate_libraries)
+    if(J3D_TEST_DATA)
+        add_test(NAME ${test} COMMAND ${test} ${J3D_TEST_DATA})
+    endif()
+endforeach()
+
