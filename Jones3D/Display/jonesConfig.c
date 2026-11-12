@@ -6639,7 +6639,7 @@ void J3DAPI jonesConfig_EditControlScheme_DeleteAssignment(HWND hDlg, HWND hList
 {
     LVITEM listItem;
     int destIndex;
-    int itemIdx, bndIdx;
+    size_t itemIdx, bndIdx; // Port: the callee writes size_t; were int
     int actionIdx = jonesConfig_EditControlScheme_GetSelectedListItemBinding(hDlg, hListCtrl, pScheme, &itemIdx, &bndIdx);
     int numBinds;
 

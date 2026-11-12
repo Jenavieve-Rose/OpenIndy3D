@@ -301,7 +301,7 @@ int J3DAPI sithSurface_WriteSurfacesListBinary(tFileHandle fh, const SithWorld* 
 {
     size_t i;
     size_t j;
-    size_t totalVerts;
+    uint32_t totalVerts; // Port: 4 bytes in the .cnd, read and written with sizeof; was size_t
     size_t nWritten;
     size_t size;
     int matIdx;
@@ -422,7 +422,7 @@ int J3DAPI sithSurface_ReadSurfacesListBinary(tFileHandle fh, SithWorld* pWorld)
     size_t j;
     size_t size;
     size_t nRead;
-    size_t totalVerts;
+    uint32_t totalVerts; // Port: 4 bytes in the .cnd, read and written with sizeof; was size_t
     SithSurface* pSurf;
     CndSurfaceInfo* aCndSurfaces = NULL;
     CndSurfaceInfo* pCndSurf;
@@ -704,7 +704,7 @@ int J3DAPI sithSurface_ReadSurfacesListText(SithWorld* pWorld, int bSkip)
         goto eof_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " world adjoins %d", &numAdjoins) != 1 )
+    if ( sscanf(stdConffile_aLine, " world adjoins %zd", &numAdjoins) != 1 )
     {
         goto syntax_error;
     }
@@ -752,7 +752,7 @@ int J3DAPI sithSurface_ReadSurfacesListText(SithWorld* pWorld, int bSkip)
         goto eof_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " world surfaces %d", &numSurfaces) != 1 )
+    if ( sscanf(stdConffile_aLine, " world surfaces %zd", &numSurfaces) != 1 )
     {
         goto syntax_error;
     }

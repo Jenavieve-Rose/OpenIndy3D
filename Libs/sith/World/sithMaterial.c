@@ -154,7 +154,7 @@ int J3DAPI sithMaterial_ReadMaterialsListText(SithWorld* pWorld, int bSkip)
     }
 
     sithWorld_UpdateLoadProgress(5.0f);
-    if ( sscanf(stdConffile_aLine, " world materials %d", &numMaterials) != 1 )
+    if ( sscanf(stdConffile_aLine, " world materials %zd", &numMaterials) != 1 )
     {
 #line 189
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Syntax error - expected world materials XX on line %d.\n", stdConffile_GetLineNumber(), 0, 0, 0);
@@ -214,7 +214,7 @@ int J3DAPI sithMaterial_WriteMaterialsListBinary(tFileHandle fh, const SithWorld
     uint8_t* aPixelBuffers         = NULL;
     size_t i;
     size_t sizeInfos;
-    size_t sizePixelBuffers;
+    uint32_t sizePixelBuffers; // Port: 4 bytes in the .cnd, read and written with sizeof; was size_t
     const rdMaterial* pMat;
     CndMaterialInfo* pCurInfo;
     size_t texSize;
@@ -356,7 +356,7 @@ int J3DAPI sithMaterial_ReadMaterialsListBinary(tFileHandle fh, SithWorld* pWorl
     tRasterInfo rasterInfo;
     size_t numMaterials;
     size_t sizeInfos;
-    size_t sizePixelBuffers;
+    uint32_t sizePixelBuffers; // Port: 4 bytes in the .cnd, read and written with sizeof; was size_t
     size_t nRead;
     uint8_t* pCurPixelBuffer;
     size_t matNum;

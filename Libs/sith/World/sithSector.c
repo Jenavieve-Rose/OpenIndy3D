@@ -99,7 +99,7 @@ int J3DAPI sithSector_ReadSectorsListText(SithWorld* pWorld, int bSkip)
     {
         goto eof_error;
     }
-    if ( sscanf(stdConffile_aLine, " world sectors %d", &numSectors) != 1 )
+    if ( sscanf(stdConffile_aLine, " world sectors %zd", &numSectors) != 1 )
     {
         goto syntax_error;
     }
@@ -231,7 +231,7 @@ int J3DAPI sithSector_ReadSectorsListText(SithWorld* pWorld, int bSkip)
         {
             goto eof_error;
         }
-        if ( sscanf(stdConffile_aLine, " vertices %d", &numVerts) != 1 )
+        if ( sscanf(stdConffile_aLine, " vertices %zd", &numVerts) != 1 )
         {
             goto syntax_error;
         }
@@ -262,7 +262,7 @@ int J3DAPI sithSector_ReadSectorsListText(SithWorld* pWorld, int bSkip)
         {
             goto eof_error;
         }
-        if ( sscanf(stdConffile_aLine, " surfaces %d %d", &surfIdx, &numSurfs) != 2 )
+        if ( sscanf(stdConffile_aLine, " surfaces %d %zd", &surfIdx, &numSurfs) != 2 )
         {
             goto syntax_error;
         }

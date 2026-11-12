@@ -1261,7 +1261,8 @@ void J3DAPI JonesHud_ToggleMenu(void)
     if ( sithPlayer_pLocalPlayerThing && (sithPlayer_pLocalPlayerThing->flags & SITH_TF_DYING || sithPlayer_pLocalPlayerThing->flags & SITH_TF_DESTROYED || JONESHUD_DEBUG_GAMEOVER) )
     {
         // Retail zeroes the four adjacent jonesCog HUD flags with one 16-byte memset
-        memset(&jonesCog_bShowHealthHUD, 0, 4 * sizeof(int));
+        // Port: one by one; the linker does not keep them adjacent
+        jonesCog_bShowHealthHUD = jonesCog_bMenuVisible = jonesCog_bEnableGamesave = jonesCog_dword_17EFFCC = 0;
         JonesHud_hudState &= ~0x10;
         JonesHud_ShowGameOverDialog(1);
     }
@@ -1325,7 +1326,7 @@ void J3DAPI JonesHud_Process(void)
     {
         // Player died, wait 5 sec then show game over dialog
         sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.health = 0.0f;
-        memset(&jonesCog_bShowHealthHUD, 0, 4 * sizeof(int));
+        jonesCog_bShowHealthHUD = jonesCog_bMenuVisible = jonesCog_bEnableGamesave = jonesCog_dword_17EFFCC = 0; // Port: was a 16-byte memset over four adjacent globals
 
         if ( (JonesHud_hudState & 0x10) == 0 )
         {

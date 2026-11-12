@@ -336,7 +336,7 @@ int J3DAPI rdParticle_LoadEntry(const char* pFilename, rdParticle* pParticle)
         goto eof_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " vertices %d", &numVerts) != 1 )
+    if ( sscanf(stdConffile_aLine, " vertices %zd", &numVerts) != 1 )
     {
         goto syntax_error;
     }

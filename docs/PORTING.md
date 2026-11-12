@@ -93,3 +93,39 @@ fixed in Phase 0. They are layout-neutral for anything read from disk; the on-di
   `JonesMain`, the keyset writer in `jonesConfig`) use `J3DHost_fopen`. Before, `JonesError.txt` was created with the
   literal name `.\\JonesError.txt`.
 - `stdFnames_Concat` checks for an empty `path1` before reading `path1[len - 1]` (retail read one byte before the buffer).
+
+### 64-bit audit: on-disk layouts
+
+`tools/layout_audit.py` compiles every translation unit that reads or writes raw structs twice, for arm64 and for i386
+with MSVC's double alignment, and diffs clang's record layouts for the audited on-disk types. It must report
+`0 retail on-disk type(s) differ`. Each fixed record also carries a `_Static_assert` on its retail size.
+
+| Where | Problem on arm64 | Change |
+| --- | --- | --- |
+| `sithWorld.c` `CndWorld` | `size_t` AI-class and sprite counts; the loader read the header straight into `SithWorld`, whose pointers are 8 bytes, so every count after the first pointer landed in the wrong field | All fields fixed-width (0x61C bytes). The header is read into a local and `sithWorld_CopyCndHeader` copies the scalar fields; pointer fields stay NULL. |
+| `sithThing.c` `SithThingBinaryHeader`, `SithAIBinaryRecord`, `SithParticleBinaryRecord` | `size_t` counts (header 44 vs 88 bytes) | `uint32_t`. |
+| `sithThing.c` path frame counts | array of `size_t`, sized `numPathThings * sizeof(size_t)` | `uint32_t`. |
+| `sithSurface.c` `totalVerts`, `sithMaterial.c` `sizePixelBuffers` | `size_t` read and written with `sizeof(var)`, 8 bytes against a 4-byte field: misaligns the rest of the section | `uint32_t`. |
+| `sithPVS.c` PVS size | 4-byte read into a `size_t` field | Read into a `uint32_t`, then assigned. |
+| `Sound.c` `SoundInfo` in .cnd sound banks | in-memory record (pointer `pLipSyncData`) written and read raw | `SoundInfoFile` is the 48-byte on-disk record; export/import convert. Import clears `pLipSyncData` (the stored value is a pointer from the writing process; lip-sync data is regenerated on demand). The used-cache size is read through a `uint32_t`. |
+
+Not affected: `SithCogValue` (cog symbol values are stored as strings in .cnd files; the union only reaches disk in
+savegames), all `.mat`, GOB, BMP and font records, and the string tables (narrow text, widened in memory).
+Savegames (`NdsHeader`) differ but are only read back by the port; the round-trip test covers them.
+
+### 64-bit audit: text parsing and memory safety
+
+- 24 `sscanf` conversions wrote `%d` (4 bytes) into `size_t` counts in the 3DO model, keyframe, particle and level
+  text parsers and the `-level` command-line number, leaving the upper half uninitialised. They use `%zd`
+  (clang's fix-it; same signed parse, size_t width). Every `sscanf` in the tree has a literal format, so `-Wformat`
+  checks all of them.
+- `JonesHud.c`: two 16-byte `memset`s from `&jonesCog_bShowHealthHUD` relied on VC5 laying out four globals adjacently;
+  the four flags are cleared individually.
+- `jonesConfig.c` `EditControlScheme_DeleteAssignment`: the index locals are `size_t`, as the callee writes.
+- `JonesFile.c`: the file-name terminator is written to the last byte of `aName`, not one past it.
+
+### Known open items
+
+- 20 non-void functions can fall off their end (`-Wreturn-type`). Retail callers received whatever was in `eax`; each
+  needs checking against the binary before choosing a return value.
+- `AudioLib.c`: `*pCurOut++ = *pCurOut++ = 0` is unsequenced; verified with the rest of AudioLib in Phase 4.

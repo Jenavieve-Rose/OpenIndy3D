@@ -230,7 +230,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
         goto eof_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " materials %d", &numMats) != 1 )
+    if ( sscanf(stdConffile_aLine, " materials %zd", &numMats) != 1 )
     {
         goto syntax_error;
     }
@@ -310,7 +310,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
         goto syntax_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " geosets %d", &numGeos) != 1 )
+    if ( sscanf(stdConffile_aLine, " geosets %zd", &numGeos) != 1 )
     {
         goto syntax_error;
     }
@@ -335,7 +335,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
             goto eof_error;
         }
 
-        if ( sscanf(stdConffile_aLine, " meshes %d", &numMeshes) != 1 )
+        if ( sscanf(stdConffile_aLine, " meshes %zd", &numMeshes) != 1 )
         {
             goto syntax_error;
         }
@@ -427,7 +427,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
                 goto eof_error;
             }
 
-            if ( sscanf(stdConffile_aLine, " vertices %d", &numVerts) != 1 )
+            if ( sscanf(stdConffile_aLine, " vertices %zd", &numVerts) != 1 )
             {
                 goto syntax_error;
             }
@@ -523,7 +523,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
                 goto eof_error;
             }
 
-            if ( sscanf(stdConffile_aLine, " texture vertices %d", &numTexVerts) != 1 )
+            if ( sscanf(stdConffile_aLine, " texture vertices %zd", &numTexVerts) != 1 )
             {
                 goto syntax_error;
             }
@@ -607,7 +607,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
 
             // Read mesh faces
 
-            if ( sscanf(stdConffile_aLine, " faces %d", &numFaces) != 1 )
+            if ( sscanf(stdConffile_aLine, " faces %zd", &numFaces) != 1 )
             {
                 goto syntax_error;
             }
@@ -821,7 +821,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
         goto eof_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " hierarchy nodes %d", &numNodes) != 1 )
+    if ( sscanf(stdConffile_aLine, " hierarchy nodes %zd", &numNodes) != 1 )
     {
         goto syntax_error;
     }
@@ -846,7 +846,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
         }
 
         // The node flags go into texMode: retail reads both into one never-read slot (3 address sites)
-        if ( sscanf(stdConffile_aLine, " %d: %x %x %d %d %d %d %d %f %f %f %f %f %f %f %f %f %s", &entryNum, &texMode, &pNode->type, &pNode->meshIdx, &parentIdx, &childIdx, &siblingIdx, &pNode->numChildren, &x, &y, &z, &pitch, &yaw, &roll, &pivotX, &pivotY, &pivotZ, pNode->aName) != 18 )
+        if ( sscanf(stdConffile_aLine, " %d: %x %x %d %d %d %d %zd %f %f %f %f %f %f %f %f %f %s", &entryNum, &texMode, &pNode->type, &pNode->meshIdx, &parentIdx, &childIdx, &siblingIdx, &pNode->numChildren, &x, &y, &z, &pitch, &yaw, &roll, &pivotX, &pivotY, &pivotZ, pNode->aName) != 18 )
         {
             goto syntax_error;
         }

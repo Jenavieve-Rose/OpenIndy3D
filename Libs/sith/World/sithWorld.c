@@ -44,6 +44,8 @@
 
 // A "mocking" world struct which is stored to cnd files.
 // Stores all pointers as uint32_t type
+// Port: every field is fixed-width (retail had size_t for the AI class and sprite counts), and the loader no longer
+// reads it straight into SithWorld, whose pointers are 8 bytes on arm64; see sithWorld_CopyCndHeader.
 typedef struct sCndWorld
 {
     char aCopyright[1216];
@@ -76,14 +78,14 @@ typedef struct sCndWorld
     uint32_t aSurfaces;
     uint32_t numSectors;
     uint32_t aSectors;
-    size_t numAIClasses;
-    size_t sizeAIClasses;
+    uint32_t numAIClasses;
+    uint32_t sizeAIClasses;
     uint32_t aAIClasses;
     uint32_t numModels;
     uint32_t sizeModels;
     uint32_t aModels;
-    size_t numSprites;
-    size_t sizeSprites;
+    uint32_t numSprites;
+    uint32_t sizeSprites;
     uint32_t aSprites;
     uint32_t numKeyframes;
     uint32_t sizeKeyframes;
@@ -109,6 +111,7 @@ typedef struct sCndWorld
     uint32_t sizePVS;
     uint32_t aPVS;
 } CndWorld;
+_Static_assert(sizeof(CndWorld) == 0x61C, "CndWorld must match the retail .cnd header");
 
 static const char aCopyrightSymbol[1216] =
 {
@@ -1510,7 +1513,7 @@ int J3DAPI sithWorld_ReadGeoresourceText(SithWorld* pWorld, int bSkip)
         goto eof_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " world vertices %d", &numVerts) != 1 )
+    if ( sscanf(stdConffile_aLine, " world vertices %zd", &numVerts) != 1 )
     {
         goto syntax_error;
     }
@@ -1546,7 +1549,7 @@ int J3DAPI sithWorld_ReadGeoresourceText(SithWorld* pWorld, int bSkip)
         goto eof_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " world texture vertices %d", &numTexVerts) != 1 )
+    if ( sscanf(stdConffile_aLine, " world texture vertices %zd", &numTexVerts) != 1 )
     {
         goto syntax_error;
     }
@@ -1839,8 +1842,61 @@ error:
     return 1;
 }
 
+// Port: the scalar fields of a .cnd header, copied into the in-memory world. Retail read the header bytes straight into
+// SithWorld, which shares CndWorld's layout only on 32-bit. Pointer fields stay NULL (the cnd stores them as 0).
+static void sithWorld_CopyCndHeader(SithWorld* pWorld, const CndWorld* pHdr)
+{
+    size_t i;
+
+    memcpy(pWorld->aCopyright, pHdr->aCopyright, sizeof(pHdr->aCopyright));
+    memcpy(pWorld->aName, pHdr->aName, sizeof(pHdr->aName));
+    pWorld->state            = pHdr->state;
+    pWorld->version          = pHdr->version;
+    pWorld->gravity          = pHdr->gravity;
+    pWorld->ceilingSkyHeight = pHdr->ceilingSkyHeight;
+    pWorld->horizonDistance  = pHdr->horizonDistance;
+    rdVector_Copy2(&pWorld->horizonSkyOffset, &pHdr->horizonSkyOffset);
+    rdVector_Copy2(&pWorld->ceilingSkyOffset, &pHdr->ceilingSkyOffset);
+    for ( i = 0; i < STD_ARRAYLEN(pHdr->distancesLOD); ++i )
+    {
+        pWorld->distancesLOD[i] = pHdr->distancesLOD[i];
+    }
+    pWorld->fog = pHdr->fog;
+
+    pWorld->numSounds          = pHdr->numSounds;
+    pWorld->numMaterials       = pHdr->numMaterials;
+    pWorld->sizeMaterials      = pHdr->sizeMaterials;
+    pWorld->numVertices        = pHdr->numVertices;
+    pWorld->numTexVertices     = pHdr->numTexVertices;
+    pWorld->numAdjoins         = pHdr->numAdjoins;
+    pWorld->numSurfaces        = pHdr->numSurfaces;
+    pWorld->numSectors         = pHdr->numSectors;
+    pWorld->numAIClasses       = pHdr->numAIClasses;
+    pWorld->sizeAIClasses      = pHdr->sizeAIClasses;
+    pWorld->numModels          = pHdr->numModels;
+    pWorld->sizeModels         = pHdr->sizeModels;
+    pWorld->numSprites         = pHdr->numSprites;
+    pWorld->sizeSprites        = pHdr->sizeSprites;
+    pWorld->numKeyframes       = pHdr->numKeyframes;
+    pWorld->sizeKeyframes      = pHdr->sizeKeyframes;
+    pWorld->numPuppetClasses   = pHdr->numPuppetClasses;
+    pWorld->sizePuppetClasses  = pHdr->sizePuppetClasses;
+    pWorld->numSoundClasses    = pHdr->numSoundClasses;
+    pWorld->sizeSoundClasses   = pHdr->sizeSoundClasses;
+    pWorld->numCogScripts      = pHdr->numCogScripts;
+    pWorld->sizeCogScripts     = pHdr->sizeCogScripts;
+    pWorld->numCogs            = pHdr->numCogs;
+    pWorld->sizeCogs           = pHdr->sizeCogs;
+    pWorld->numThingTemplates  = pHdr->numThingTemplates;
+    pWorld->sizeThingTemplates = pHdr->sizeThingTemplates;
+    pWorld->numThings          = pHdr->numThings;
+    pWorld->lastThingIdx       = pHdr->lastThingIdx;
+    pWorld->sizePVS            = pHdr->sizePVS;
+}
+
 int J3DAPI sithWorld_LoadEntryBinary(SithWorld* pWorld, const char* pFilePath)
 {
+    CndWorld cndHeader; // Port
     uint32_t startTime;
     tFileHandle fh;
     uint32_t fileSize;
@@ -1875,11 +1931,12 @@ int J3DAPI sithWorld_LoadEntryBinary(SithWorld* pWorld, const char* pFilePath)
     sithWorld_UpdateLoadProgress((float)sith_pHS->pFileTell(fh) / endPos);
 
     // Read world header
-    numRead = sith_pHS->pFileRead(fh, pWorld, sizeof(CndWorld));
+    numRead = sith_pHS->pFileRead(fh, &cndHeader, sizeof(CndWorld));
     if ( numRead != sizeof(CndWorld) )
     {
         goto error;
     }
+    sithWorld_CopyCndHeader(pWorld, &cndHeader);
 
     sithWorld_UpdateLoadProgress((float)sith_pHS->pFileTell(fh) / endPos);
     strncpy(pWorld->aName, stdFnames_FindMedName(pFilePath), STD_ARRAYLEN(pWorld->aName) - 1);

@@ -976,7 +976,7 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
     {
         case JONES_STARTMODE_STARTGAME:
         {
-            sscanf(lpCmdLine, "%d", &JonesMain_curLevelNum);
+            sscanf(lpCmdLine, "%zd", &JonesMain_curLevelNum);
             if ( JonesMain_curLevelNum < JONESLEVEL_FIRSTLEVELNUM || JonesMain_curLevelNum > JONESLEVEL_NUMLEVELS ) // Retail bug: allows the out-of-range level 18
             {
                 JonesMain_curLevelNum = JONESLEVEL_FIRSTLEVELNUM;

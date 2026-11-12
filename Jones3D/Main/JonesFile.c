@@ -305,7 +305,7 @@ tFileHandle J3DAPI JonesFile_OpenFile(const char* pFilename, const char* mode)
         JonesFile_aFileHandles[handle].bFileHandle = 1;
         JonesFile_aFileHandles[handle].hFile       = fh;
         strncpy(JonesFile_aFileHandles[handle].aName, pFilename, sizeof(JonesFile_aFileHandles[handle].aName));
-        JonesFile_aFileHandles[handle].aName[sizeof(JonesFile_aFileHandles[handle].aName)] = '\0'; // Note: retail writes one past aName, into struct padding
+        JonesFile_aFileHandles[handle].aName[sizeof(JonesFile_aFileHandles[handle].aName) - 1] = '\0'; // Note: retail writes one past aName, into struct padding. Port: last byte instead
         JonesFile_aFileHandles[handle].bUsed       = 1;
         bOpen = 1;
     }
@@ -329,7 +329,7 @@ tFileHandle J3DAPI JonesFile_OpenFile(const char* pFilename, const char* mode)
                         JonesFile_aFileHandles[handle].bFileHandle = 1;
                         JonesFile_aFileHandles[handle].hFile       = fh;
                         strncpy(JonesFile_aFileHandles[handle].aName, JonesFile_aPathBuf, sizeof(JonesFile_aFileHandles[handle].aName));
-                        JonesFile_aFileHandles[handle].aName[sizeof(JonesFile_aFileHandles[handle].aName)] = '\0';
+                        JonesFile_aFileHandles[handle].aName[sizeof(JonesFile_aFileHandles[handle].aName) - 1] = '\0'; // Port: retail wrote one past the end
                         JonesFile_aFileHandles[handle].bUsed       = 1;
                         bOpen = 1;
                     }
@@ -351,7 +351,7 @@ tFileHandle J3DAPI JonesFile_OpenFile(const char* pFilename, const char* mode)
                             JonesFile_aFileHandles[handle].bFileHandle    = 0;
                             JonesFile_aFileHandles[handle].pGobFileHandle = pGobFileHandle;
                             strncpy(JonesFile_aFileHandles[handle].aName, pFilename, sizeof(JonesFile_aFileHandles[handle].aName));
-                            JonesFile_aFileHandles[handle].aName[sizeof(JonesFile_aFileHandles[handle].aName)] = '\0';
+                            JonesFile_aFileHandles[handle].aName[sizeof(JonesFile_aFileHandles[handle].aName) - 1] = '\0'; // Port: retail wrote one past the end
                             JonesFile_aFileHandles[handle].bUsed          = 1;
                             bOpen = 1;
                         }

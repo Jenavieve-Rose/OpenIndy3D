@@ -2891,20 +2891,22 @@ int J3DAPI sithThing_ReadStaticThingsListBinary(tFileHandle fh, SithWorld* pWorl
 // fill code in sithThing_WriteThingsListBinary (0x00437ACE-0x00438243) and against
 // sithThing_ReadThingsListBinary's reads (0x00438A85-0x004392D9).
 
+// Port: the counts in the header and records below are uint32_t; retail declared them size_t, 4 bytes on the 1999 ABI.
 typedef struct sSithThingBinaryHeader // 0x2C, written after the thing records
 {
-    size_t numPhysicsThings;
-    size_t numPathThings;
-    size_t numPathFrames;
-    size_t numActorThings;
-    size_t numWeaponThings;
-    size_t numExplosionThings;
-    size_t numItemThings;
-    size_t numParticleThings;
-    size_t numHintThings;
-    size_t numAIThings;
-    size_t numAIFrames;
+    uint32_t numPhysicsThings;
+    uint32_t numPathThings;
+    uint32_t numPathFrames;
+    uint32_t numActorThings;
+    uint32_t numWeaponThings;
+    uint32_t numExplosionThings;
+    uint32_t numItemThings;
+    uint32_t numParticleThings;
+    uint32_t numHintThings;
+    uint32_t numAIThings;
+    uint32_t numAIFrames;
 } SithThingBinaryHeader;
+_Static_assert(sizeof(SithThingBinaryHeader) == 0x2C, "SithThingBinaryHeader must match the retail .cnd layout");
 
 typedef struct sSithThingBinaryRecord // 0x238
 {
@@ -2930,6 +2932,7 @@ typedef struct sSithThingBinaryRecord // 0x238
     SithCollide collide;          // 0x218
     int perfLevel;                // 0x234
 } SithThingBinaryRecord;
+_Static_assert(sizeof(SithThingBinaryRecord) == 0x238, "SithThingBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithPhysicsBinaryRecord // 0x40
 {
@@ -2946,6 +2949,7 @@ typedef struct sSithPhysicsBinaryRecord // 0x40
     float orientSpeed;            // 0x38
     float buoyancy;               // 0x3C
 } SithPhysicsBinaryRecord;
+_Static_assert(sizeof(SithPhysicsBinaryRecord) == 0x40, "SithPhysicsBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithActorBinaryRecord // 0x11C
 {
@@ -2967,6 +2971,7 @@ typedef struct sSithActorBinaryRecord // 0x11C
     VGradiantColor voiceColor;      // 0x09C
     char aExplodeTemplateName[64];  // 0x0DC
 } SithActorBinaryRecord;
+_Static_assert(sizeof(SithActorBinaryRecord) == 0x11C, "SithActorBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithWeaponBinaryRecord // 0x5C
 {
@@ -2979,6 +2984,7 @@ typedef struct sSithWeaponBinaryRecord // 0x5C
     float range;                      // 0x54
     float force;                      // 0x58
 } SithWeaponBinaryRecord;
+_Static_assert(sizeof(SithWeaponBinaryRecord) == 0x5C, "SithWeaponBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithExplosionBinaryRecord // 0x480
 {
@@ -2997,17 +3003,20 @@ typedef struct sSithExplosionBinaryRecord // 0x480
     rdVector3 spriteEnd;           // 0x434
     char aSpriteTemplateName[64];  // 0x440
 } SithExplosionBinaryRecord;
+_Static_assert(sizeof(SithExplosionBinaryRecord) == 0x480, "SithExplosionBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithItemBinaryRecord // 0x8
 {
     SithItemFlag flags;            // 0x0
     float secRespawnInterval;      // 0x4
 } SithItemBinaryRecord;
+_Static_assert(sizeof(SithItemBinaryRecord) == 0x8, "SithItemBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithHintBinaryRecord // 0x4
 {
     float userval;                 // 0x0
 } SithHintBinaryRecord;
+_Static_assert(sizeof(SithHintBinaryRecord) == 0x4, "SithHintBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithParticleBinaryRecord // 0x64
 {
@@ -3017,17 +3026,19 @@ typedef struct sSithParticleBinaryRecord // 0x64
     float maxRadius;               // 0x0C
     float size;                    // 0x10
     float timeoutRate;             // 0x14
-    size_t numParticles;           // 0x18
+    uint32_t numParticles;         // 0x18
     float pitchRange;              // 0x1C
     float yawRange;                // 0x20
     char aMaterialName[64];        // 0x24
 } SithParticleBinaryRecord;
+_Static_assert(sizeof(SithParticleBinaryRecord) == 0x64, "SithParticleBinaryRecord must match the retail .cnd layout");
 
 typedef struct sSithAIBinaryRecord // 0x44
 {
     char aClassName[64];           // 0x00
-    size_t numFrames;              // 0x40
+    uint32_t numFrames;            // 0x40
 } SithAIBinaryRecord;
+_Static_assert(sizeof(SithAIBinaryRecord) == 0x44, "SithAIBinaryRecord must match the retail .cnd layout");
 
 int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWorld, size_t numThings, const SithThing* aThings)
 {
@@ -3038,7 +3049,7 @@ int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWor
     SithThingBinaryHeader header;
     SithThingBinaryRecord* aRecords = NULL;
     SithPhysicsBinaryRecord* aPhysics = NULL;
-    size_t* aPathFrameCounts = NULL;
+    uint32_t* aPathFrameCounts = NULL; // Port: uint32_t on disk, was size_t
     SithPathFrame* aPathFrames = NULL;
     SithActorBinaryRecord* aActors = NULL;
     SithWeaponBinaryRecord* aWeapons = NULL;
@@ -3063,7 +3074,7 @@ int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWor
     const SithThing* pThing;
     SithThingBinaryRecord* pRec;
     SithPhysicsBinaryRecord* pPhysics;
-    size_t* pPathFrameCount;
+    uint32_t* pPathFrameCount;
     SithPathFrame* pPathFrame;
     SithActorBinaryRecord* pActor;
     SithWeaponBinaryRecord* pWeapon;
@@ -3163,9 +3174,9 @@ int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWor
     memset(aPhysics, 0, sizePhysics);
     pPhysics = aPhysics;
 
-    sizePathFrameCounts = header.numPathThings * sizeof(size_t);
+    sizePathFrameCounts = header.numPathThings * sizeof(uint32_t);
 #line 3810
-    aPathFrameCounts = (size_t*)STDMALLOC(sizePathFrameCounts);
+    aPathFrameCounts = (uint32_t*)STDMALLOC(sizePathFrameCounts);
     if ( !aPathFrameCounts )
     {
         goto error;
@@ -3686,7 +3697,7 @@ int J3DAPI sithThing_ReadThingsListBinary(tFileHandle fh, SithWorld* pWorld, siz
     SithThingBinaryHeader header;
     SithThingBinaryRecord* aRecords = NULL;
     SithPhysicsBinaryRecord* aPhysics = NULL;
-    size_t* aPathFrameCounts = NULL;
+    uint32_t* aPathFrameCounts = NULL; // Port: uint32_t on disk, was size_t
     SithPathFrame* aPathFrames = NULL;
     SithActorBinaryRecord* aActors = NULL;
     SithWeaponBinaryRecord* aWeapons = NULL;
@@ -3711,7 +3722,7 @@ int J3DAPI sithThing_ReadThingsListBinary(tFileHandle fh, SithWorld* pWorld, siz
     SithThing* pThing;
     SithThingBinaryRecord* pRec;
     SithPhysicsBinaryRecord* pPhysics;
-    size_t* pPathFrameCount;
+    uint32_t* pPathFrameCount;
     SithPathFrame* pPathFrame;
     SithActorBinaryRecord* pActor;
     SithWeaponBinaryRecord* pWeapon;
@@ -3760,9 +3771,9 @@ int J3DAPI sithThing_ReadThingsListBinary(tFileHandle fh, SithWorld* pWorld, siz
     memset(aPhysics, 0, sizePhysics);
     pPhysics = aPhysics;
 
-    sizePathFrameCounts = header.numPathThings * sizeof(size_t);
+    sizePathFrameCounts = header.numPathThings * sizeof(uint32_t);
 #line 4206
-    aPathFrameCounts = (size_t*)STDMALLOC(sizePathFrameCounts);
+    aPathFrameCounts = (uint32_t*)STDMALLOC(sizePathFrameCounts);
     if ( !aPathFrameCounts )
     {
         goto error;

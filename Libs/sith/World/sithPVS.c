@@ -104,7 +104,7 @@ int J3DAPI sithPVS_ReadPVSText(SithWorld* pWorld, int bSkip)
             goto eof_error;
         }
 
-        if ( sscanf(stdConffile_aLine, "pvs size: %d", &pWorld->sizePVS) != 1 )
+        if ( sscanf(stdConffile_aLine, "pvs size: %zd", &pWorld->sizePVS) != 1 )
         {
             goto syntax_error;
         }
@@ -206,11 +206,13 @@ int J3DAPI sithPVS_ReadPVSBinary(tFileHandle fh, SithWorld* pWorld)
 {
     size_t numRead;
 
-    numRead = sith_pHS->pFileRead(fh, &pWorld->sizePVS, sizeof(uint32_t));
+    uint32_t sizePVS; // Port: 4 bytes on disk, size_t in SithWorld; retail read straight into the field
+    numRead = sith_pHS->pFileRead(fh, &sizePVS, sizeof(uint32_t));
     if ( numRead != sizeof(uint32_t) )
     {
         return 1;
     }
+    pWorld->sizePVS = sizePVS;
 
     if ( pWorld->sizePVS )
     {

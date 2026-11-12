@@ -35,6 +35,25 @@ typedef struct sSoundStaticIdx
     uint32_t* pIdx;
 } SoundStaticIdx;
 
+// Port: SoundInfo as stored in a .cnd sound bank. In memory pLipSyncData is a pointer (8 bytes on arm64); on disk it is
+// the 32-bit value retail happened to hold, which is never valid in another process, so import clears it.
+typedef struct sSoundInfoFile
+{
+    int32_t  hSnd;
+    uint32_t bankNum;
+    uint32_t filePathOffset;
+    uint32_t nameOffset;
+    uint32_t dataOffset;
+    uint32_t lipSyncData;
+    uint32_t sampleRate;
+    uint32_t sempleBitSize;
+    uint32_t numChannels;
+    uint32_t dataSize;
+    uint32_t bCompressed;
+    uint32_t idx;
+} SoundInfoFile;
+_Static_assert(sizeof(SoundInfoFile) == 48, "SoundInfoFile must match the retail .cnd sound bank layout");
+
 // Sound handle constants & helper macros
 #define SOUND_HANDLE_ENTROPY_MAX   1111111 // Note, max 555555 handles per handle type (sound or channel)
 #define SOUND_HANDLE_MIN           1234
@@ -1389,7 +1408,7 @@ int J3DAPI Sound_SkipSoundFileSection(tFileHandle fh)
         return 0;
     }
 
-    Sound_pHS->pFileSeek(fh, sizeof(SoundInfo) * numSounds, 1); // skip sound info list
+    Sound_pHS->pFileSeek(fh, sizeof(SoundInfoFile) * numSounds, 1); // skip sound info list (Port: on-disk record size)
     Sound_pHS->pFileSeek(fh, sizeInfo, 1);         // skip sound data list
     Sound_pHS->pFileSeek(fh, sizeof(uint32_t), 1); // skip next handle
     return 1;
@@ -3282,15 +3301,34 @@ int J3DAPI Sound_ExportBank(tFileHandle fh, size_t bankNum)
     }
 
     // Write sound data size
-    if ( Sound_pHS->pFileWrite(fh, &soundbank_aUsedCacheSizes[bankNum], sizeof(uint32_t)) != sizeof(uint32_t) )
+    uint32_t usedCacheSize = (uint32_t)soundbank_aUsedCacheSizes[bankNum]; // Port: 4 bytes on disk, size_t in memory
+    if ( Sound_pHS->pFileWrite(fh, &usedCacheSize, sizeof(uint32_t)) != sizeof(uint32_t) )
     {
         return 0;
     }
 
     // Write sound infos
-    if ( Sound_pHS->pFileWrite(fh, soundbank_apSoundInfos[bankNum], sizeof(SoundInfo) * soundbank_aNumSounds[bankNum]) != sizeof(SoundInfo) * soundbank_aNumSounds[bankNum] )
+    // Port: converted to the on-disk record one at a time
+    for ( int i = 0; i < soundbank_aNumSounds[bankNum]; ++i )
     {
-        return 0;
+        const SoundInfo* pInfo = &soundbank_apSoundInfos[bankNum][i];
+        SoundInfoFile rec;
+        rec.hSnd           = pInfo->hSnd;
+        rec.bankNum        = pInfo->bankNum;
+        rec.filePathOffset = pInfo->filePathOffset;
+        rec.nameOffset     = pInfo->nameOffset;
+        rec.dataOffset     = pInfo->dataOffset;
+        rec.lipSyncData    = 0;
+        rec.sampleRate     = pInfo->sampleRate;
+        rec.sempleBitSize  = pInfo->sempleBitSize;
+        rec.numChannels    = pInfo->numChannels;
+        rec.dataSize       = pInfo->dataSize;
+        rec.bCompressed    = pInfo->bCompressed;
+        rec.idx            = pInfo->idx;
+        if ( Sound_pHS->pFileWrite(fh, &rec, sizeof(rec)) != sizeof(rec) )
+        {
+            return 0;
+        }
     }
 
     // Write sound data
@@ -3334,7 +3372,10 @@ int J3DAPI Sound_ImportBank(tFileHandle fh, size_t bankNum)
     }
 
     // Read sound data size
-    Sound_ReadFile(fh, &soundbank_aUsedCacheSizes[bankNum], sizeof(uint32_t));
+    // Port: 4 bytes on disk into a size_t; retail's direct read left the upper half of the destination untouched
+    uint32_t usedCacheSize = 0;
+    Sound_ReadFile(fh, &usedCacheSize, sizeof(uint32_t));
+    soundbank_aUsedCacheSizes[bankNum] = usedCacheSize;
 
     // Allocate sound data cache
     if ( soundbank_aCacheSizes[bankNum] < soundbank_aUsedCacheSizes[bankNum] )
@@ -3354,7 +3395,37 @@ int J3DAPI Sound_ImportBank(tFileHandle fh, size_t bankNum)
     }
 
     // Read sound infos, sound data and next handle
-    Sound_ReadFile(fh, soundbank_apSoundInfos[bankNum], sizeof(SoundInfo) * soundbank_aNumSounds[bankNum]);
+    // Port: the on-disk records are read into a scratch array and converted
+    if ( soundbank_aNumSounds[bankNum] > 0 )
+    {
+        size_t sizeRecs = sizeof(SoundInfoFile) * (size_t)soundbank_aNumSounds[bankNum];
+        SoundInfoFile* aRecs = (SoundInfoFile*)Sound_pHS->pMalloc(sizeRecs);
+        if ( !aRecs )
+        {
+            Sound_pHS->pErrorPrint("Sound:ImportBank: Failed to allocate %d bytes.\n", sizeRecs);
+            return 0;
+        }
+
+        Sound_ReadFile(fh, aRecs, sizeRecs);
+        for ( int i = 0; i < soundbank_aNumSounds[bankNum]; ++i )
+        {
+            const SoundInfoFile* pRec = &aRecs[i];
+            SoundInfo* pInfo = &soundbank_apSoundInfos[bankNum][i];
+            pInfo->hSnd           = pRec->hSnd;
+            pInfo->bankNum        = pRec->bankNum;
+            pInfo->filePathOffset = pRec->filePathOffset;
+            pInfo->nameOffset     = pRec->nameOffset;
+            pInfo->dataOffset     = pRec->dataOffset;
+            pInfo->pLipSyncData   = NULL; // a pointer from the process that wrote the file; regenerated on demand
+            pInfo->sampleRate     = pRec->sampleRate;
+            pInfo->sempleBitSize  = pRec->sempleBitSize;
+            pInfo->numChannels    = pRec->numChannels;
+            pInfo->dataSize       = pRec->dataSize;
+            pInfo->bCompressed    = pRec->bCompressed;
+            pInfo->idx            = pRec->idx;
+        }
+        Sound_pHS->pFree(aRecs);
+    }
     Sound_ReadFile(fh, soundbank_apSoundCache[bankNum], soundbank_aUsedCacheSizes[bankNum]);
     Sound_ReadFile(fh, &Sound_handleEntropy, sizeof(uint32_t));
 

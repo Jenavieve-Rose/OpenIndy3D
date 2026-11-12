@@ -143,7 +143,7 @@ int J3DAPI rdKeyframe_LoadEntry(const char* pFilename, rdKeyframe* pKeyframe)
         goto syntax_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " frames %d", &pKeyframe->numFrames) != 1 )
+    if ( sscanf(stdConffile_aLine, " frames %zd", &pKeyframe->numFrames) != 1 )
     {
         goto syntax_error;
     }
@@ -164,7 +164,7 @@ int J3DAPI rdKeyframe_LoadEntry(const char* pFilename, rdKeyframe* pKeyframe)
         goto syntax_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " joints %d", &numJoints) != 1 )
+    if ( sscanf(stdConffile_aLine, " joints %zd", &numJoints) != 1 )
     {
         goto syntax_error;
     }
@@ -200,7 +200,7 @@ int J3DAPI rdKeyframe_LoadEntry(const char* pFilename, rdKeyframe* pKeyframe)
             goto syntax_error;
         }
 
-        if ( sscanf(stdConffile_aLine, " markers %d", &numMarkers) != 1 )
+        if ( sscanf(stdConffile_aLine, " markers %zd", &numMarkers) != 1 )
         {
             goto syntax_error;
         }
@@ -240,7 +240,7 @@ int J3DAPI rdKeyframe_LoadEntry(const char* pFilename, rdKeyframe* pKeyframe)
         goto syntax_error;
     }
 
-    if ( sscanf(stdConffile_aLine, " nodes %d", &numNodes) != 1 )
+    if ( sscanf(stdConffile_aLine, " nodes %zd", &numNodes) != 1 )
     {
         goto syntax_error;
     }
@@ -276,7 +276,7 @@ int J3DAPI rdKeyframe_LoadEntry(const char* pFilename, rdKeyframe* pKeyframe)
             goto syntax_error;
         }
 
-        if ( sscanf(stdConffile_aLine, " entries %d", &numEntries) != 1 )
+        if ( sscanf(stdConffile_aLine, " entries %zd", &numEntries) != 1 )
         {
             goto syntax_error;
         }
