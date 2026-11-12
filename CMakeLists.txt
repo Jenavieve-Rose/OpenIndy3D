@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # Port of the Jones3D engine (infernal-machine-decomp, upstream commit 319a6fc2) to arm64 macOS.
-# See PORT-PLAN.md for the phases and docs/PORTING.md for every deviation from the decomp.
+# See docs/PORT-PLAN.md for the phases and docs/PORTING.md for every deviation from the decomp.
 project(J3DPort VERSION 0.1.0 LANGUAGES C)  # OBJC is added with the first .m file (Phase 2)
 
 set(CMAKE_C_STANDARD 11)

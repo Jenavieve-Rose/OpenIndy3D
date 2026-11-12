@@ -1,6 +1,6 @@
 # How the build works
 
-This is the detail behind [BUILDING.md](BUILDING.md): what the build does between the retail executable and a rebuilt
+This is the detail behind [DECOMP-BUILDING.md](DECOMP-BUILDING.md): what the build does between the retail executable and a rebuilt
 one, where each piece of the image comes from, and what is still copied from the retail executable. Each version has its own
 build data in `config/<version>/` and its own outputs in `build/<version>/`; the two builds share the source tree and
 the backend ([VERSIONS.md](VERSIONS.md#how-the-two-versions-are-built)). Paths and figures below are 1.0's unless they

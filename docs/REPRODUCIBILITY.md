@@ -47,7 +47,7 @@ The build pins further files itself, so a wrong archive fails even if the setup 
 
 ## What the setup script does
 
-The commands are in [BUILDING.md](BUILDING.md). In order, the script:
+The commands are in [DECOMP-BUILDING.md](DECOMP-BUILDING.md). In order, the script:
 
 1. clones the Visual C++ 6.0 RTM, 5.0 SP3 and 4.20 packages at their commits (checking the head against the pin),
    hashes the service pack's updated `c1.dll` and `c2.exe` (the driver banner is the RTM one) and the 4.20 drivers, and
@@ -70,7 +70,7 @@ The commands are in [BUILDING.md](BUILDING.md). In order, the script:
 
 Without `--exe` it sets up everything except the original, and `ninja converted` is available.
 
-The host tools the script cannot pin *([requirements](BUILDING.md#setting-up-and-building))* run the build but are
+The host tools the script cannot pin *([requirements](DECOMP-BUILDING.md#setting-up-and-building))* run the build but are
 not part of what the compilers see. The heap-model wibo is built from pinned source but is not itself hash-checked; a
 stamp file records the source commit and the patch's hash and triggers a rebuild when they change.
 
@@ -90,7 +90,7 @@ checksum. [COMPILERS.md](COMPILERS.md#running-1990s-compilers-on-a-modern-host) 
 
 `ninja` (or `ninja v1.0`) ends with `verify.ok` only when the rebuilt `Indy3D.exe` has the original's SHA-256 and
 SHA-1, after each matching file has passed the strict check ([METHODOLOGY.md](METHODOLOGY.md#what-matching-means)).
-The other targets are in [BUILDING.md](BUILDING.md#build-targets). To check that a result is independent of your
+The other targets are in [DECOMP-BUILDING.md](DECOMP-BUILDING.md#build-targets). To check that a result is independent of your
 checkout, build twice, in two directories, or on two hosts, and compare the objects under `build/indy3d-v1.2/obj/`. A
 COFF object carries a compile timestamp that differs between runs; the section contents and relocations do not.
 

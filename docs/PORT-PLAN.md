@@ -1,0 +1,652 @@
+# Indiana Jones and the Infernal Machine: Apple Silicon Port Plan
+
+Revision 2, 2026-11-12. Replaces draft 1 of 2026-11-11 (still readable with `git show 8e9a940:PORT-PLAN.md`).
+
+This revision records what has been built since draft 1, splits every phase into steps small enough to finish and
+verify one at a time, and turns the plan into a checklist. Section 5 is the checklist; the table below is its summary.
+
+Section 3 (decisions), section 7.1 (floating point) and the phase numbers are referenced from `CMakeLists.txt`,
+`docs/PORTING.md` and source comments, so they keep their numbering. Steps are named `P<phase>.<n>` so they cannot be
+confused with section numbers.
+
+## Progress at a glance
+
+| Phase | Outcome | Steps done | State |
+| --- | --- | --- | --- |
+| 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
+| 1 | Headless boot, every level loads, 64-bit audit closed | 17 of 30 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 0 of 22 | Not started |
+| 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
+| 4 | Audio | 0 of 11 | Not started |
+| 5 | Movies (INSANE) | 0 of 12 | Not started |
+| 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
+| 7 | Full-game verification, shim removal | 0 of 10 | Not started |
+| 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
+| **All** | | **29 of 146** | |
+
+Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
+Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
+
+### What works today (measured 2026-11-12 on the working tree)
+
+| Check | Result |
+| --- | --- |
+| `cmake --build` from clean, arm64, Apple clang | Builds and links, exit 0 |
+| `ctest` (with `-DJ3D_TEST_DATA`) | `levelload`, `cogcheck` and `boot` pass |
+| `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
+| `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
+| `python3 tools/layout_audit.py` | `0 retail on-disk type(s) differ` |
+| `jones3d --data <data>` | Opens the three GOBs, loads the string tables, starts the engine, stops at `stdDisplay_Open` (no display backend) |
+| `jones3d --data <data> --headless --frames 600` | Loads `00_cyn`, writes the level-start autosave, runs 600 frames (20 s of game time) of the opening cutscene and shuts down cleanly, exit 0, in under a second. The log is identical from run to run |
+| Compiler warnings still to triage | 510 `-Wshorten-64-to-32`, 144 `RAND_MAX` float conversions, 58 `-Wformat`, 19 `-Wreturn-type`, 52 others |
+
+Nothing is on screen and nothing is audible yet, but the game loop itself now runs. Phase 1's remaining work is the
+savegame test, the sanitizer run and the warning backlog; phase 2 is where the first pixels appear.
+
+Not everything above is committed. The last commit is `8e9a940`; the test programs, `gobtool.py`, the system-memory
+VBuffers, the loader fixes, the headless display and the fixes it uncovered are in the working tree only (step P1.15).
+
+## 1. Goal
+
+A native arm64 macOS application that plays the full retail game (all 17 levels: 16 story chapters and the bonus level,
+with cutscene movies, saving and loading, the in-game menus and store) from the player's own copy of the game data, with
+no Windows executable, Wine, Rosetta, or DLL injection involved.
+
+Non-goals for v1.0: multiplayer (the game has none), the level editor paths, savegame compatibility with Windows saves,
+Intel Mac support (cheap to add later as a universal binary, but not a milestone).
+
+## 2. What we have to work with
+
+Paths are relative to `~/Developer/Indy3D_Mac`.
+
+| Item | Location | What it is | Role |
+| --- | --- | --- | --- |
+| The port | `j3dport/` | Git repository, hard fork of the decomp at upstream `319a6fc2`, 5 commits on `main` | **Where all work happens.** |
+| Byte-exact decompilation | `infernal-machine-decomp-public-main/` | 100% source for `Indy3D.exe` v1.2 and v1.0, ~188k lines of C, plus zlib 1.0.9 and the INSANE movie player | Pristine upstream copy, for diffing and cherry-picks. Its docs are imported into `j3dport/docs/`. |
+| OpenJones3D v0.3.1 | `OpenJones3D-main/` | Partial reimplementation (87%) that runs by injecting a DLL into the retail exe | Not a base. Source of ~80 catalogued fixes (`CHANGELOG.md`), applied in phase 8. |
+| Retail game data | `Indy3D/` | `RESOURCE/` with `CD1.GOB`, `CD2.GOB`, `JONES3D.GOB`, five `.snm` intro movies, 51 patched `.cog` scripts in `Cog/`; `KEYSETS/*.kfg` | Complete v1.2 install (`INDY3D.EXE` = `55fb00c0…`). The test data root: `-DJ3D_TEST_DATA=…/Indy3D`. |
+| OpenAL Soft | `openal-soft-master/` | Source tree, not referenced by the build | Fallback audio backend only (decision 7). |
+| SDL3 | Homebrew, 3.4.20 | Installed on the development machine, not yet referenced by the build | Window, input, gamepads from phase 2. |
+
+Both source trees are AGPL v3. The port inherits that license. No game assets may be shipped; the app must locate the
+player's own data.
+
+### 2.1 Where the Windows dependence lives, and where each module stands
+
+Line counts were measured on the decomp tree for draft 1.
+
+| Module | Lines | Windows exposure | State in the port |
+| --- | --- | --- | --- |
+| `Libs/sith` (game logic, COG VM, AI, physics) | 104,110 | A handful of stray calls (registry, GDI thumbnail in savegame, console) | Compiles. Level loaders audited and fixed. 283 narrowing warnings open. |
+| `Libs/rdroid` (renderer front end, math) | 19,762 | `LPD3DTLVERTEX` in one struct, the SSE "Katmai" mesh path | Compiles. Katmai sources dropped; a 5-function stub (`rdModel3K_null.c`) remains. |
+| `Libs/std/General` | 5,781 | x87 inline asm, backslash paths | Done: x87 compiled out, both path separators accepted. |
+| `Libs/std/Win95` | 9,768 | `std3D` (Direct3D 6), `stdDisplay` (DirectDraw), `stdControl` (DirectInput), `stdComm` (DirectPlay), console, window store | Excluded from the build. Generated null backends stand in. `stdGob.c` kept. System-memory VBuffers are real. |
+| `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | `Driver.c` replaced by a null backend. The asm loop has a C translation that is not yet verified. |
+| `Libs/smush` (INSANE) | 10,267 | 6 MASM files (1,815 lines), `Dsnd.c`, `Timer.c`, `Stdfile.c`, `Stdio.c` | OS modules register nothing; the 14 asm entry points abort if reached. No movies. |
+| `Libs/wkernel`, `Libs/w32util` | 692 | 100% | `wkernel` is a hand-written null (message queue, quit). `wuRegistry` is done (`settings.ini`). |
+| `Jones3D/` (game shell) | 23,318 | `jonesConfig.c` (9,955 lines of dialog procedures), `JonesDialog.c`, `JonesDevDialog.c`, `Indy3D.rc` (26 dialog templates) | Compiles against the shim headers. Every dialog call returns failure. |
+| `Libs/zlib` | 7,512 | None | Vendored and built (it is modified to read through INSANE's file table). |
+
+Facts that shape the remaining design:
+
+- The GPU is only a rasterizer. `rdroid` transforms, clips, lights and projects on the CPU and hands
+  `std3D_DrawRenderList` pre-transformed triangles (screen x, y, z, 1/w, diffuse, specular, u, v) with a texture and a
+  small render-state bitmask. The whole `std3D` interface is 33 functions.
+- 2D (fonts, console, dialogs, movie frames) writes pixels into a locked back buffer. The port must provide a CPU-side
+  back buffer that is composited onto the Metal drawable each frame. `stdDisplay` is 41 functions, 6 of which exist.
+- Key bindings are stored as DirectInput `DIK_*` scancodes and the `.kfg` keyset files name keys by DirectInput names.
+  The input layer must produce DIK codes. `stdControl` is 30 functions.
+- `SoundDriver` is 36 functions, a thin DirectSound buffer wrapper with 3D positioning.
+- `platform/common/null/win32_null.c` holds 254 Win32 stubs. That list is the exact surface the dialog work (phase 6)
+  must either implement or prove dead.
+- The dialog templates use buttons, statics, 14 combo boxes, 3 list boxes, 5 list views, 4 trackbars, one edit control
+  and one scroll bar. `Indy3D.rc` also names 43 icon and bitmap files that are **not** in the repository: they exist
+  only inside the retail executable (see P6.10 and risk 7.3).
+- Textures are converted to the backend's format when a level loads, so even the null renderer names a format. It
+  reports 32-bit BGRA, the layout the Metal backend will upload.
+
+## 3. Strategy decisions
+
+Decisions 1 to 11 are unchanged from draft 1. Their status is noted where work has confirmed or exercised them.
+
+1. **Base the port on the decomp, not on OpenJones3D.** Done.
+2. **Hard-fork into a new repository with the same file layout.** Done: `j3dport/`, upstream commit recorded in
+   `NOTICE` and `docs/PORTING.md`. LucasArts' module and function names are kept.
+3. **64-bit arm64 native from day one.** Holding: all 17 levels load on arm64 after the fixes listed in
+   `docs/PORTING.md`.
+4. **Replace, do not wrap, the platform layer.** Keep the public headers of `std3D`, `stdDisplay`, `stdControl`,
+   `SoundDriver`, `wkernel`, `wuRegistry` and write new implementations under `platform/`. In place: the Windows
+   sources are excluded in `CMakeLists.txt` and `platform/` supplies every function.
+5. **Graphics: Metal directly**, through a small Objective-C file with a C interface. SDL3's GPU API is the fallback if
+   Linux or Windows becomes a goal, so the Metal calls stay in one file.
+6. **Window, input, timing, gamepads: SDL3.**
+7. **Audio: miniaudio** (single-file C, Core Audio backend, built-in spatializer). OpenAL Soft is the alternative if
+   the spatialization sounds wrong; its source is already in the workspace.
+8. **Movies: port INSANE, do not swap in ScummVM.** The six assembler files become C. ScummVM's `Blocky16` codec
+   (GPLv2+) is the reference for the hardest one.
+9. **GUI: emulate the slice of the Win32 dialog API that `jonesConfig.c` uses**, backed by our own widgets drawn with
+   the engine's font and 2D primitives, so ~10k lines of dialog logic stay intact.
+10. **Build with CMake; generate the Xcode project from it.** In place (`build/` with Ninja, `build-xcode/`).
+11. **Bring over OpenJones3D's fixes as a curated patch series, after the game runs**, so "port bug" and "behaviour
+    change" stay distinguishable.
+
+Decisions made while doing phases 0 and 1:
+
+12. **Every change to imported code is marked and logged.** A `// Port:` comment in the source, `#ifdef J3D_PORT` where
+    the retail body is kept beside the new one, and an entry in `docs/PORTING.md`.
+13. **Null backends are generated, and replaced one module at a time.** `tools/gen_null_platform.py` writes a stub for
+    every prototype in the replaced headers. A real implementation lands by listing its functions in
+    `IMPLEMENTED_ELSEWHERE` (or dropping the header from the generator), so the tree links at every step.
+14. **Tests are headless programs that link the game as a library** (`jones3d_game`) and run against the player's own
+    data through `-DJ3D_TEST_DATA`. No asset is copied into the repository.
+15. **The port does not run from the data folder.** `Data Root` (from `--data`, `J3D_DATA` or `settings.ini`) points at
+    the folder holding `RESOURCE/`; loose files there override GOB contents as they did for the retail exe.
+16. **Savegames use the port's native layout.** `NdsHeader` is 1,320 bytes on arm64 against 1,188 in retail. That is
+    accepted (non-goal in section 1) and covered by a round-trip test instead of a fixed layout.
+
+## 4. Target architecture
+
+```
+Jones3D app shell (JonesMain, HUD, inventory, dialogs' logic)      imported C, builds today
+        │
+sith (game) ── rdroid (renderer front end) ── sound/Sound.c        imported C, builds today
+        │              │                          │
+   platform/                                      │
+   ├─ common/crt_posix.c, host_path.h   MSVC CRT names, path conversion      exists
+   ├─ common/wuRegistry_file.c          settings.ini                         exists
+   ├─ common/stdDisplay_vbuffer.c       system-memory VBuffers               exists
+   ├─ common/null/*_null.c              generated null backends              exists, shrinks every phase
+   ├─ apple/main.c                      entry point, --data                  exists
+   ├─ apple/shim/                       Win32 and DirectX type headers       exists, deleted in phase 7
+   ├─ wkernel_sdl.c                     event loop, window proc messages     phase 2
+   ├─ stdDisplay_sdl.c                  window, modes, back buffer, present  phase 2
+   ├─ std3D_metal.m                     Metal rasterizer                     phase 2
+   ├─ stdControl_sdl.c                  keyboard to DIK, mouse, gamepads     phase 3
+   ├─ SoundDriver_ma.c                  miniaudio voices, 3D listener        phase 4
+   ├─ insane_os/                        timer, file I/O, audio sink, asm→C   phase 5
+   ├─ j3dgui/                           Win32 dialog emulation and widgets   phase 6
+   └─ apple/ (bundle, data locator)                                          phase 8
+```
+
+Threading stays as the original: one game thread, INSANE's timer thread, and the audio callback thread.
+
+## 5. Work breakdown and checklist
+
+`[x]` is done and verified. `[ ]` is open. A step is only ticked when its check has been run; the check is named in
+the step or in the phase's exit test. Work phase by phase, top to bottom, unless a step says it can run in parallel.
+
+### Phase 0: Bootstrap (complete)
+
+Exit test, passing: `jones3d` links on arm64, prints the engine's startup log and stops at display open.
+All of it is in commit `2d8bbed` (import in `cd15970`).
+
+- [x] **P0.1** Create the port repository and import the decomp at `319a6fc2`.
+- [x] **P0.2** Add `LICENSE` (AGPLv3) and `NOTICE` crediting LucasArts, the decomp, OpenJones3D, OpenJKDF2 and zlib.
+- [x] **P0.3** CMake project with targets `zlib`, `std`, `rdroid`, `sound`, `smush`, `sith`, `platform`, `jones3d`;
+      C11, `-fno-strict-aliasing -fwrapv -ffp-contract=off`, pointer/integer cast warnings as errors.
+- [x] **P0.4** Replace `j3dcore/types.h` with `<stdint.h>`/`<stddef.h>`; remove the `CF_*` count-fit macros and blocks.
+- [x] **P0.5** Replace the `_WIN32` branch of `j3d.h.in` (`J3DAPI`, `J3DNORETURN`, case-insensitive compares);
+      `__inline` becomes `static inline`.
+- [x] **P0.6** Win32 shim headers in `platform/apple/shim/` (2,517 lines in `win32_shim.h`, `win32_shim_dx.h`,
+      `win32_shim_gui.h`). Tracked as debt; removed in phase 7.
+- [x] **P0.7** Exclude the Windows platform sources from the build; drop the Katmai mesh path and `sithWrite.c`.
+- [x] **P0.8** Null platform: `tools/gen_null_platform.py`, hand-written `win32_null.c` and `wkernel_null.c`, and
+      real POSIX bodies for the MSVC CRT names in `crt_posix.c`.
+- [x] **P0.9** Fix every pointer-to-`int` truncation needed to compile (table in `docs/PORTING.md`).
+- [x] **P0.10** Compile out the x87 control-word code; build with `NONMATCHING_MATH`.
+- [x] **P0.11** `platform/apple/main.c`: rebuild the command line and call the game's `WinMain`.
+- [x] **P0.12** Generate an Xcode project from the same CMake files (`build-xcode/`).
+
+### Phase 1: Headless boot and the 64-bit audit (in progress)
+
+Exit test: `ctest` runs `levelload`, `cogcheck`, `boot` and `saveload` green; `layout_audit.py` reports 0; the same
+tests pass under AddressSanitizer and UBSan; the tree builds with `-Werror` for return-type, format and
+64-to-32 narrowing.
+
+#### 1A. Settings, paths, on-disk layouts (complete, committed)
+
+- [x] **P1.1** `wuRegistry_file.c`: settings in `~/Library/Application Support/J3DPort/settings.ini`, same value
+      names as the registry, `J3D_SETTINGS` and `J3D_REG_<name>` overrides. (`ddf3011`)
+- [x] **P1.2** `Data Root` from `--data`, `J3D_DATA` or the file; default for `Install Path`, `Source Dir` and
+      `User Path`. (`ddf3011`)
+- [x] **P1.3** `stdFnames` accepts `\` and `/` and builds with `/`; `stdGob_FileOpen` folds back to `\` for its
+      directory lookup. (`ddf3011`)
+- [x] **P1.4** `J3DHost_ToPosixPath`: one engine-to-host path conversion with case-insensitive component matching,
+      used by `stdFileOpen` and every path call in `crt_posix.c`. (`ddf3011`)
+- [x] **P1.5** Route the engine's three direct `fopen` sites through `J3DHost_fopen`. (`ed23c42`)
+- [x] **P1.6** `tools/layout_audit.py` and fixed-width on-disk records with `_Static_assert` sizes: `CndWorld`, thing,
+      AI and particle headers, surface and material counts, PVS size, `SoundInfoFile`. (`8e9a940`)
+- [x] **P1.7** Text parsers: 24 `sscanf` conversions from `%d` to `%zd`; four memory-safety fixes found on the way.
+      (`8e9a940`)
+
+#### 1B. Test harness and loaders (done in the working tree, not committed)
+
+- [x] **P1.8** `tools/gobtool.py`: list and extract GOB contents.
+- [x] **P1.9** `stdDisplay_vbuffer.c`: system-memory VBuffers, and a null `std3D` that names a texture format, so
+      materials and fonts load with no display.
+- [x] **P1.10** Loader fixes found by the level test: index arrays allocated at `sizeof(size_t)` and converted
+      element by element (sectors, surfaces, model faces); material loader allocates a buffer per cel and mip.
+- [x] **P1.11** Loose-file override root is the data root's `RESOURCE/` (retail relied on the working directory);
+      `J3D_TRACE_FILES=1` logs host file opens.
+- [x] **P1.12** `tests/levelload.c`: loads the static world and all 17 levels through every binary section loader and
+      prints section counts. Passing, 0 failed.
+- [x] **P1.13** `tests/cogcheck.c`: compiles every `.cog` in the three GOBs through the normal lookup, so loose
+      overrides are the ones compiled. CMake target and `ctest` entry added. Passing: 1,132 scripts, 0 failed.
+- [x] **P1.14** `levelload.c` uses the shared `tests/harness.c` for engine startup and crash handlers; its output is
+      unchanged. `CMakeLists.txt` builds every name in `J3D_TESTS` the same way, so a new test is one line.
+- [ ] **P1.15** (S) Commit 1B as reviewable commits (tools, VBuffers, loader fixes, tests, the plan's move to
+      `docs/`). `docs/PORTING.md` is already up to date for all of it (P1.8 to P1.14); only the commits remain.
+- [x] **P1.16** `docs/BUILDING.md` is the port's build guide: Ninja and Xcode configure lines, CMake options, the data
+      root, environment variables, tests and tools. The decomp's guide is kept as `docs/DECOMP-BUILDING.md`.
+
+#### 1C. Run the game loop headless
+
+The game has no title screen: with `Start Mode` 0 it loads a level and enters the game loop. These steps make the
+loop itself testable before any renderer exists.
+
+- [x] **P1.17** Headless display: with `--headless` (`J3D_HEADLESS=1`) `stdDisplay_headless.c` provides one device, one
+      640×480 mode and a system-memory back buffer, the null `std3D` starts and opens, and time runs on a virtual
+      clock that advances 33 ms per presented frame. The game opens its display, loads `00_cyn` and runs its loop.
+      Getting there needed five fixes outside the display, all in `docs/PORTING.md`: two crashes in the movie player
+      when it has no backend, memory bitmaps for the dialog icons and the savegame thumbnail, a savegame writer that
+      fell off its end without a return value, and the level-start autosave racing the opening script.
+- [x] **P1.18** `--frames <n>` (`J3D_FRAMES`) ends the run after n passes of the game loop through the normal
+      shutdown. `ctest` runs `jones3d --headless --frames 600` as the `boot` test; it passes in about 0.3 s.
+- [ ] **P1.19** (S) Decide where the game writes. `JonesError.txt` and `SaveGames/` go under `Install Path`, which
+      defaults to the data root, so today they land in the player's game folder; `JonesLog.txt` goes to the current
+      directory. Move logs to `~/Library/Logs/J3DPort/` and saves to Application Support.
+- [ ] **P1.20** (M) `tests/saveload.c`: boot a level headless, run some frames, `sithGamesave_Save`, restore into a
+      fresh world, compare thing count, player position and COG globals. Start with `00_cyn`; all levels in P7.2.
+      Known going in: two identical headless runs produce autosaves that differ in some bytes, although their logs
+      match. Find out which bytes (stale stack or heap, pointers, clock values) before trusting a comparison.
+- [ ] **P1.21** (M) Sanitizer configuration (`-DJ3D_SANITIZE=ON`: ASan and UBSan). Run all four tests under it and fix
+      what it reports. This is the cheapest way to find the remaining 64-bit bugs before a renderer hides them.
+- [ ] **P1.30** (M) Path length. The engine's path buffers are 128 bytes (`SITH_PATHSIZE` and many `char[128]`
+      locals). With `Install Path` set to a 120-character folder the autosave was silently written as `st`, was
+      no longer recognised as an autosave, and the level played out differently. Paths under
+      `~/Library/Application Support/` will hit this. Audit the buffers and widen them.
+
+#### 1D. Close the warning backlog (can run in parallel with phase 2)
+
+Counts are from a clean build on 2026-11-12.
+
+- [ ] **P1.22** (M) 19 non-void functions that can fall off their end (`-Wreturn-type`: 10 in `sith`, 5 in
+      `Jones3D/Display`, 2 in `rdroid`, 1 in `JonesDialog.c`, 1 in INSANE's `Zfilio.c`). Retail callers received
+      whatever was in `eax`, so check each against the retail binary, then make it `-Werror=return-type`. These are
+      real failures, not style: the twentieth, `sithMessage_FileWrite`, made every savegame fail (fixed in P1.17).
+- [ ] **P1.23** (S) 58 `-Wformat` warnings: 36 `size_t` printed with `%d`, 10 `long`/`int`, 4 `%f` given an `int`, 8
+      pointer-type mismatches. Fix, then `-Werror=format`.
+- [ ] **P1.24** (S) `rand()`: macOS returns 31 bits where MSVC returned 15. `SITH_RAND` scales by `RAND_MAX` and is
+      safe, but 8 raw `rand()` call sites need checking. Provide MSVC's generator in `crt_posix.c` so range and
+      sequence match retail; that also clears the 144 `RAND_MAX` conversion warnings.
+- [ ] **P1.25** (M) `-Wshorten-64-to-32` in `std` (18), `rdroid` (61) and `sound` (19).
+- [ ] **P1.26** (L) `-Wshorten-64-to-32` in `sith` (283). Most are `size_t` counts narrowed to `int`; the ones that
+      matter are indices and sizes that reach file I/O or pointer arithmetic.
+- [ ] **P1.27** (S) `-Wshorten-64-to-32` in `Jones3D/Main`, `Gui`, `Play` (22), `smush` (24) and `zlib` (3). The 80
+      in `Jones3D/Display` wait for phase 6 (P6.24), which rewrites the code around them.
+- [ ] **P1.28** (M) The remaining 52: 13 non-literal format strings, 11 include-path case mismatches, 8 constant
+      truncations (7 `int16_t` IDs in `sithWeapon.c`/`sithWhip.c`, 1 in `JonesDisplay.c`), 7 discarded qualifiers, 6
+      enum-pointer assignments in `sithCommand.c`, 2 unsequenced modifications (`sithCollision.c:877`;
+      `AudioLib.c:1703` is P4.8), 2 pointer-as-boolean tests, 2 wrong `abs` variants, and the pointer/integer
+      compare in `sithCogParse.c:260`.
+- [ ] **P1.29** (S) Turn on `J3D_WERROR_SHORTEN` by default once P1.25 to P1.27 are closed.
+
+### Phase 2: Display and renderer
+
+Exit test: `00_cyn` renders correctly in a window at native resolution, a screenshot of the first frame of every level
+can be produced by script, and `stdDisplay_SaveScreen` works.
+
+#### 2A. Window and 2D
+
+- [ ] **P2.1** (S) Build plumbing: `find_package(SDL3)`, add `OBJC` to the project languages, link Metal, QuartzCore
+      and Cocoa. Add a `J3D_PLATFORM` switch (`null` or `apple`) so the headless tests keep the null backends.
+- [ ] **P2.2** (M) `wkernel_sdl.c`: create the window, implement `wkernel_Run`, `wkernel_PeekProcessEvents` and
+      `wkernel_ProcessEvents` over the SDL event queue, and deliver the window messages that `JonesMain_GameWndProc` and
+      `JonesMain_IntroWndProc` handle (activate, close, size, paint, key and char messages). Check: an empty window opens and closes cleanly.
+- [ ] **P2.3** (M) `stdDisplay_sdl.c`, device and modes: `Startup`, `Open`, `Close`, one display device, the mode list
+      (desktop modes plus window sizes, within the engine's 64-mode cap), `SetMode`, `FindClosestMode`,
+      `GetCurrentVideoMode`, `IsFullscreen`, `CanRenderWindowed`.
+- [ ] **P2.4** (S) Back buffer: a 32-bit BGRA system-memory VBuffer as the engine's back buffer;
+      `LockBackBuffer`/`UnlockBackBuffer`, `BackBufferFill`, `ClearRect`, `GetBackBufferSize`.
+- [ ] **P2.5** (M) `stdDisplay_VBufferFill` and `stdDisplay_VBufferCopy` with colour key: port the retail
+      system-memory blit paths for 32 bpp only; `EncodeFromRGB565`.
+- [ ] **P2.6** (M) First present path: upload the back buffer to a Metal texture and draw it as a full-screen quad to
+      the `CAMetalLayer` drawable in `stdDisplay_Refresh`, with vsync. Check: the level-load progress screen is
+      visible.
+- [ ] **P2.7** (S) `stdDisplay_SaveScreen`, plus `--screenshot-at <frame>` so images can be captured by script.
+- [ ] **P2.8** (S) Remaining `stdDisplay` entries: `CreateZBuffer`, memory queries, `SetDefaultResolution`, clipper
+      functions as no-ops. The four `*BufferDC` functions and `FlipToGDISurface` stay null until P6.5.
+
+#### 2B. Metal rasterizer (`std3D_metal.m`)
+
+- [ ] **P2.9** (M) Skeleton: device, command queue, depth texture, one command buffer per frame; `Startup`, `Open`,
+      `Close`, `StartScene`, `EndScene`, `ClearZBuffer`; device and display-environment enumeration reporting one
+      Metal device; the texture-format functions (BGRA with and without alpha, as the null backend reports now).
+- [ ] **P2.10** (M) Shaders: the vertex stage converts pre-transformed screen coordinates and 1/w to clip space; the
+      fragment stage is texture × diffuse + specular, as Direct3D 6 fixed function did.
+- [ ] **P2.11** (M) Geometry: a per-frame vertex and index buffer ring; `DrawRenderList`; `DrawLineStrip` and
+      `DrawPointList`. Check: untextured, unlit level geometry is on screen with correct depth.
+- [ ] **P2.12** (M) Textures: `AllocSystemTexture` (mip chain upload), `ClearSystemTexture`, the texture-cache
+      functions (`AddToTextureCache`, `PurgeTextureCache`, `ResetTextureCache`, `UpdateFrameCount`),
+      `GetValidDimensions`, `GetMipMapCount`, `FindClosestFormat`.
+- [ ] **P2.13** (M) Render states: map the `SetRenderState` bitmask to sampler states (bilinear or nearest, clamp or
+      wrap per axis), blending, z-write and alpha reference; `SetMipmapFilter`; a pipeline cache keyed by blend mode.
+- [ ] **P2.14** (S) Fog: `EnableFog` and `SetFog` as fragment uniforms using the engine's start and end depths.
+- [ ] **P2.15** (S) `SetProjection` and viewport; drawable size against the engine's mode size on Retina displays.
+- [ ] **P2.16** (S) `SetWireframeRenderState`.
+
+#### 2C. Integration
+
+- [ ] **P2.17** (M) Frame order: trace how the retail frame interleaves the 3D scene, the HUD and back-buffer 2D
+      (console, text, frozen frame under dialogs), record it in `docs/PORTING.md`, and composite in that order.
+- [ ] **P2.18** (S) Temporary debug input (a handful of keys read straight from SDL) so a level can be walked before
+      phase 3. Removed in P3.2.
+- [ ] **P2.19** (S) Window behaviour: resize, fullscreen toggle, minimize and focus loss mapped to the activate
+      messages so the game pauses as retail did.
+- [ ] **P2.20** (S) 4:3 pillarbox option; the HUD layout assumes 4:3 until the widescreen fixes in P8.9.
+- [ ] **P2.21** (S) Remove `rdModel3K_null.c` and the `rdModel3K_*` references (11 sites) now that nothing can enable
+      the path.
+- [ ] **P2.22** (M) Visual pass: script a first-frame screenshot of all 17 levels and review each for missing
+      textures, wrong alpha, z-fighting and fog errors. Fix what it shows.
+
+### Phase 3: Input
+
+Exit test: `00_cyn` is playable start to finish with keyboard and mouse, and again with a controller, using the
+retail keysets.
+
+- [ ] **P3.1** (S) DIK tables in `platform/common/`: SDL scancode to `DIK_*`, and `DIK_*` to display name.
+- [ ] **P3.2** (M) `stdControl_sdl.c`, keyboard: `Startup`, `Open`, `Close`, `Reset`, `ReadControls`, `FinishRead`,
+      `ReadKey` with retail's pressed-this-frame semantics, `ReadKeyAsAxis`, `ControlsActive`, `SetActivation`,
+      `ControlsIdle`.
+- [ ] **P3.3** (S) Key and character messages to the window proc for the console and typed input.
+- [ ] **P3.4** (M) Mouse: relative mode while controls are active, `ReadAxis`/`ReadAxisRaw`, buttons, `EnableMouse`,
+      `ToggleMouse`, `ShowMouseCursor`, `ResetMousePos`, sensitivity scaled to what DirectInput deltas were.
+- [ ] **P3.5** (S) Axis bookkeeping: `RegisterAxis`, `EnableAxis`, `SetAxisFlags`, `TestAxisFlag`, `ReadAxisAsKey`,
+      `ReadAxisAsKeyEx`.
+- [ ] **P3.6** (M) Gamepads through `SDL_Gamepad`, hot-plug included, mapped into the engine's slots (8 devices, 6
+      axes, 32 buttons, 4 POV hats); `GetNumJoysticks`, `GetMaxJoystickButtons`, `IsGamePad`, `DisableReadJoysticks`.
+- [ ] **P3.7** (S) Load the retail `KEYSETS/*.kfg` through the data root; key names come from our DIK name table
+      instead of `GetKeyNameTextA`.
+- [ ] **P3.8** (S) A default keyset for a standard dual-stick controller, written for the port.
+- [ ] **P3.9** (S) Mac keyboard behaviour: Command-Q quits, Command-Tab and focus loss release the mouse, Option and
+      Command map to the Alt and Windows DIK codes.
+- [ ] **P3.10** (M) Input recording and replay by frame, for the regression and A/B work in phase 7.
+
+### Phase 4: Audio
+
+Exit test: music, ambience, effects, 3D positioning and dialogue with subtitles work in the first three levels, and
+survive a save and load.
+
+- [ ] **P4.1** (S) Vendor `miniaudio.h` into `third_party/` and link it; open and close a device.
+- [ ] **P4.2** (S) Make the buffer handle opaque: `LPDIRECTSOUNDBUFFER` in `sound/types.h` becomes `SoundVoice*`.
+- [ ] **P4.3** (S) `SoundDriver_ma.c`, device level: `Open`, `Close`, `SetOuputFormat`, `SetMaxVolume`, the time and
+      sleep functions, and the DirectSound object accessors as no-ops.
+- [ ] **P4.4** (M) Voices: `CreateAndPlay`, `Play`, `Stop`, `Release`, `GetStatusAndCaps`, `GetCurrentPosition`,
+      looping, and the buffer-data callback that `Sound.c` uses to fill and refill buffers.
+- [ ] **P4.5** (S) Volume, pan and frequency. Port the four pure conversion functions (`GetDecibelVolume`,
+      `GetIntPan`, `GetVolumeFromDecibels`, `GetPanFromTable`) from retail `Driver.c` unchanged.
+- [ ] **P4.6** (M) 3D: listener position and orientation, `SetPosAndVelocity`, `Update3DSound`, `SetGlobals`
+      (distance, rolloff, doppler), `ListenerCommitDeferred` applying a frame's changes together, `Has3DHW` true.
+- [ ] **P4.7** (S) Startup path: `Sound` opens without the `JONES_STR_SOUNDERROR` message and
+      `Sound_Set3DGlobals: module is not open` no longer appears in the log.
+- [ ] **P4.8** (M) `AudioLib.c`: verify the C translation of the asm sample loop against decoded reference output
+      and fix the unsequenced write at line 1703.
+- [ ] **P4.9** (M) Listening pass on levels `00` to `02`: looping ambience, attenuation and panning, voice lines with
+      subtitles and lip sync (lip-sync data is regenerated on load), pause on focus loss, handles after a restore.
+- [ ] **P4.10** (S) Output device changes while running (headphones in and out).
+- [ ] **P4.11** (S) Delete the DirectSound part of `win32_shim_dx.h`.
+
+### Phase 5: Movies
+
+Exit test: the five intro movies and every cutscene movie in the GOBs play with audio in sync and can be skipped; a
+headless decode test passes for all of them.
+
+- [ ] **P5.1** (M) Packing audit: INSANE was built with 1-byte struct packing. List the structs whose layout depends
+      on it, pack those explicitly and assert their sizes.
+- [ ] **P5.2** (S) `Stdfile.c` and `Stdio.c` over POSIX, going through the host path conversion.
+- [ ] **P5.3** (M) `Timer.c` over a pthread with a mutex, keeping the callback contract the player expects.
+- [ ] **P5.4** (S) `MemCopy.asm`, `MemFill.asm`, `BlitAsm.asm` to C (193 lines).
+- [ ] **P5.5** (M) `DecodeAsm.asm` to C (519 lines): the two LUT decoders and six 555/565/RGBA conversions.
+- [ ] **P5.6** (S) `MixerAsm.asm` to C (306 lines).
+- [ ] **P5.7** (L) `Bloc16Asm.asm` to C (797 lines): the Blocky16 block decoder, cross-checked against ScummVM's.
+- [ ] **P5.8** (M) `tests/moviecheck.c`: decode every frame of every movie with no display and checksum the frames.
+      Compare with checksums from the Windows build under DREAMM when those can be captured.
+- [ ] **P5.9** (M) `Dsnd.c`: a streaming source on the phase 4 audio device, fed by INSANE's mixer.
+- [ ] **P5.10** (S) `JonesMain_IntroMovieBlt32` into the back buffer, scaled to the window. The 555 and 565 variants
+      are not needed.
+- [ ] **P5.11** (S) Skip, volume (`SmushPlay_SetGlobalVolume`) and subtitle hooks.
+- [ ] **P5.12** (S) List every movie in the GOBs with `gobtool.py` and play each from its in-game trigger.
+
+### Phase 6: GUI dialogs
+
+Exit test: every dialog reachable in a playthrough works; the game can be configured, saved and loaded in-app.
+
+The game is playable without dialogs from phase 3 on, so this phase can overlap phases 4 and 5.
+
+#### 6A. Foundation (`platform/common/j3dgui/`)
+
+- [ ] **P6.1** (S) Classify the 254 stubs in `win32_null.c`: dialog API to implement, GDI to replace, dead. The
+      result is the shim's scope.
+- [ ] **P6.2** (S) `tools/rc2table.py`: generate C tables from `Indy3D.rc` (26 dialog templates, control IDs, classes,
+      positions in dialog units, strings).
+- [ ] **P6.3** (M) Window objects: an `HWND` tree with IDs, text, rectangle, enabled, visible and focus state;
+      `GetDlgItem`, `SetDlgItemTextA`, `EnableWindow`, `ShowWindow`, `SetFocus`, `MoveWindow`, `GetWindowRect`,
+      `InvalidateRect`.
+- [ ] **P6.4** (M) Modal loop: `DialogBoxParamA` and `EndDialog`, `WM_INITDIALOG`, `WM_COMMAND`, `WM_NOTIFY` and
+      `WM_CLOSE` dispatch, a nested loop that pumps SDL events and presents, as `DialogBoxParam` nested a message loop.
+- [ ] **P6.5** (M) Renderer: draw the dialog over the captured game frame in the back buffer with `rdFont`, replacing
+      `JonesDialog.c`'s GDI compositing (52 device-context and blit call sites in `Jones3D/`).
+- [ ] **P6.6** (M) Controls 1: static text, push button, check box, radio button, group box, with keyboard (Tab,
+      Return, Escape), mouse and controller navigation.
+- [ ] **P6.7** (M) Controls 2: list box and combo box with item data (`LB_*`, `CB_*`).
+- [ ] **P6.8** (M) Controls 3: trackbar (`TBM_*`, the most used message family), the list view, the edit control and
+      the scroll bar.
+- [ ] **P6.9** (S) Subclassing: `JonesDialog_SubclassDialogProc` and the stored `WNDPROC` chain in `jonesConfig.c`.
+- [ ] **P6.10** (M) Icons and bitmaps: `Indy3D.rc` names 43 image files that exist only inside the retail executable.
+      Read them from the player's `INDY3D.EXE` resource section at run time, with a plain fallback when it is absent.
+
+#### 6B. Dialogs, in order of how early the game needs them
+
+- [ ] **P6.11** (S) Message box (template 121). The game already calls it at startup today.
+- [ ] **P6.12** (S) Confirmations: exit game (211), save overwrite and save messages (163, 214), purchase message
+      (212), insert CD (167, which the data root should make unreachable).
+- [ ] **P6.13** (M) Developer dialog (101, 106): level list and options; gates `Start Mode` 2.
+- [ ] **P6.14** (S) Game play options (112).
+- [ ] **P6.15** (S) Sound settings (113).
+- [ ] **P6.16** (M) Display settings (114) and advanced display settings (148), fed by the P2.3 mode list.
+- [ ] **P6.17** (L) Save game (154) and load game (159): replace `GetSaveFileName`/`GetOpenFileName` with an in-game
+      file list, and the GDI thumbnail in `sithGamesave` with a VBuffer.
+- [ ] **P6.18** (M) Game over (150), statistics (164), level completed (233).
+- [ ] **P6.19** (L) Indy's trading post (190): item list, cart, icons, purchase.
+- [ ] **P6.20** (L) Control options (111) with create scheme (116) and edit scheme (115).
+- [ ] **P6.21** (M) Assign key (117) and reassign key (120), which read raw input from `stdControl`.
+- [ ] **P6.22** (S) Confirm templates 104, 105 and 118 are unreferenced and leave them out.
+- [ ] **P6.23** (S) Restore retail's `Start Mode`, `Debug Mode` and `Verbosity` defaults, which were changed in
+      phase 1 only because no GUI existed.
+- [ ] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling, its 4 fall-off-the-end
+      functions and the 80 narrowing warnings in `Jones3D/Display`.
+- [ ] **P6.25** (M) Layout pass: every dialog compared with a reference screenshot from the Windows build, at 1× and
+      2× scale.
+
+### Phase 7: Full-game verification and 64-bit closure
+
+Exit test: all 17 levels completed on the port with no assert, crash or blocker, and no Win32 type outside
+`platform/`.
+
+- [ ] **P7.1** (S) One command that configures, builds, runs `ctest` and `layout_audit.py`; run it before every
+      commit.
+- [ ] **P7.2** (M) Savegame round trip (P1.20) for every level.
+- [ ] **P7.3** (M) Build with `J3D_DEBUG_ASSERTS=ON`, run the tests and a session per level, fix what asserts.
+- [ ] **P7.4** (L) Playthrough, recorded in the table below.
+- [ ] **P7.5** (M) A/B against the Windows build in DREAMM for the physics-sensitive places: long jumps, whip swings,
+      raft and jeep handling, the Marduk statue push that 1.2 fixed (risk 7.1).
+- [ ] **P7.6** (M) Delete `win32_shim_dx.h` (489 lines) once phases 2 to 5 have removed its last users.
+- [ ] **P7.7** (M) Delete `win32_shim_gui.h` (1,538 lines) and `win32_null.c` once phase 6 is complete.
+- [ ] **P7.8** (M) Delete `win32_shim.h` (490 lines): no `HWND`, `HDC` or `DWORD` left outside `platform/`.
+- [ ] **P7.9** (M) Performance and memory: frame times on a base M1, leak check over a level change, a long session.
+- [ ] **P7.10** (S) `docs/PORTING.md` covers every phase.
+
+Playthrough record for P7.4. "Loads" is the `levelload` test.
+
+| Level | File | Loads | Renders | Completed |
+| --- | --- | --- | --- | --- |
+| Canyonlands | `00_cyn` | ✅ | ⬜ | ⬜ |
+| Babylon | `01_bab` | ✅ | ⬜ | ⬜ |
+| Tian Shan River | `02_riv` | ✅ | ⬜ | ⬜ |
+| Shambala Sanctuary | `03_shs` | ✅ | ⬜ | ⬜ |
+| Palawan Lagoon | `05_lag` | ✅ | ⬜ | ⬜ |
+| Palawan Volcano | `06_vol` | ✅ | ⬜ | ⬜ |
+| Palawan Temple | `07_tem` | ✅ | ⬜ | ⬜ |
+| Teotihuacan | `08_teo` | ✅ | ⬜ | ⬜ |
+| Olmec Valley | `09_olv` | ✅ | ⬜ | ⬜ |
+| V.I. Pudovkin | `10_sea` | ✅ | ⬜ | ⬜ |
+| Meroë | `11_pyr` | ✅ | ⬜ | ⬜ |
+| King Sol's Mines | `12_sol` | ✅ | ⬜ | ⬜ |
+| Nub's Tomb | `13_nub` | ✅ | ⬜ | ⬜ |
+| Infernal Machine | `14_inf` | ✅ | ⬜ | ⬜ |
+| Aetherium | `15_aet` | ✅ | ⬜ | ⬜ |
+| Jeep Trek | `16_jep` | ✅ | ⬜ | ⬜ |
+| Return to Peru (bonus) | `17_pru` | ✅ | ⬜ | ⬜ |
+
+### Phase 8: Mac product polish
+
+Exit test: a notarized `.app` that a player with a retail copy can install and finish the game with, on a machine that
+has no developer tools.
+
+- [ ] **P8.1** (S) Choose the product name and bundle identifier, avoiding LucasArts and Disney marks (the working
+      name is J3DPort).
+- [ ] **P8.2** (M) `.app` bundle target: `Info.plist`, an original icon, high-resolution capable, games category, Game
+      Mode eligibility.
+- [ ] **P8.3** (M) Ship dependencies inside the bundle (SDL3 static or embedded); nothing loaded from Homebrew paths.
+- [ ] **P8.4** (M) First-run data locator: look in the Steam, GOG and DREAMM install locations, otherwise an open
+      panel; store the result as `Data Root`.
+- [ ] **P8.5** (S) Validate the chosen folder: GOB names and sizes, and the `INDY3D.EXE` hash against
+      `docs/VERSIONS.md`. Decide and state which data versions are supported (only 1.2 is tested so far).
+- [ ] **P8.6** (S) Command line: `--level`, `--windowed` (`--data` exists).
+- [ ] **P8.7** (S) Display preferences: window or fullscreen, vsync, frame limiter.
+- [ ] **P8.8** (M) Triage OpenJones3D's `CHANGELOG.md` (~80 entries) into crash fixes, raised limits and quality of
+      life, each with its upstream commit.
+- [ ] **P8.9** (L) Apply the series behind a build option that defaults on, in groups, each retested: crash and
+      memory fixes; COG stack and sound-handle fixes; raised limits (128 sounds, mesh and sector limits); widescreen
+      and HUD scaling.
+- [ ] **P8.10** (S) Keyboard and controller glyphs in the control dialogs.
+- [ ] **P8.11** (S) Crash handling: write the engine log beside the crash report and tell the player where it is.
+- [ ] **P8.12** (S) README and in-app notices: a retail copy is required, AGPL source offer, credits.
+- [ ] **P8.13** (M) Hardened Runtime, code signing, notarization, and a disk image.
+- [ ] **P8.14** (S) Clean-machine test on macOS 13 (the deployment target) and on the current release.
+
+### Phase 9: Stretch (not counted)
+
+Universal binary; higher-resolution textures from loose files; MSAA and anisotropic filtering; an SDL_GPU backend for
+Linux and Windows; offering the portable platform layer to OpenJones3D.
+
+## 6. Repository layout
+
+What exists today, and what each phase adds.
+
+```
+j3dport/
+  CMakeLists.txt        exists
+  LICENSE, NOTICE       exists
+  Jones3D/              imported; Win32 calls resolved by the shim until phase 7
+  Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
+  platform/apple/       main.c, shim/            + std3D_metal.m (2), bundle and locator (8)
+  platform/common/      crt_posix.c, host_path.h, wuRegistry_file.c, stdDisplay_vbuffer.c, null/
+                        + SDL backends (2, 3), SoundDriver_ma.c (4), insane_os/ (5), j3dgui/ (6)
+  tools/                gen_null_platform.py, layout_audit.py, gobtool.py     + rc2table.py (6)
+  tests/                harness.c, levelload.c, cogcheck.c    + saveload.c (1), moviecheck.c (5)
+  third_party/          not yet created: miniaudio.h (4)
+  docs/                 PORT-PLAN.md, PORTING.md, and the decomp's reference documents
+```
+
+The decomp's documents in `docs/` stay as the behavioural reference: file formats, versions and the known 1.2
+changes. `docs/BUILDING.md` is the port's build guide; the decomp's is `docs/DECOMP-BUILDING.md`.
+
+## 7. Risks and how they are handled
+
+### 7.1 Floating-point behaviour
+
+The original ran on x87 with 64-bit internal precision and explicit rounding-mode switches. arm64 uses true 32-bit
+floats and fused multiply-add by default. Physics, whip swings and COG arithmetic may diverge subtly. In place:
+`-ffp-contract=off`, the `NONMATCHING_MATH` C bodies, the engine's own trigonometry tables. Still to do: the A/B of
+known-sensitive puzzles (P7.5), which needs input replay (P3.10) to be repeatable. OpenJKDF2 shipped the same engine
+family on arm64 Macs this way without gameplay regressions.
+
+### 7.2 On-disk struct layouts on 64-bit
+
+Largely retired. The layout audit reports no differing on-disk type, every fixed record asserts its retail size, and
+all 17 levels load with plausible counts. What remains is run-time rather than load-time: narrowing conversions
+(P1.25 to P1.27), which the sanitizer run (P1.21) and the playthrough will exercise, and savegames, which only the
+port reads back and which get a round-trip test (P1.20, P7.2). Draft 1 expected `SithCogValue` to break level loading;
+it does not, because `.cnd` files store cog symbol values as text.
+
+### 7.3 Dialog system scope
+
+`jonesConfig.c` is 10k lines and the shim must honour exact message semantics. The scope is now measurable: 254
+stubbed Win32 functions, 26 templates, and a known control set (section 2.1). Two things were not in draft 1: five
+list-view controls, and 43 icons and bitmaps that are game assets inside the retail executable and so cannot be
+shipped (P6.10). The game is playable without dialogs from phase 3, so the schedule risk stays inside phase 6.
+
+### 7.4 Blocky16 and INSANE correctness
+
+Hand-written assembler with no debug build to read, and structures that assume 1-byte packing. Mitigation: the packing
+audit first (P5.1), ScummVM's codec as reference (P5.7), and a headless frame-checksum test (P5.8).
+
+### 7.5 Licensing and trademarks
+
+AGPLv3 code, no assets, a product name that avoids LucasArts and Disney marks (P8.1), and a README stating a retail
+copy is required. ScummVM-derived code must keep its GPL notices; GPLv2+ is compatible with AGPLv3.
+
+### 7.6 Tooling
+
+SDL3 and miniaudio are stable; Metal and Apple clang are first-party. No deprecated framework is used.
+
+### 7.7 Retail bugs that only worked by accident
+
+New since draft 1. Phase 1 found retail code that depended on the 1999 compiler or hardware: globals assumed adjacent
+in memory, a read one byte before a buffer, a material loader that only worked when textures stayed 16-bit, 20
+functions whose return value was whatever the register held. More will surface once the game loop runs. Mitigation:
+the sanitizer build (P1.21), the debug-assert build (P7.3), and logging each one in `docs/PORTING.md` so it is not
+mistaken for a port regression.
+
+## 8. Milestones
+
+Draft 1's estimates assumed one engineer working by hand and are kept for comparison only. Phase 0 and most of phase 1
+took two calendar days, so they are not a forecast of the remaining pace; the step sizes in section 5 are the better
+guide.
+
+| # | Milestone | Draft 1 estimate | State on 2026-11-12 |
+| --- | --- | --- | --- |
+| 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
+| 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Levels load, scripts compile and the game loop runs headless under `ctest`; savegame test, sanitizer run and warning backlog open |
+| 2 | Metal renderer, first level on screen | 3 to 4 weeks | Not started |
+| 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
+| 4 | Audio complete | 2 weeks | Not started |
+| 5 | Movies complete | 2 to 3 weeks | Not started |
+| 6 | All dialogs, save and load in-app | 4 to 6 weeks | Not started |
+| 7 | Full playthrough verified | 2 to 3 weeks | Not started |
+| 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | Not started |
+
+Ordering: phase 2 needs 1C (P1.17, P1.18) but not 1D. Phases 3, 4 and 5 are independent of each other once phase 2
+lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
+
+## 9. Immediate next steps
+
+1. **P1.15:** commit the working tree. Roughly 850 lines of verified work, documented in `docs/PORTING.md`, are
+   uncommitted.
+2. **P1.22:** the remaining 19 fall-off-the-end functions. One of them already broke saving; the others sit in AI,
+   physics, player controls and weapons, which the headless loop now executes.
+3. **P1.20, P1.21:** the savegame round trip and the sanitizer run, while the code under test is still small.
+4. **P2.1, P2.2:** SDL3 in the build and a window on screen. The rest of P1D can proceed alongside.
+
+To reproduce the measurements at the top of this file:
+
+```
+cmake -S . -B build -G Ninja -DJ3D_TEST_DATA=<folder holding RESOURCE/>
+cmake --build build
+ctest --test-dir build --output-on-failure
+python3 tools/layout_audit.py
+```
+
+When a step is finished, tick it here and update its row
+in the table at the top of this file.

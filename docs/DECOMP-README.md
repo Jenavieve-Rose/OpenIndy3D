@@ -42,13 +42,13 @@ up the initial toolchain and the anti-slop guidelines the agents worked under, b
 - **The source code** for versions 1.2 *(latest update)* and 1.0 *(retail CD)*, including the functions found only in the
   [debug build](docs/DEBUG-BUILD.md).
 - **The toolchain**: a setup script that downloads and verifies every compiler the game was built with, and a build
-  that recreates `Indy3D.exe` and checks it against your own copy of the game ([BUILDING.md](docs/BUILDING.md)).
+  that recreates `Indy3D.exe` and checks it against your own copy of the game ([DECOMP-BUILDING.md](DECOMP-BUILDING.md)).
 - **The documentation**: how it was built, the decisions we made and what we learned about the original code.
 
 | Page | What it covers |
 | --- | --- |
 | [BYTE-BREAKDOWN.md](docs/BYTE-BREAKDOWN.md) | Where every byte of the rebuilt executable comes from, and figures for every area and file |
-| [BUILDING.md](docs/BUILDING.md) | How to set it up and build it, and which copies of the game work |
+| [DECOMP-BUILDING.md](DECOMP-BUILDING.md) | How to set it up and build it, and which copies of the game work |
 | [METHODOLOGY.md](docs/METHODOLOGY.md) | The rules we followed, and what counts as a match |
 | [DECISIONS.md](docs/DECISIONS.md) | The evidence behind the source, and every kind of choice the evidence couldn't settle |
 | [DECISIONS-LIST.md](docs/DECISIONS-LIST.md) | Every function that rests on one of those choices, and the choice made |

@@ -124,8 +124,116 @@ Savegames (`NdsHeader`) differ but are only read back by the port; the round-tri
 - `jonesConfig.c` `EditControlScheme_DeleteAssignment`: the index locals are `size_t`, as the callee writes.
 - `JonesFile.c`: the file-name terminator is written to the last byte of `aName`, not one past it.
 
+### 64-bit audit: index arrays
+
+Found by the level-load test, not by the layout audit: these are in-memory arrays of `size_t` whose allocation or
+copy still assumed 4-byte elements.
+
+| Where | Problem on arm64 | Change |
+| --- | --- | --- |
+| `sithSector.c` `aVertIdxs` (text and binary readers) | allocated with `sizeof(int)` / `sizeof(int32_t)` per element: half the size of the `size_t` array, so the loader wrote past the allocation | `sizeof(size_t)`. |
+| `sithSector.c` binary reader and writer | `memcpy` between the file's `int32_t` indices and the `size_t` array packed two indices into each element | Converted element by element. |
+| `sithSurface.c` `face.aVertices`, `face.aTexVertices` (text and binary readers) | allocated with `sizeof(int)` per element | `sizeof(size_t)`. |
+| `rdModel3.c` `rdModel3_LoadEntry` face `aVertices`, `aTexVertices` | allocated with `sizeof(int*)`, which is the right size on arm64 only by coincidence | `sizeof(size_t)`, the element type. |
+
+### Loading without a display
+
+Materials and fonts are converted to the renderer's texture format while a level loads, so the loaders need working
+VBuffers and a texture format even when nothing is drawn.
+
+- `platform/common/stdDisplay_vbuffer.c` implements `stdDisplay_VBufferNew`, `VBufferFree`, `VBufferLock`,
+  `VBufferUnlock`, `VBufferSetColorKey` and `VBufferConvertColorFormat`. They are the system-memory branches of the
+  retail `stdDisplay.c` functions; the DirectDraw-surface branches do not exist in the port. One change:
+  `VBufferNew` frees the header when the pixel allocation fails (retail leaked it). The display backend of Phase 2
+  keeps this file.
+- `tools/gen_null_platform.py` has an `IMPLEMENTED_ELSEWHERE` set. Functions named there are left out of the generated
+  null file; this is how a real implementation replaces part of a null backend (PORT-PLAN.md decision 13).
+- The null `std3D_GetTextureFormat` reports 32 bpp BGRA (alpha in the top byte for the two alpha formats, none for
+  RGB) with no colour key, which is the layout the Metal backend will upload. `std3D_GetColorFormat` is the retail
+  body: it is a pure function of the colour info.
+- `sithMaterial_ReadMaterialsListBinary`: retail allocated one VBuffer per mip level and reused it for every cel.
+  That only works while the texture format has the source's bit depth (16 on the cards of 1999), because
+  `VBufferConvertColorFormat` replaces a buffer whose depth differs, after which the copy and the advance through the
+  source pixels used the converted size. The port allocates a buffer in the source format for every cel and mip,
+  advances by the source size, and frees the converted buffers after upload. The retail body is kept under `#else`.
+
+### Loose-file overrides
+
+- `JonesFile_Open`: retail's `Indy3D.exe` ran from `<install>\Resource`, so its "current directory" search root was the
+  resource folder, and that is how the loose files there (the 1.2 update's patched cogs in `Resource\Cog`) overrode GOB
+  contents. The port runs from anywhere, so when a CD path is set that root is the CD resource folder instead (the data
+  root's `RESOURCE/`), searched for loose files only (its GOBs are already open as the CD resource). Without a CD path the retail behaviour
+  is unchanged.
+
+### Diagnostics added
+
+- `stdFileOpen`: `J3D_TRACE_FILES=1` prints every host file that opens successfully to stderr, which shows which loose
+  files are overriding GOB contents.
+- `sithWorld_LoadEntryBinary` reports a short header read, a copyright-block mismatch, and the name and file offset of
+  the section that failed. Retail reported only "Parse problem" for the whole file.
+
+### Build and tests
+
+- The game shell (`Jones3D/*.c`) is the static library `jones3d_game`; `jones3d` is `platform/apple/main.c` linked to
+  it. The tests link the same library without the entry point.
+- `tests/harness.c` starts the engine in `JonesMain_Startup`'s order without display, input, sound output or dialogs,
+  keeps the player's settings file out of it (`J3D_SETTINGS` defaults to `/dev/null`), and installs assert and crash
+  handlers that print a backtrace.
+- `tests/levelload.c` loads the static world and all 17 levels and prints each level's section counts.
+  `tests/cogcheck.c` compiles every `.cog` in the three GOBs through the engine's lookup, so a loose override is the
+  file compiled. Both, and `boot` (see "Headless run"), are registered with `ctest` when the tree is configured with `-DJ3D_TEST_DATA=<data root>`.
+  A new test is a file in `tests/` and its name in `J3D_TESTS` (`CMakeLists.txt`).
+- `tools/gobtool.py` lists and extracts GOB contents. Nothing in the build depends on it.
+- `docs/BUILDING.md` is the port's build guide. The decomp's file of that name is now `docs/DECOMP-BUILDING.md`, and
+  the links to it in `DECOMP-README.md`, `BUILD-PIPELINE.md` and `REPRODUCIBILITY.md` were repointed. Its text is
+  unchanged.
+
+### Headless run
+
+`jones3d --headless --frames <n>` runs the real game loop with no window, renderer, input or sound, for tests
+(PORT-PLAN.md P1.17, P1.18). `ctest` runs it for 600 frames as the `boot` test.
+
+- `platform/common/stdDisplay_headless.c` implements the device, mode and back-buffer half of `stdDisplay` in memory:
+  one device, one 640×480 32 bpp mode, a system-memory back buffer, fill, lock and `SaveScreen`. Its functions are
+  named in the generator's `IMPLEMENTED_ELSEWHERE`. `stdDisplay_Open` still fails, as in Phase 0, unless
+  `J3D_HEADLESS` is set (`--headless`). `stdDisplay_VBufferCopy` and the GDI device-context functions remain null.
+- The null `std3D` starts and opens and reports one device; `std3D_GetValidDimensions` returns the size asked for.
+- `platform/common/host_clock.h`, in `crt_posix.c`: `timeGetTime`, `GetTickCount` and `Sleep` run on a virtual clock
+  once the headless display opens. It advances 33 ms for every `stdDisplay_Update` and by the requested time for every
+  `Sleep`, and never by itself. A headless run is therefore not tied to real time (600 frames take about 0.3 s) and
+  its log is identical from run to run.
+- `wkernel_null.c`: `J3D_FRAMES=<n>` (`--frames <n>`) ends `wkernel_Run`'s loop after n passes through
+  `JonesMain_Shutdown`, the path a closed window takes.
+- The null Win32 has memory DCs and DIB sections (`CreateCompatibleDC`, `CreateDIBSection`, `GetObject`, `DeleteObject`,
+  `DeleteDC`): `jonesConfig_Startup` loads the dialog icons through `stdBmp_Load` and the HUD will not open without
+  them, and `sithGamesave` writes the savegame thumbnail from one. `StretchBlt` is still a no-op, so the thumbnail
+  in a save is black until Phase 6.
+
+### Retail bugs the headless run exposed
+
+Each of these worked in retail by accident and stopped the port's game loop.
+
+| Where | What happened | Change |
+| --- | --- | --- |
+| `smush/insane/Lec/LecShare.c` `LecShare_Unpublish` | Strips its name argument in place. Every caller passes a string literal; VC5 kept those in writable data, clang makes them read-only, so the write faulted | Strips a copy. |
+| `smush/SmushPlay.c` | `JonesMain_PlayIntroMovie` ignores `SmushPlay_SysStartup`'s result. When startup fails (the port has no INSANE timer, file or sound module until Phase 5) `SmushPlay_PlayMovie` and `SmushPlay_SysShutdown` dereferenced services that were never subscribed | A started flag; both do nothing when startup failed. |
+| `sith/Devices/sithComm.c` `sithMessage_FileWrite` | No `return` on the success path. Retail's caller read `eax`, which still held the zero just tested; clang returns an arbitrary value, so every savegame "failed" after its thumbnail and the game exited | Returns 0. One of the 20 `-Wreturn-type` functions. |
+| `sith/Dss/sithGamesave.c` `sithGamesave_Process` | The autosave queued at level open sends the master cog `user0` when it completes. `00_CYN_Opening.cog`'s `startup` handler sleeps 1 ms before giving the cinematic camera its second focus thing, and its `user0` handler switches to that camera, which asserts on a missing focus. Retail relied on the first frame lasting longer than the sleep; with no renderer the first frame is the 1 ms minimum, `user0` arrives first and the assert fires | A level-start autosave waits until 33 ms of game time have passed. Saves the player makes are not delayed. |
+
+Also seen, and left alone: `sithGamesave_SaveFile` returns early on a failed write without restoring
+`sithMessage_outputstream`, after which every thing change is queued for a file that is closed
+("Too many modified things in a single frame!"). It no longer triggers now that the write succeeds.
+
 ### Known open items
 
-- 20 non-void functions can fall off their end (`-Wreturn-type`). Retail callers received whatever was in `eax`; each
-  needs checking against the binary before choosing a return value.
+- 19 non-void functions can fall off their end (`-Wreturn-type`). Retail callers received whatever was in `eax`; each
+  needs checking against the binary before choosing a return value (PORT-PLAN.md P1.22).
+- The engine's path buffers are 128 bytes. A long `Install Path` silently truncates the savegame path
+  (PORT-PLAN.md P1.30).
+- `SaveGames/` and `JonesError.txt` are written under `Install Path`, which defaults to the data root, so a normal run
+  writes into the player's game folder (PORT-PLAN.md P1.19). The `boot` test points `Install Path` at the build tree.
 - `AudioLib.c`: `*pCurOut++ = *pCurOut++ = 0` is unsequenced; verified with the rest of AudioLib in Phase 4.
+- The rest of the compiler-warning backlog is itemised in PORT-PLAN.md, steps P1.23 to P1.29.
+- The tests print "Symbol … not defined. Assuming float=0.0" for many scripts (`INF_Introscene.cog` in the level
+  test, about 230 lines from `cogcheck`). These are undeclared symbols in the retail scripts, which the retail parser
+  reports the same way; they are not port failures.
