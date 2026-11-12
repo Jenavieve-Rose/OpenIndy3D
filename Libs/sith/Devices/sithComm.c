@@ -540,4 +540,8 @@ int J3DAPI sithMessage_FileWrite(const SithMessage* pMessage)
     {
         return 1;
     }
+
+    // Port: retail falls off the end here. Its caller then read eax, which still held the zero `result` just tested, so
+    // success was 0 by accident. clang returns an arbitrary value, which sithGamesave treats as a failed write.
+    return 0;
 }

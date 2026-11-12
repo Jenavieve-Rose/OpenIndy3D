@@ -86,6 +86,13 @@ static AnimPlay* smushplay_play;
 static int smushplay_abort;
 static int (*smushplay_pBlit)(void* pBitmap, int frame);
 
+#ifdef J3D_PORT
+// Port: set while the library is started. Retail's caller (JonesMain_PlayIntroMovie) ignores SmushPlay_SysStartup's
+// result and goes on to play and shut down, which dereferences services that were never subscribed. Startup can fail in
+// the port (no timer, file or sound module until Phase 5), so PlayMovie and SysShutdown do nothing when it did.
+static int smushplay_bStarted;
+#endif
+
 int SmushPlay_SysStartup(void* hWnd, void* pDSound)
 {
     smushplay_hWnd = hWnd;
@@ -96,6 +103,9 @@ int SmushPlay_SysStartup(void* hWnd, void* pDSound)
         dsnd_Configure(5, pDSound);
         if (LecShare_Startup() == 0) {
             if (((int (*)(LecBatch*, const char*))smushplay_pShare->pfn10)(smushplay_services, 0) == 0) {
+#ifdef J3D_PORT
+                smushplay_bStarted = 1;
+#endif
                 return 1;
             }
             LecShare_Shutdown();
@@ -117,6 +127,11 @@ int SmushPlay_PlayMovie(const char* pFilename, int rate, int flags, int a4, int 
     char aPath[260];
     unsigned char aPalette[1024];
 
+#ifdef J3D_PORT
+    if (!smushplay_bStarted) {
+        return 0; // as when the frame bitmap cannot be created: nothing was played
+    }
+#endif
     strcpy(aPath, pFilename);
     if (rate == 0) {
         rate = 15;
@@ -161,6 +176,12 @@ static int smushplay_Blit(int a1, int a2, int a3, int a4, void* pBitmap)
 
 void SmushPlay_SysShutdown(void)
 {
+#ifdef J3D_PORT
+    if (!smushplay_bStarted) {
+        return; // SysStartup already unwound itself
+    }
+    smushplay_bStarted = 0;
+#endif
     LecShare_Shutdown();
     LecShare_UnregisterAll();
     ((int (*)(LecBatch*))smushplay_pShare->pfn14)(smushplay_services);

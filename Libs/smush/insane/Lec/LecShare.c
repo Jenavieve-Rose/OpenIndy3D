@@ -183,7 +183,17 @@ static int LecShare_Unpublish(const char* pName)
     LecEntry* p;
 
     lec_state.pSearch = NULL;
+#ifdef J3D_PORT
+    // Port: retail stripped the caller's string in place. Every caller passes a string literal, which VC5 kept in
+    // writable data and clang puts in a read-only section, so the write faults. Strip a copy; pName is only compared.
+    char aName[0x100];
+    strncpy(aName, pName, sizeof(aName) - 1);
+    aName[sizeof(aName) - 1] = 0;
+    LecShare_Strip(aName);
+    pName = aName;
+#else
     LecShare_Strip((char*)pName);
+#endif
     p = &lec_state.entries[n - 1];
     while (n-- != 0) {
         if (p->pName && LecShare_NameCmp(p->pName, pName) == 0) {

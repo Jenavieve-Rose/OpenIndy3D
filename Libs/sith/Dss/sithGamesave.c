@@ -401,6 +401,11 @@ int J3DAPI sithGamesave_SaveCurrentWorld(SithMessageStream outstream)
     return 0;
 }
 
+#ifdef J3D_PORT
+// Game time, in ms, before a level-start autosave is written: one frame at 30 fps (see sithGamesave_Process).
+#define SITHGAMESAVE_AUTOSAVE_MINGAMETIME 33u
+#endif
+
 int J3DAPI sithGamesave_Process(void)
 {
     int bError;
@@ -421,6 +426,22 @@ int J3DAPI sithGamesave_Process(void)
             break;
 
         case SITHGAMESAVE_SAVE:
+#ifdef J3D_PORT
+            // Port: the autosave that sithOpenPostProcess queues at level start sends the master cog `user0` when it
+            // completes, and level scripts assume their `startup` handler has finished by then. Those handlers begin
+            // with a short Sleep ("let engine get set up": 00_CYN_Opening.cog sleeps 1 ms and only then gives the
+            // cinematic camera its second focus thing, which the `user0` handler's SetCurrentCamera asserts on). A
+            // sleeping cog wakes once game time has passed its wake time, so retail depended on the first frame after
+            // level open lasting longer than the sleep. On 1999 hardware it always did; here the first frame can be
+            // the 1 ms minimum of sithTime_Advance. The autosave therefore waits until one retail-length frame of game
+            // time has passed. Saves the player makes are not delayed.
+            if ( sithTime_msecGameTime < SITHGAMESAVE_AUTOSAVE_MINGAMETIME
+                && strneq(stdFnames_FindMedName(sithGamesave_aCurFilename), sithGetAutoSaveFilePrefix(), strlen(sithGetAutoSaveFilePrefix())) )
+            {
+                bError = 0;
+                break;
+            }
+#endif
             if ( !sithGamesave_bThumbnail )
             {
                 sithGamesave_SetThumbnailImage(&stdDisplay_backBuffer);
