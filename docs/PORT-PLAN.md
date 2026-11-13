@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 0 of 22 | Not started |
+| 2 | Window, 2D back buffer and Metal renderer | 2 of 22 | In progress |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **42 of 146** | |
+| **All** | | **44 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -32,8 +32,8 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 
 | Check | Result |
 | --- | --- |
-| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8) |
-| `ctest` (with `-DJ3D_TEST_DATA`) | `levelload`, `cogcheck`, `saveload` and `boot` pass |
+| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 compiler warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8); in the default `J3D_PLATFORM=apple` tree, one linker warning about Homebrew's SDL3 deployment target (P8.3) |
+| `ctest` (with `-DJ3D_TEST_DATA`) | `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` in the apple build |
 | The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All four pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
@@ -343,11 +343,19 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
 
 #### 2A. Window and 2D
 
-- [ ] **P2.1** (S) Build plumbing: `find_package(SDL3)`, add `OBJC` to the project languages, link Metal, QuartzCore
+- [x] **P2.1** (S) Build plumbing: `find_package(SDL3)`, add `OBJC` to the project languages, link Metal, QuartzCore
       and Cocoa. Add a `J3D_PLATFORM` switch (`null` or `apple`) so the headless tests keep the null backends.
-- [ ] **P2.2** (M) `wkernel_sdl.c`: create the window, implement `wkernel_Run`, `wkernel_PeekProcessEvents` and
+      Done: `platform` split into `platform_core`, `platform_null` and `platform_apple`; tests and the new
+      `jones3d-null` (run by `boot`) link the null backends; `host_apple.m` logs the host, Metal device and SDL
+      version. Checked: apple, null, sanitizer and Xcode trees build; all four tests pass in apple, sanitizer and null
+      trees (`docs/PORTING.md`, "Phase 2").
+- [x] **P2.2** (M) `wkernel_sdl.c`: create the window, implement `wkernel_Run`, `wkernel_PeekProcessEvents` and
       `wkernel_ProcessEvents` over the SDL event queue, and deliver the window messages that `JonesMain_GameWndProc` and
-      `JonesMain_IntroWndProc` handle (activate, close, size, paint, key and char messages). Check: an empty window opens and closes cleanly.
+      `JonesMain_IntroWndProc` handle (activate, close, size, paint, key and char messages). Check: an empty window
+      opens and closes cleanly. Done: also mouse messages and the game window's `PostMessage` and timers; `--headless`
+      uses SDL's dummy driver and the new `boot-sdl` test runs the event loop. Checked: a window opens and a quit
+      event closes it with exit 0 (also under the sanitizers); `boot-sdl` matches `boot`'s log and save. Focus loss
+      and keys are checked by review only until scripted input exists (Phase 3).
 - [ ] **P2.3** (M) `stdDisplay_sdl.c`, device and modes: `Startup`, `Open`, `Close`, one display device, the mode list
       (desktop modes plus window sizes, within the engine's 64-mode cap), `SetMode`, `FindClosestMode`,
       `GetCurrentVideoMode`, `IsFullscreen`, `CanRenderWindowed`.
@@ -601,7 +609,7 @@ j3dport/
   LICENSE, NOTICE       exists
   Jones3D/              imported; Win32 calls resolved by the shim until phase 7
   Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
-  platform/apple/       main.c, shim/            + std3D_metal.m (2), bundle and locator (8)
+  platform/apple/       main.c, shim/, host_apple.m   + std3D_metal.m (2), bundle and locator (8)
   platform/common/      crt_posix.c, host_path.h, host_clock.h, host_dirs.c, wuRegistry_file.c,
                         stdDisplay_vbuffer.c, stdDisplay_headless.c, null/
                         + SDL backends (2, 3), SoundDriver_ma.c (4), insane_os/ (5), j3dgui/ (6)
@@ -674,7 +682,7 @@ guide.
 | --- | --- | --- | --- |
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
 | 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
-| 2 | Metal renderer, first level on screen | 3 to 4 weeks | Not started |
+| 2 | Metal renderer, first level on screen | 3 to 4 weeks | Started: build plumbing (P2.1), window and event loop (P2.2) |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
 | 4 | Audio complete | 2 weeks | Not started |
 | 5 | Movies complete | 2 to 3 weeks | Not started |
@@ -687,8 +695,8 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. **P2.1, P2.2:** SDL3 and Objective-C in the build, then a window that opens and closes cleanly.
-2. **P2.3 to P2.6:** the display device, the back buffer and the first present, so the level-load screen is visible.
+1. **P2.3 to P2.6:** the display device, the back buffer and the first present, so the level-load screen is visible
+   (the window and event loop exist since P2.2).
 3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 

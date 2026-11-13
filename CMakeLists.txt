@@ -2,7 +2,21 @@ cmake_minimum_required(VERSION 3.24)
 
 # Port of the Jones3D engine (infernal-machine-decomp, upstream commit 319a6fc2) to arm64 macOS.
 # See docs/PORT-PLAN.md for the phases and docs/PORTING.md for every deviation from the decomp.
-project(J3DPort VERSION 0.1.0 LANGUAGES C)  # OBJC is added with the first .m file (Phase 2)
+project(J3DPort VERSION 0.1.0 LANGUAGES C)
+
+# Which platform backends the game binary uses (PORT-PLAN.md P2.1):
+#   apple  SDL3 window and input, Metal renderer; Objective-C, SDL3 and the Apple frameworks are required.
+#   null   the generated null backends only (no window, no renderer), so the tree builds without SDL3.
+# The test programs, and the headless binary the boot test runs, link the null backends in either case.
+set(J3D_PLATFORM apple CACHE STRING "Platform backends for the game binary: apple or null")
+set_property(CACHE J3D_PLATFORM PROPERTY STRINGS apple null)
+if(NOT J3D_PLATFORM MATCHES "^(apple|null)$")
+    message(FATAL_ERROR "J3D_PLATFORM must be apple or null, not '${J3D_PLATFORM}'")
+endif()
+if(J3D_PLATFORM STREQUAL "apple")
+    enable_language(OBJC)
+    find_package(SDL3 3.2 REQUIRED CONFIG COMPONENTS SDL3-shared)
+endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -158,15 +172,49 @@ j3d_library(sith
 )
 
 # ---------------------------------------------------------------------------------------------------------------------
-# Platform layer. Phase 0 provides the null platform: every Windows-facing function exists and fails or does nothing,
-# so the tree links and the engine can start up to the point where it opens a display.
+# Platform layer, as three libraries:
+#   platform_core   real implementations every build shares (CRT names, paths, settings, VBuffers, headless display)
+#   platform_null   the generated null backends: every Windows-facing function exists and fails or does nothing
+#   platform_apple  the SDL3 and Metal backends (J3D_PLATFORM=apple), plus the null backends they do not yet replace
+# The engine libraries call into the platform and the platform calls back into them, so the platform is not a
+# dependency of jones3d_game: each executable links jones3d_game and exactly one of platform_null and platform_apple.
 # ---------------------------------------------------------------------------------------------------------------------
-file(GLOB J3D_PLATFORM_SOURCES CONFIGURE_DEPENDS
-    ${J3D_ROOT}/platform/common/*.c         # real implementations (CRT names, file search)
-    ${J3D_ROOT}/platform/common/null/*.c    # null backends, replaced phase by phase
-)
-add_library(platform STATIC ${J3D_PLATFORM_SOURCES})
-target_link_libraries(platform PUBLIC j3d_common)
+file(GLOB J3D_PLATFORM_CORE_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/common/*.c)
+add_library(platform_core STATIC ${J3D_PLATFORM_CORE_SOURCES})
+target_link_libraries(platform_core PUBLIC j3d_common)
+
+file(GLOB J3D_PLATFORM_NULL_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/common/null/*.c)
+add_library(platform_null STATIC ${J3D_PLATFORM_NULL_SOURCES})
+target_link_libraries(platform_null PUBLIC platform_core)
+
+if(J3D_PLATFORM STREQUAL "apple")
+    # Null backend files that an Apple backend replaces whole. A backend that replaces only part of a null file is
+    # handled in tools/gen_null_platform.py instead, by moving the rest into a file of its own.
+    set(J3D_APPLE_REPLACES_NULL
+        wkernel_null.c      # platform/apple/wkernel_sdl.c (P2.2)
+        win32_msg_null.c    # the game window's message queue and timers, also wkernel_sdl.c
+    )
+    set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
+    foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
+        list(REMOVE_ITEM J3D_APPLE_NULL_SOURCES ${J3D_ROOT}/platform/common/null/${replaced})
+    endforeach()
+
+    # platform/apple/ holds the backends; main.c (the entry point) and shim/ (Win32 type headers) are not part of it.
+    file(GLOB J3D_PLATFORM_APPLE_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/apple/*.c ${J3D_ROOT}/platform/apple/*.m)
+    list(REMOVE_ITEM J3D_PLATFORM_APPLE_SOURCES ${J3D_ROOT}/platform/apple/main.c)
+
+    add_library(platform_apple STATIC ${J3D_PLATFORM_APPLE_SOURCES} ${J3D_APPLE_NULL_SOURCES})
+    target_link_libraries(platform_apple PUBLIC
+        platform_core
+        SDL3::SDL3
+        "-framework Cocoa"
+        "-framework Metal"
+        "-framework QuartzCore"
+    )
+    target_compile_definitions(platform_apple PUBLIC J3D_PLATFORM_APPLE=1)
+    # Objective-C files are compiled with ARC. The C-only warning switches in j3d_common apply to them unchanged.
+    target_compile_options(platform_apple PRIVATE $<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>)
+endif()
 
 # ---------------------------------------------------------------------------------------------------------------------
 # The game: Jones3D shell + the app entry point.
@@ -180,18 +228,30 @@ set_source_files_properties(${J3D_ROOT}/Jones3D/Display/jonesConfig.c PROPERTIES
 target_link_libraries(jones3d_game PUBLIC
     j3d_common
     sith smush sound rdroid std zlib
-    platform
 )
 
-add_executable(jones3d ${J3D_ROOT}/platform/apple/main.c)
-target_link_libraries(jones3d PRIVATE jones3d_game)
+# j3d_executable(<target> <platform library> <sources...>): a program linked with the game and one platform.
+function(j3d_executable name platform)
+    add_executable(${name} ${ARGN})
+    target_link_libraries(${name} PRIVATE jones3d_game ${platform})
+    # The static libraries reference each other in cycles (sith <-> std <-> platform); let the linker resolve them.
+    target_link_options(${name} PRIVATE LINKER:-no_warn_duplicate_libraries)
+endfunction()
+
+j3d_executable(jones3d platform_${J3D_PLATFORM} ${J3D_ROOT}/platform/apple/main.c)
 set_target_properties(jones3d PROPERTIES
     OUTPUT_NAME jones3d
     XCODE_GENERATE_SCHEME ON
     XCODE_SCHEME_WORKING_DIRECTORY ${J3D_ROOT}
 )
-# The static libraries reference each other in cycles (sith <-> std <-> platform); let the linker resolve them.
-target_link_options(jones3d PRIVATE LINKER:-no_warn_duplicate_libraries)
+
+# The headless game binary for the boot test: jones3d itself in a null build, a null-backend twin in an apple build.
+if(J3D_PLATFORM STREQUAL "null")
+    set(J3D_HEADLESS_TARGET jones3d)
+else()
+    j3d_executable(jones3d-null platform_null ${J3D_ROOT}/platform/apple/main.c)
+    set(J3D_HEADLESS_TARGET jones3d-null)
+endif()
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Tests (PORT-PLAN.md Phase 1). They need the player's game data: configure with -DJ3D_TEST_DATA=<folder holding
@@ -208,19 +268,17 @@ set(J3D_TESTS levelload cogcheck saveload)
 
 enable_testing()
 foreach(test IN LISTS J3D_TESTS)
-    add_executable(${test} ${J3D_ROOT}/tests/${test}.c ${J3D_ROOT}/tests/harness.c)
-    target_link_libraries(${test} PRIVATE jones3d_game)
-    target_link_options(${test} PRIVATE LINKER:-no_warn_duplicate_libraries)
+    j3d_executable(${test} platform_null ${J3D_ROOT}/tests/${test}.c ${J3D_ROOT}/tests/harness.c)
     if(J3D_TEST_DATA)
         add_test(NAME ${test} COMMAND ${test} ${J3D_TEST_DATA})
         set_tests_properties(${test} PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
     endif()
 endforeach()
 
-# boot: the game itself, headless (in-memory display, virtual clock), for 600 frames of the first level: 20 seconds of
-# game time, which covers level open, the level-start autosave and the start of the opening cutscene. It must exit 0.
-# The settings file is not touched, and "Install Path" (SaveGames/, ScreenShots/, KeySets/) and the log folder point
-# into the build tree, so the run writes nothing under the user's Library. Paths up to J3D_PATHSIZE (1024) bytes work
+# boot: the game itself (its null-backend build, J3D_HEADLESS_TARGET), headless (in-memory display, virtual clock), for
+# 600 frames of the first level: 20 seconds of game time, which covers level open, the level-start autosave and the
+# start of the opening cutscene. It must exit 0. The settings file is not touched, and "Install Path" (SaveGames/,
+# ScreenShots/, KeySets/) and the log folder point into the build tree, so the run writes nothing under the user's Library. Paths up to J3D_PATHSIZE (1024) bytes work
 # (PORT-PLAN.md P1.30).
 # saveload writes its two saves under an "Install Path" in the build tree, like boot.
 if(J3D_TEST_DATA)
@@ -229,8 +287,17 @@ if(J3D_TEST_DATA)
         FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()
 
+# boot-sdl (apple builds): the same run through the apple jones3d, so the SDL3 event loop (wkernel_sdl.c), with SDL's
+# dummy video driver, delivers the frames and the closing WM_CLOSE.
+if(J3D_TEST_DATA AND J3D_PLATFORM STREQUAL "apple")
+    add_test(NAME boot-sdl COMMAND jones3d --data ${J3D_TEST_DATA} --headless --frames 600)
+    set_tests_properties(boot-sdl PROPERTIES
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/logs/;${J3D_SANITIZER_ENV}"
+        FAIL_REGULAR_EXPRESSION "ASSERT")
+endif()
+
 if(J3D_TEST_DATA)
-    add_test(NAME boot COMMAND jones3d --data ${J3D_TEST_DATA} --headless --frames 600)
+    add_test(NAME boot COMMAND ${J3D_HEADLESS_TARGET} --data ${J3D_TEST_DATA} --headless --frames 600)
     set_tests_properties(boot PROPERTIES
         ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")

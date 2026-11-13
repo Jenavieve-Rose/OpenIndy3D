@@ -383,19 +383,6 @@ LRESULT WINAPI SendMessageA(HWND p0, UINT p1, WPARAM p2, LPARAM p3)
     return (LRESULT)0;
 }
 
-BOOL WINAPI PostMessageA(HWND p0, UINT p1, WPARAM p2, LPARAM p3)
-{
-    (void)p0; (void)p2; (void)p3;
-    null_PostMessage(p1);
-    return TRUE;
-}
-
-void WINAPI PostQuitMessage(int p0)
-{
-    (void)p0;
-    null_RequestQuit();
-}
-
 BOOL WINAPI PeekMessageA(LPMSG p0, HWND p1, UINT p2, UINT p3, UINT p4)
 {
     (void)p0; (void)p1; (void)p2; (void)p3; (void)p4;
@@ -681,18 +668,6 @@ HDC WINAPI BeginPaint(HWND p0, LPPAINTSTRUCT p1)
 }
 
 BOOL WINAPI EndPaint(HWND p0, const PAINTSTRUCT* p1)
-{
-    (void)p0; (void)p1;
-    return (BOOL)0;
-}
-
-UINT_PTR WINAPI SetTimer(HWND p0, UINT_PTR p1, UINT p2, TIMERPROC p3)
-{
-    (void)p0; (void)p1; (void)p2; (void)p3;
-    return (UINT_PTR)0;
-}
-
-BOOL WINAPI KillTimer(HWND p0, UINT_PTR p1)
 {
     (void)p0; (void)p1;
     return (BOOL)0;
@@ -1523,38 +1498,6 @@ HRESULT WINAPI CoCreateInstance(REFCLSID p0, void* p1, DWORD p2, REFIID p3, LPVO
 }
 
 /* ---- null_platform.h --------------------------------------------------------------------------------------- */
-static int null_bClosePending = 0;
-static int null_bQuit = 0;
-
-void null_PostMessage(unsigned int msg)
-{
-    if ( msg == WM_CLOSE )
-    {
-        null_bClosePending = 1;
-    }
-    else if ( msg == WM_QUIT )
-    {
-        null_bQuit = 1;
-    }
-}
-
-int null_TakeCloseRequest(void)
-{
-    int bPending = null_bClosePending;
-    null_bClosePending = 0;
-    return bPending;
-}
-
-void null_RequestQuit(void)
-{
-    null_bQuit = 1;
-}
-
-int null_IsQuitRequested(void)
-{
-    return null_bQuit;
-}
-
 _Noreturn void null_Unreachable(const char* pFunction)
 {
     fprintf(stderr, "null platform: %s reached with no backend; a startup check is missing\n", pFunction);

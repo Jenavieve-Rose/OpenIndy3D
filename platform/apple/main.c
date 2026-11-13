@@ -1,5 +1,6 @@
 /*
- * Process entry point for the macOS build.
+ * Process entry point for the macOS build. It is compiled into both game binaries: jones3d, with the backends J3D_PLATFORM
+ * selects, and in an apple build also jones3d-null, with the null backends, which the boot test runs (CMakeLists.txt).
  *
  * The decomp's entry is WinMain (Jones3D/Main/JonesMain.c), which takes the single-instance mutex and hands off to
  * wkernel_Run. That call chain is kept: main() rebuilds the command line WinMain expects and calls it.
@@ -7,7 +8,7 @@
  * Port options are taken out of argv before the rest is joined, so the engine's own parser never sees them:
  *   --data <dir>   game data root, the folder that holds RESOURCE/ (sets J3D_DATA; see wuRegistry_file.c)
  *   --headless     run with the in-memory display and no window (sets J3D_HEADLESS; see stdDisplay_headless.c)
- *   --frames <n>   quit after n passes of the game loop (sets J3D_FRAMES; see wkernel_null.c)
+ *   --frames <n>   quit after n passes of the game loop (sets J3D_FRAMES; see wkernel_null.c and wkernel_sdl.c)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,9 @@
 #include <Windows.h>
 
 #include <platform/common/host_dirs.h>
+#if J3D_PLATFORM_APPLE
+#include <platform/apple/host_apple.h>
+#endif
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd);
 
@@ -73,10 +77,22 @@ int main(int argc, char** argv)
         strcat(pCmdLine, argv[i]);
     }
 
+#if J3D_PLATFORM_APPLE
+    J3DApple_LogHostInfo();
+#endif
+
     // Saves, screenshots and keysets go to a folder of the user's, never the game data (host_dirs.h).
     J3DHost_PrepareUserDirs();
 
     int result = WinMain(NULL, NULL, pCmdLine, SW_SHOWNORMAL);
     free(pCmdLine);
-    return result == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+
+    // wkernel_Run returns -1 when startup fails, 1 when the game quits through its window (WM_QUIT; retail's result for
+    // every normal exit) and 0 when a --frames run reaches its count. A --frames run that ends any other way, a level
+    // that fails to load closing the game for example, has failed.
+    if ( result < 0 || (getenv("J3D_FRAMES") && result != 0) )
+    {
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }

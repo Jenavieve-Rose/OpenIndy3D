@@ -430,3 +430,60 @@ that only miss NaN.
 - The tests print "Symbol … not defined. Assuming float=0.0" for many scripts (`INF_Introscene.cog` in the level
   test, about 230 lines from `cogcheck`). These are undeclared symbols in the retail scripts, which the retail parser
   reports the same way; they are not port failures.
+
+## Phase 2: display and renderer
+
+### Build (P2.1)
+
+- `J3D_PLATFORM` (`apple`, the default, or `null`) selects the backends of the `jones3d` binary. `apple` enables the
+  `OBJC` language, requires the SDL3 CMake package (3.2 or later) and links SDL3, Cocoa, Metal and QuartzCore.
+  `null` builds without either, as phases 0 and 1 did.
+- The single `platform` library is split in three: `platform_core` (`platform/common/*.c`, shared), `platform_null`
+  (the generated null backends) and, in an apple build, `platform_apple` (`platform/apple/*.c` and `*.m` except
+  `main.c`, plus the null files no Apple backend replaces yet, listed in `J3D_APPLE_REPLACES_NULL`). `jones3d_game` no
+  longer links a platform: each executable links `jones3d_game` and one platform library (`j3d_executable` in
+  `CMakeLists.txt`).
+- The test programs always link `platform_null`. An apple build also produces `jones3d-null`, `main.c` with the null
+  backends, and the `boot` test runs that, so the headless tests never depend on SDL or Metal.
+- Objective-C is compiled with ARC and the same warning set as C. Objective-C files sit behind C headers
+  (`platform/apple/host_apple.h`), so no engine file includes an Objective-C header.
+- `platform/apple/host_apple.m`: `J3DApple_LogHostInfo`, called by `main.c` in the apple build only, prints the macOS
+  version, the default Metal device and the SDL3 version before the engine starts.
+- Homebrew's SDL3 is built for the host's macOS version, so linking `jones3d` against it prints one linker warning
+  (`building for macOS-13.0, but linking with dylib ... built for newer version`). It goes away when SDL3 is shipped
+  inside the bundle, built for the deployment target (PORT-PLAN.md P8.3). Until then the binary runs only on macOS
+  versions as new as the build machine's SDL3.
+
+### Window and event loop (P2.2)
+
+- `platform/apple/wkernel_sdl.c` replaces `wkernel_null.c` in the apple build. It keeps retail `wkernel.c`'s shape:
+  `wkernel_Run` creates the window, runs `JonesMain_Process` until it returns 1 or -1, and a private
+  `wkernel_MainWndProc` handles `WM_CLOSE` (shut the game down, destroy the window) and `WM_DESTROY` (post the quit)
+  before handing every other message to the procedure the game installed. The window's `HWND` is its `SDL_Window*`.
+- SDL events are translated into the Win32 messages the two game window procedures handle; the table is at the top of
+  the file. Keys carry `VK_` codes (letters by the layout's symbol, everything else by position) and the repeat,
+  extended and transition bits; the scancode field of `lParam` stays 0 until Phase 3's DIK table. `WM_CHAR` comes from
+  SDL text input converted to Windows-1252, plus Backspace, Tab, Return and Escape, which `TranslateMessage` produced
+  from the keys. Mouse messages use window coordinates (the mapping to the back buffer is P2.15).
+- Activation messages are sent on a change of focus only. The window counts as active from the start, because the
+  retail game installed its window procedure after the window's first activation and never saw it
+  (`JonesMain_bAppActivated` starts at 0).
+- `PostMessage`, `PostQuitMessage`, `SetTimer` and `KillTimer` for the game window are real (the quicksave text uses a
+  timer). Timers run on the engine clock (`GetTickCount`), so the virtual clock of a headless run drives them too.
+  Messages and timers for other windows are refused or dropped until the dialog system (Phase 6). To make this
+  possible the generator writes those four functions and the null queue state to their own file,
+  `win32_msg_null.c`, which the apple build leaves out with `wkernel_null.c` (`J3D_APPLE_REPLACES_NULL`).
+- `--headless` selects SDL's `dummy` video driver unless `SDL_VIDEO_DRIVER` is set, so the apple binary runs headless
+  through the same event loop. `boot-sdl` (`ctest`, apple builds) is `boot` run that way; its log matches the null
+  run's line for line (apart from the `Host:` line) and its autosave is byte-identical.
+- `wkernel_SetWindowStyle` makes the window bordered for a style with `WS_CAPTION` (windowed mode) and borderless
+  otherwise; `wkernel_SetWindowSize` sets the client size. Resizing, fullscreen and pause on minimize are P2.19.
+- `platform/apple/main.c`: retail returned 1 from `WinMain` for every normal quit (`WM_QUIT`). The process now exits 0
+  for 0 and 1 and fails for -1 (startup failed). A `--frames` run must return 0 (its frame count reached); one that
+  ends earlier, for example because a level failed to load and the game closed itself, still fails.
+- The shim gained the `VK_OEM_*` punctuation key codes.
+- Checked by hand: with `SDL_VIDEO_DRIVER=cocoa jones3d --headless` a 640x480 window opens, the game runs, and SIGTERM
+  (SDL's quit event, the same path as Cmd-Q and the close button) shuts it down cleanly with exit 0, also under the
+  sanitizers. Not checked by script, because macOS does not let a background process take focus: the pause on focus
+  loss and the key messages. Phase 3 brings scripted input.
+

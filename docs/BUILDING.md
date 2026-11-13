@@ -10,6 +10,7 @@ The decomp's own build instructions (the byte-matching pipeline, which the port 
 - An Apple Silicon Mac. The build targets arm64 and macOS 13.0 or later.
 - Xcode or the Command Line Tools, for Apple clang.
 - CMake 3.24 or later, and Ninja: `brew install cmake ninja`.
+- SDL3 3.2 or later, for the window and input: `brew install sdl3`. Not needed for a `-DJ3D_PLATFORM=null` build.
 - Python 3, only for the scripts in `tools/`.
 - A retail copy of the game, version 1.2, for running and testing. Nothing from it is needed to compile.
 
@@ -40,9 +41,10 @@ cmake --build build
 
 | Output | What it is |
 | --- | --- |
-| `build/jones3d` | The game. |
-| `build/levelload`, `build/cogcheck`, `build/saveload` | The test programs (below). |
-| `build/lib*.a` | The engine libraries: `zlib`, `std`, `rdroid`, `sound`, `smush`, `sith`, `platform`, `jones3d_game`. |
+| `build/jones3d` | The game, with the backends `J3D_PLATFORM` selects. |
+| `build/jones3d-null` | The game with the null backends (apple builds only). The `boot` test runs it. |
+| `build/levelload`, `build/cogcheck`, `build/saveload` | The test programs (below). They always use the null backends. |
+| `build/lib*.a` | The engine libraries: `zlib`, `std`, `rdroid`, `sound`, `smush`, `sith`, `jones3d_game`, and the platform: `platform_core`, `platform_null`, `platform_apple`. |
 
 ## Build with Xcode
 
@@ -61,6 +63,7 @@ Regenerate the project with the first command after adding or removing source fi
 
 | Option | Default | Effect |
 | --- | --- | --- |
+| `J3D_PLATFORM` | `apple` | `apple`: SDL3 window and input, Metal renderer (needs SDL3). `null`: the null backends only, no window; builds without SDL3. Tests use the null backends either way. |
 | `J3D_TEST_DATA` | empty | Data root used by the tests. Registers the tests with `ctest` when set. |
 | `J3D_DEBUG_ASSERTS` | `OFF` | Compiles the engine's debug-only `J3D_ASSERT` checks. Off matches the decomp's release build. |
 | `J3D_WERROR_SHORTEN` | `ON` | Makes `-Wshorten-64-to-32` an error. `Jones3D/Display/jonesConfig.c` is exempt until Phase 6 rewrites its dialog code (PORT-PLAN.md P6.24). |
@@ -69,7 +72,9 @@ Regenerate the project with the first command after adding or removing source fi
 
 Every compiler warning is an error (`-Werror`), apart from two known sets: the 58 narrowing conversions in
 `jonesConfig.c` and one unsequenced write in `Libs/sound/AudioLib.c` (PORT-PLAN.md P4.8). A clean build prints exactly
-those 59 warnings. The MSVC-dialect warnings the decomp would otherwise raise (missing braces, `sprintf` deprecation
+those 59 warnings, and in an apple build one linker warning: Homebrew's SDL3 is built for the current macOS, newer than
+the 13.0 deployment target, so a binary built this way runs only on a macOS as new as the build machine's until SDL3
+ships inside the app bundle (PORT-PLAN.md P8.3). The MSVC-dialect warnings the decomp would otherwise raise (missing braces, `sprintf` deprecation
 and so on) are switched off in `CMakeLists.txt`.
 
 ### Sanitizer build
@@ -93,13 +98,15 @@ build/jones3d --data /path/to/data-root
 | Option | Effect |
 | --- | --- |
 | `--data <dir>` | The data root. |
-| `--headless` | Run with an in-memory display and no window, on a virtual clock (33 ms of game time per frame, not tied to real time). For tests. |
+| `--headless` | Run with an in-memory display and no window, on a virtual clock (33 ms of game time per frame, not tied to real time). For tests. In an apple build the SDL event loop still runs, on SDL's `dummy` video driver; `SDL_VIDEO_DRIVER=cocoa` shows the (empty) window instead. |
 | `--frames <n>` | Quit after n passes of the game loop. Once a level is open a pass is one frame. |
 
 Any other argument is passed to the engine's own command-line parser unchanged.
 
-As of phase 1 there is no display backend: without `--headless` the game opens the GOBs, loads its string tables,
-starts the engine, logs to stdout and exits at display open. With it, the game loads the first level and runs:
+In an apple build `jones3d` first prints a `Host:` line (macOS version, Metal device, SDL version) and opens the game
+window (P2.2). There is still no display backend, so the window stays empty: without `--headless` the game opens the
+GOBs, loads its string tables, starts the engine, logs to stdout and exits at display open. With it, the game loads the
+first level and runs:
 
 ```sh
 build/jones3d --data /path/to/data-root --headless --frames 600
@@ -144,7 +151,8 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `levelload` | Loads the static world and all 17 levels through every binary `.cnd` section loader. | about 40 s |
 | `cogcheck` | Compiles every `.cog` in the three GOBs through the engine's lookup, so loose overrides are the files compiled. | about 2 s |
 | `saveload` | Runs the game headless for 300 frames, saves, restores the save into a freshly loaded level and compares the world (things, positions, sectors, health, COG globals, game time), saves again and compares the two files, then plays 300 more frames. Saves go to `build/saveload-out/SaveGames/`. | under 1 s |
-| `boot` | Runs `jones3d --headless --frames 600`: level open, the level-start autosave and 20 s of game time in the first level. Must exit 0 with no assert. Its autosave goes to `build/boot/SaveGames/`, not the game folder. | under 1 s |
+| `boot` | Runs `jones3d --headless --frames 600` (`jones3d-null` in an apple build): level open, the level-start autosave and 20 s of game time in the first level. Must exit 0 with no assert. Its autosave goes to `build/boot/SaveGames/`, not the game folder. | under 1 s |
+| `boot-sdl` | Apple builds only: the same run through `jones3d`, so the SDL event loop delivers the frames and the closing `WM_CLOSE` (SDL's `dummy` video driver, no window). Its autosave goes to `build/boot-sdl/SaveGames/`. | under 1 s |
 
 Each can be run directly, which shows its output:
 
