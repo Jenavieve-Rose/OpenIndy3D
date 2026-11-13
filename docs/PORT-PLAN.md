@@ -46,9 +46,10 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 Nothing is on screen and nothing is audible yet, but the game loop runs, saves and restores, and the 64-bit audit is
 closed. Phase 2 is where the first pixels appear.
 
-Work up to P1.18 is committed on the branch `phase1-headless` (seven commits, `28e2120` to `b4b56e7`), which is not
-yet merged into `main` (still at `8e9a940`). P1.19 to P1.30 and the phase 1 audit are in the working tree, not yet
-committed.
+All of phase 1 is on `main` (at `3c3605a`): sixteen commits made on the branch `phase1-headless`, seven for P1.8 to
+P1.18 (`28e2120` to `b4b56e7`) and nine for P1.19 to P1.30, the audit and the docs (`f0d0935` to `3c3605a`), merged
+by fast-forward on 2026-11-12. Each builds and passes its tests; before `5ba51d2` (P1.30) the `boot` test needs a
+build tree with a short path.
 
 ## 1. Goal
 
@@ -65,7 +66,7 @@ Paths are relative to `~/Developer/Indy3D_Mac`.
 
 | Item | Location | What it is | Role |
 | --- | --- | --- | --- |
-| The port | `j3dport/` | Git repository, hard fork of the decomp at upstream `319a6fc2`, 5 commits on `main` | **Where all work happens.** |
+| The port | `j3dport/` | Git repository, hard fork of the decomp at upstream `319a6fc2`; phases 0 and 1 are on `main` | **Where all work happens.** |
 | Byte-exact decompilation | `infernal-machine-decomp-public-main/` | 100% source for `Indy3D.exe` v1.2 and v1.0, ~188k lines of C, plus zlib 1.0.9 and the INSANE movie player | Pristine upstream copy, for diffing and cherry-picks. Its docs are imported into `j3dport/docs/`. |
 | OpenJones3D v0.3.1 | `OpenJones3D-main/` | Partial reimplementation (87%) that runs by injecting a DLL into the retail exe | Not a base. Source of ~80 catalogued fixes (`CHANGELOG.md`), applied in phase 8. |
 | Retail game data | `Indy3D/` | `RESOURCE/` with `CD1.GOB`, `CD2.GOB`, `JONES3D.GOB`, five `.snm` intro movies, 51 patched `.cog` scripts in `Cog/`; `KEYSETS/*.kfg` | Complete v1.2 install (`INDY3D.EXE` = `55fb00c0…`). The test data root: `-DJ3D_TEST_DATA=…/Indy3D`. |
@@ -249,7 +250,7 @@ the same tests pass under AddressSanitizer and UBSan; the tree builds with `-Wer
 - [x] **P1.14** `levelload.c` uses the shared `tests/harness.c` for engine startup and crash handlers; its output is
       unchanged. `CMakeLists.txt` builds every name in `J3D_TESTS` the same way, so a new test is one line.
 - [x] **P1.15** 1B and the headless work (P1.17, P1.18) are committed as seven reviewable commits on the branch
-      `phase1-headless`; each builds on its own.
+      `phase1-headless`; each builds on its own. The branch, with the rest of phase 1, is merged into `main`.
 - [x] **P1.16** `docs/BUILDING.md` is the port's build guide: Ninja and Xcode configure lines, CMake options, the data
       root, environment variables, tests and tools. The decomp's guide is kept as `docs/DECOMP-BUILDING.md`.
 
@@ -672,7 +673,7 @@ guide.
 | # | Milestone | Draft 1 estimate | State on 2026-11-12 |
 | --- | --- | --- | --- |
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
-| 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors (P1.19 onward not yet committed) |
+| 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
 | 2 | Metal renderer, first level on screen | 3 to 4 weeks | Not started |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
 | 4 | Audio complete | 2 weeks | Not started |
@@ -686,11 +687,9 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. Commit P1.19 to P1.30 and the phase 1 audit on `phase1-headless` as reviewable commits, and merge the branch into
-   `main` once reviewed.
-2. **P2.1, P2.2:** SDL3 and Objective-C in the build, then a window that opens and closes cleanly.
-3. **P2.3 to P2.6:** the display device, the back buffer and the first present, so the level-load screen is visible.
-4. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
+1. **P2.1, P2.2:** SDL3 and Objective-C in the build, then a window that opens and closes cleanly.
+2. **P2.3 to P2.6:** the display device, the back buffer and the first present, so the level-load screen is visible.
+3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 
 To reproduce the measurements at the top of this file:
