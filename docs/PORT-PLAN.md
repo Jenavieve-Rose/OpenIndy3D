@@ -66,6 +66,10 @@ Phase 4 is on `main` (at `e9b6d42`), merged by fast-forward on 2026-11-13: two c
 P4.1 to P4.11 (`70558f4`) and the audit (`e9b6d42`, documents only). At `70558f4` everything builds and every test
 passes in the apple (11 tests), null (7) and sanitizer (11) trees.
 
+3D sound (decision 19) followed on the branch `audio-3d`: one commit (`9c739bd`), merged into `main` by fast-forward on
+2026-11-13. At `9c739bd` everything builds and every test passes in the apple (13 tests), null (8) and sanitizer (13)
+trees.
+
 ## 1. Goal
 
 A native arm64 macOS application that plays the full retail game (all 17 levels: 16 story chapters and the bonus level,
