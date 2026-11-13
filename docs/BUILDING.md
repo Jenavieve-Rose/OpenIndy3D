@@ -11,7 +11,7 @@ The decomp's own build instructions (the byte-matching pipeline, which the port 
 - Xcode or the Command Line Tools, for Apple clang.
 - CMake 3.24 or later, and Ninja: `brew install cmake ninja`.
 - SDL3 3.2 or later, for the window and input: `brew install sdl3`. Not needed for a `-DJ3D_PLATFORM=null` build.
-- Nothing for sound: miniaudio, the output device, is vendored in `third_party/miniaudio/` and uses Core Audio.
+- Nothing for sound: the output device is AVAudioEngine, part of macOS.
 - Python 3, only for the scripts in `tools/`.
 - A retail copy of the game, version 1.2, for running and testing. Nothing from it is needed to compile.
 
@@ -141,10 +141,28 @@ Start inventory, d-pad left and right weapons, down health, up chalk. Every key 
 
 ### Sound
 
-Sound plays through the system's default output device and follows it when it changes (headphones in or out). Every
-sound is placed by the game's own mix, as on a retail PC without 3D sound hardware, so the sound settings dialog's
-"3D sound" box stays off (PORT-PLAN.md decision 19). `Sound Volume=f:<0 to 1>` is the master volume. While the window
-is in the background the game stops and its sounds are silent.
+Sound plays through the system's default output device and follows it when it changes (headphones in or out).
+`Sound Volume=f:<0 to 1>` is the master volume. While the window is in the background the game stops and its sounds
+are silent.
+
+**3D sound** is off by default, as in retail: every sound is then placed by the game's own mix (volume and left/right
+pan from where it is relative to the camera). `Sound 3D=i:1` turns it on (PORT-PLAN.md decision 19): mono sounds in
+the world are placed around the camera with HRTF, which gives them direction on headphones; they fade with distance as DirectSound 3D faded them; and their pitch shifts with doppler as they or the
+camera move. Music, interface sounds and stereo sounds stay as they were. The settings dialog that toggles it arrives
+in phase 6; until then set it in the settings file or for one run:
+
+```sh
+J3D_REG_Sound_3D=1 build/jones3d --data /path/to/data-root
+```
+
+| Setting | Effect |
+| --- | --- |
+| `Sound 3D=i:1` | 3D sound on (default 0). |
+| `Sound 3D Rendering=i:<n>` | 0 (default) Apple's best rendering for headphones; 1 HRTF, high quality; 2 HRTF; 3 Apple's rendering for a Mac's built-in speakers (places sounds only slightly apart). 0 to 2 work on any output and are made for headphones. |
+| `Sound Head Tracking=i:1` | macOS 15 and later, with rendering 0 and headphones that track the head (AirPods Pro, for example): the sound field stays put as you turn your head. Default 0. |
+
+The game's "Reverse sound" option swaps left and right in 3D sound. The game applies it only from the sound settings
+dialog (retail never read it back at startup), so it arrives with the dialogs in phase 6.
 
 `J3D_NO_AUDIO=1` opens no output device: the game runs and keeps its sound state exactly as with one, silently.
 `--headless` does the same. `J3D_AUDIO_DUMP=<file.wav>` writes everything the device is given to a 16-bit stereo WAV
@@ -188,6 +206,7 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_RECORD`, `J3D_REPLAY`, `J3D_INPUT_SCRIPT` | `--record`, `--replay` and `--input-script`. |
 | `J3D_NO_AUDIO` | `1` opens no audio output device (sound runs silently). |
 | `J3D_AUDIO_DUMP` | `<file.wav>` writes the audio mix to a WAV file and silences the speakers. |
+| `J3D_REG_Sound_3D` | `1` turns 3D sound on for the run (it is the `Sound 3D` setting). |
 
 ## Tests
 
@@ -210,7 +229,9 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `render` | Apple builds only, no game data or window needed. Draws with the Metal renderer offscreen and reads the result back: pixel coverage, colour order, depth test and clears, alpha test and blending, perspective-correct interpolation, depth clamping, lines and points. | under 1 s |
 | `boot-sdl` | Apple builds only: the same run through `jones3d`, so the SDL event loop delivers the frames and the closing `WM_CLOSE` (SDL's `dummy` video driver, no window). Its autosave goes to `build/boot-sdl/SaveGames/`. | under 1 s |
 | `keys` | No game data needed. The DIK tables (HID usage to DirectInput key, key names), `GetKeyNameTextA` and `SearchPathA`. | under 1 s |
-| `sounddriver` | No game data needed. The sound driver on the virtual clock: one-shots, loops, stop and resume, frequency changes; retail's volume and pan tables; the mix's gains, 8- and 16-bit input, the background mute, rendered without a device; the game's WVSM codec, and the ADPCM block decoder (retail's assembly, translated) bit for bit against an independent decoder. | under 1 s |
+| `sounddriver` | No game data needed. The sound driver on the virtual clock: one-shots, loops, stop and resume, frequency changes; retail's volume and pan tables; the mix's gains, 8- and 16-bit input, the background mute, rendered without a device; with 3D sound on, retail's channel flags, the inverse distance law, doppler from the source's and the camera's velocity, and head-relative voices; the game's WVSM codec, and the ADPCM block decoder (retail's assembly, translated) bit for bit against an independent decoder. | under 1 s |
+| `saveload-3d` | `saveload` with 3D sound on, so 3D voices' channel state goes through the save and restore. | under 1 s |
+| `audio3d` | Apple builds only, no game data needed; skipped with no audio output device. A tone in a 3D voice at known positions around the listener, captured through `J3D_AUDIO_DUMP` (nothing is heard): right of the camera is louder on the right, left on the left, ahead and behind balanced, a turned listener and "Reverse sound" swap sides as they should. | about 3 s |
 | `input` | Apple builds only (`tests/input.sh`). Scripted headless runs of level 2 that quicksave at frame 800: holding a key moves Indy; a recorded run replays to a byte-identical quicksave, and recording does not change the run; a scripted controller's A jumps exactly as the jump key does (the port's default key set); with the retail "Microsoft SideWinder game pad" key set its button 7 sidesteps exactly as A does; mouse motion turns Indy. Runs go to `build/input-out/`. | about 10 s |
 
 Each can be run directly, which shows its output:

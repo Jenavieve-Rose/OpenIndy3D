@@ -1063,6 +1063,9 @@ rotation loses float precision and stops the item returning to rest (phase 8 fix
 
 ### miniaudio (P4.1)
 
+*Superseded:* the device is now AVAudioEngine and miniaudio has been removed ("3D sound" below). Kept as the record
+of the step.
+
 `third_party/miniaudio/`: miniaudio 0.11.25, unmodified, with its licence (public domain or MIT-0) and the source and
 SHA-256 of each file in `README.port.md`. It is compiled once (`miniaudio.c`) as its own target, without the
 project's warning flags, with only the playback device and the Core Audio backend; the switches are the target's
@@ -1081,7 +1084,8 @@ links it: `platform/apple/audio_device_ma.c` is the output device. The null buil
 `SoundDriver_null.c` is gone). It is in `platform_core`, so the null build, the tests and the headless runs use the
 same driver as the game.
 
-**Which DirectSound it is.** Retail's driver had two paths. With 3D sound hardware and the "3D sound" option, mono
+**Which DirectSound it is.** *Since extended: both paths are now implemented ("3D sound" below); this paragraph
+records the first step.* Retail's driver had two paths. With 3D sound hardware and the "3D sound" option, mono
 buffers were DirectSound 3D buffers placed by the hardware; otherwise, and for every stereo buffer, the driver asked the
 game for a channel's volume and pan (`sithSoundMixer_CalcCameraRelativeSoundMix`) and set them on plain buffers. The
 port's driver is the second path: `SoundDriver_Has3DHW` and `SoundDriver_Use3DCaps` are 0, so the options dialog greys
@@ -1215,3 +1219,59 @@ The DirectSound part of `win32_shim_dx.h` (interfaces, `WAVEFORMATEX`, `DSBUFFER
 Left open, with their phases: the by-hand checks above (listening, headphones, background mute); retail's restored
 channel handles, the hard-right pan and OpenJones3D's sound fixes (phase 8 fix series); a DirectSound 3D path, if the
 software mix ever proves wanting (phase 9).
+
+### 3D sound (decision 19, after the phase 4 audit)
+
+At the user's request, after listening to the software path on headphones, retail's other path was added: with
+`Sound 3D` on, mono positioned sounds are 3D voices placed with HRTF, with DirectSound 3D's distance model and doppler.
+
+**The device.** `platform/apple/audio_device_avf.m` replaces miniaudio (deleted with `third_party/`): AVAudioEngine with
+one AVAudioSourceNode for the stereo bus and 32 mono AVAudioSourceNodes, the 3D slots, into an
+AVAudioEnvironmentNode. The driver renders every signal, so the engine-clock model, the null build and the tests are
+unchanged; the environment node only places the slots. Its own distance attenuation is switched off (the driver
+applies DirectSound 3D's per voice; the environment node has one model for all sources). On an output change
+AVAudioEngine stops and posts `AVAudioEngineConfigurationChangeNotification`; the device starts it again.
+
+**The driver** (`SoundDriver_mix.c`):
+
+- `SoundDriver_Has3DHW` is 1 in every build, and `SoundDriver_Use3DCaps` is `!bNoSound3D`, as retail set it when the
+  hardware had 3D buffers. The channel flags, which saves carry, therefore never depend on whether a device is open.
+  Retail's default `Sound 3D` is 0, so by default nothing changes.
+- `CreateAndPlay` sets retail's flags: a positioned mono sound is a 3D buffer (`SOUND_CHANNEL_3DSOUND`), a stereo one
+  is marked `SOUND_CHANNEL_UNKNOWN_8000000` and stays 2D, a 2D sound (`Sound_Play` adds `SOUND_CHANNEL_USE3DCAPS`) is
+  neither. A 3D voice takes a free slot; with all 32 taken it is heard centred on the stereo bus.
+- **Distance**: DirectSound 3D's inverse law, gain = min / (min + rolloff × (d − min)) beyond the voice's minimum
+  distance, holding at its maximum distance, with the game's rolloff (1) and defaults (0.5 and 2.5 units).
+- **Doppler**: (c + v_listener) / (c + v_source) along the line between them, c = 343.3 m/s, velocities in game
+  units per second times the game's distance factor (10 / 10 = 1 metre per unit) and doppler factor (1), each
+  velocity clamped to half of c. Applied to the render rate only, never to the engine-clock position.
+- **Listener velocity**: the game passes none (`sithSoundMixer_Update` gives `NULL`), so the port derives it from the
+  camera's movement between commits on the engine clock, averaged with the previous estimate; a jump faster than half
+  the speed of sound (a cut) counts as standing still. Retail's listener stood still for doppler.
+- **Deferred settings**: positions and velocities wait for `ListenerCommitDeferred`, once a frame, as DirectSound's
+  `DS3D_DEFERRED` did; a voice's first position is applied at once so it does not start at the origin.
+- **Head-relative mode**: `Update3DSound` switches a 3D buffer at the listener to `DS3DMODE_DISABLE` (heard at the
+  listener, unattenuated) under retail's condition, kept as written: its inner `&&` makes it `(flags & 1) == 0`, so
+  only for a channel without `SOUND_CHANNEL_PLAYING`.
+
+Two deliberate differences from retail's 3D path, marked `// Port:`:
+
+| Where | What retail did | Now |
+| --- | --- | --- |
+| The listener | `Sound_Update` negates the camera's front and top vectors unless "Reverse sound" is set. Negating both leaves DirectSound's right vector (top × front) as it was, which with the game's axes is the camera's left; and the listener faces backward. | The driver undoes the negation (`SoundDriver_SetReverseSound`, a new call from `Sound_SetReverseSound`, tells it which) and the device maps the game's axes to AVAudioEngine's by a rotation, so the camera's right is the right ear and its front is the front. "Reverse sound" mirrors the scene left to right, its evident purpose. |
+| `CreateAndPlay` | With 3D sound, required every buffer to be in hardware and set `SOUND_CHANNEL_HWMIXING` on all, which stops `Update3DSound` setting their volume: a stereo positioned sound, which hardware could not place, played at full volume at any distance until the far check stopped it | Only a 3D voice is marked; a stereo positioned sound gets the game's mix, as without 3D sound. |
+
+**Rendering choice.** Measured with `tests/audio3d.c` on the development Mac: Apple's automatic rendering with the
+output type left to detection took the wired output for external speakers and placed nothing; with the output type
+set to headphones it places correctly, as do HRTF and high-quality HRTF; equal-power panning placed nothing through
+a live engine (it does offline); the built-in-speaker rendering places only about 1 dB apart. So the default is
+Apple's rendering with the output type set to headphones, and `Sound 3D Rendering` offers the HRTF algorithms and the
+speaker rendering (BUILDING.md, "Sound"). `Sound Head Tracking` turns on AVAudioEnvironmentNode's head tracking on
+macOS 15 and later.
+
+**Checks**: `sounddriver` (flags, distance law, doppler from either velocity, the cut rule, head-relative mode),
+`audio3d` (placement through the real device, both sides, ahead and behind, a turned listener, mirroring),
+`saveload-3d` (the round trip with 3D voices, whose channels carry `SOUND_CHANNEL_HWMIXING`), all in the apple and
+sanitizer trees. A scripted turn in level 2 with 3D on and off puts sounds on the same side in both. Not checked
+automatically: how it sounds, an output change while running, head tracking.
+

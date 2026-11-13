@@ -34,7 +34,7 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 | Check | Result |
 | --- | --- |
 | `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 58 compiler warnings, all known: the narrowing conversions in `jonesConfig.c` (P6.24); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
-| `ctest` | `display`, `keys` and `sounddriver` pass (no game data needed), and in the apple build `render` and `present` (`present` needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` and `input` in the apple build |
+| `ctest` | `display`, `keys` and `sounddriver` pass (no game data needed), and in the apple build `render`, `present` (needs a window server) and `audio3d` (needs an audio output device). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload`, `saveload-3d` and `boot` pass, and `boot-sdl` and `input` in the apple build |
 | The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
@@ -48,7 +48,7 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 Every level renders in a window or fullscreen through Metal: textured, lit, fogged, with the HUD, at the display's
 refresh rate, pillarboxed to 4:3 by default, and plays with the keyboard, the mouse and controllers, using the retail
 key sets or the port's controller default (phase 3), with music, ambience, effects and voices placed by the game's
-own camera-relative mix (phase 4). Movies do not play (phase 5) and the menus and dialogs do not appear (phase 6);
+own camera-relative mix, or with "Sound 3D" on in 3D with HRTF and doppler (phase 4). Movies do not play (phase 5) and the menus and dialogs do not appear (phase 6);
 the in-game inventory menu works.
 `tools/level_shots.sh` screenshots every level by script.
 
@@ -87,7 +87,6 @@ Paths are relative to `~/Developer/Indy3D_Mac`.
 | Retail game data | `Indy3D/` | `RESOURCE/` with `CD1.GOB`, `CD2.GOB`, `JONES3D.GOB`, five `.snm` intro movies, 51 patched `.cog` scripts in `Cog/`; `KEYSETS/*.kfg` | Complete v1.2 install (`INDY3D.EXE` = `55fb00c0…`). The test data root: `-DJ3D_TEST_DATA=…/Indy3D`. |
 | OpenAL Soft | `openal-soft-master/` | Source tree, not referenced by the build | Fallback audio backend only (decision 7). |
 | SDL3 | Homebrew, 3.4.20 | Installed on the development machine, not yet referenced by the build | Window, input, gamepads from phase 2. |
-| miniaudio 0.11.25 | `j3dport/third_party/miniaudio/` | Vendored single-file audio library (public domain or MIT-0) | The output device from phase 4 (decision 7). |
 
 Both source trees are AGPL v3. The port inherits that license. No game assets may be shipped; the app must locate the
 player's own data.
@@ -102,7 +101,7 @@ Line counts were measured on the decomp tree for draft 1.
 | `Libs/rdroid` (renderer front end, math) | 19,762 | `LPD3DTLVERTEX` in one struct, the SSE "Katmai" mesh path | Compiles with `-Werror`. Katmai sources dropped, and since P2.21 their null stub and call sites too. |
 | `Libs/std/General` | 5,781 | x87 inline asm, backslash paths | Done: x87 compiled out, both path separators accepted. |
 | `Libs/std/Win95` | 9,768 | `std3D` (Direct3D 6), `stdDisplay` (DirectDraw), `stdControl` (DirectInput), `stdComm` (DirectPlay), console, window store | Excluded from the build. Generated null backends stand in. `stdGob.c` kept. System-memory VBuffers are real. |
-| `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | Phase 4: `Driver.c` replaced by `platform/common/SoundDriver_mix.c` over a miniaudio device; the handles are opaque; the asm loop's C translation verified (P4.8). Save and restore run with sound open. |
+| `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | Phase 4: `Driver.c` replaced by `platform/common/SoundDriver_mix.c` over an AVAudioEngine device; the handles are opaque; the asm loop's C translation verified (P4.8). Save and restore run with sound open. |
 | `Libs/smush` (INSANE) | 10,267 | 6 MASM files (1,815 lines), `Dsnd.c`, `Timer.c`, `Stdfile.c`, `Stdio.c` | OS modules register nothing; the 14 asm entry points abort if reached. No movies. File handles and Blocky16 frame offsets made 64-bit clean in phase 1. |
 | `Libs/wkernel`, `Libs/w32util` | 692 | 100% | `wkernel` is a hand-written null (message queue, quit). `wuRegistry` is done (`settings.ini`). |
 | `Jones3D/` (game shell) | 23,318 | `jonesConfig.c` (9,955 lines of dialog procedures), `JonesDialog.c`, `JonesDevDialog.c`, `Indy3D.rc` (26 dialog templates) | Compiles against the shim headers. Every dialog call returns failure. `jonesConfig.c` keeps 58 narrowing warnings until P6.24. |
@@ -141,9 +140,10 @@ Decisions 1 to 11 are unchanged from draft 1. Their status is noted where work h
 5. **Graphics: Metal directly**, through a small Objective-C file with a C interface. SDL3's GPU API is the fallback if
    Linux or Windows becomes a goal, so the Metal calls stay in one file.
 6. **Window, input, timing, gamepads: SDL3.**
-7. **Audio: miniaudio** (single-file C, Core Audio backend, built-in spatializer). OpenAL Soft is the alternative if
-   the spatialization sounds wrong; its source is already in the workspace. In place (phase 4), for the output device
-   only: the mixing is the port's own, and no spatializer is needed (decision 19).
+7. **Audio: AVAudioEngine** (revised in phase 4). Draft 1 chose miniaudio (single-file C, Core Audio backend,
+   built-in spatializer), with OpenAL Soft as the alternative. miniaudio was the output device for phase 4 itself;
+   when 3D sound was added it gave way to AVAudioEngine, whose AVAudioEnvironmentNode places voices with Apple's HRTF
+   rendering and supports head tracking (decision 19). The mixing is the port's own; OpenAL Soft is not needed.
 8. **Movies: port INSANE, do not swap in ScummVM.** The six assembler files become C. ScummVM's `Blocky16` codec
    (GPLv2+) is the reference for the hardest one.
 9. **GUI: emulate the slice of the Win32 dialog API that `jonesConfig.c` uses**, backed by our own widgets drawn with
@@ -173,11 +173,14 @@ Decisions made while doing phases 0 and 1:
     code implies (or OpenJones3D's, where it fixed the same thing), logs it in `docs/PORTING.md`, and leaves anything
     that changes intended behaviour to the phase 8 fix series. Headless runs are deterministic, so a change in
     behaviour shows up as a change in the `boot` log or the saves.
-19. **Sound is retail's software path, kept on the engine clock** (phase 4). The driver reports no 3D sound hardware,
-    as a retail machine without it did, so every sound is placed by the game's own camera-relative mix and the options
-    dialog greys the 3D check box; DirectSound 3D is not emulated (docs/PORTING.md, "The sound driver", for why).
-    Everything the sound module can observe of a voice is computed from the engine clock, never from the device, so
-    headless, recorded and replayed runs keep byte-identical saves and the null build runs the same driver silently.
+19. **Sound: both of retail's paths, kept on the engine clock** (phase 4). With "Sound 3D" off (retail's default) every
+    sound is placed by the game's own camera-relative mix. With it on, mono positioned sounds are 3D voices, as
+    DirectSound 3D buffers were: the driver applies DirectSound 3D's distance model and doppler (from each sound's
+    velocity and the camera's, which the port derives since the game passes none) and AVAudioEnvironmentNode places
+    them around the camera with HRTF, oriented so left and right are the camera's (retail's listener was not). The
+    driver reports 3D hardware in every build. Everything the sound module can observe of a voice is computed from the
+    engine clock, never from the device, so headless, recorded and replayed runs keep byte-identical saves and the
+    null build runs the same driver silently (docs/PORTING.md, "The sound driver" and "3D sound").
 
 ## 4. Target architecture
 
@@ -202,7 +205,7 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    ├─ apple/std3D_metal.c, render_metal.m  Metal renderer                    exists
    ├─ apple/stdControl_sdl.c            keyboard to DIK, mouse, gamepads     exists
    ├─ common/SoundDriver_mix.c          voices on the engine clock, mixer    exists
-   ├─ apple/audio_device_ma.c           miniaudio output device              exists
+   ├─ apple/audio_device_avf.m          AVAudioEngine output, 3D placement   exists
    ├─ insane_os/                        timer, file I/O, audio sink, asm→C   phase 5
    ├─ j3dgui/                           Win32 dialog emulation and widgets   phase 6
    └─ apple/ (bundle, data locator)                                          phase 8
@@ -544,8 +547,8 @@ Exit test: music, ambience, effects, 3D positioning and dialogue with subtitles 
 survive a save and load.
 
 - [x] **P4.1** (S) Vendor `miniaudio.h` into `third_party/` and link it; open and close a device.
-      Done: 0.11.25, hashes in `third_party/miniaudio/README.port.md`; device only, Core Audio only, 48 kHz float;
-      `platform/apple/audio_device_ma.c` behind `host_audio.h`, none in the null build. Checked: windowed runs.
+      Done: 0.11.25 behind `host_audio.h`, none in the null build. Since replaced by AVAudioEngine
+      (`platform/apple/audio_device_avf.m`) for 3D sound, and removed (decision 19).
 - [x] **P4.2** (S) Make the buffer handle opaque: `LPDIRECTSOUNDBUFFER` in `sound/types.h` becomes `SoundVoice*`.
       Done: and `LPDIRECTSOUND` becomes `SoundDevice*`.
 - [x] **P4.3** (S) `SoundDriver_ma.c`, device level: `Open`, `Close`, `SetOuputFormat`, `SetMaxVolume`, the time and
@@ -561,9 +564,11 @@ survive a save and load.
       values, the mix's gains).
 - [x] **P4.6** (M) 3D: listener position and orientation, `SetPosAndVelocity`, `Update3DSound`, `SetGlobals`
       (distance, rolloff, doppler), `ListenerCommitDeferred` applying a frame's changes together, `Has3DHW` true.
-      Done differently: `Has3DHW` is false and sounds are placed by the game's own mix, retail's path without 3D
-      hardware (decision 19); `Update3DSound` is retail's software half, the 3D-buffer calls keep their values only.
-      Its uninitialised mix values fixed.
+      Done in two steps: first retail's path without 3D hardware only; then, at the user's request, 3D sound as well:
+      `Has3DHW` true, `Use3DCaps` follows "Sound 3D", DirectSound 3D's distance model and doppler in the driver,
+      placement with HRTF through AVAudioEnvironmentNode, the listener's velocity derived (decision 19). The
+      uninitialised mix values fixed. Checked: `sounddriver` (flags, distance, doppler), `audio3d` (placement on the
+      device), `saveload-3d`.
 - [x] **P4.7** (S) Startup path: `Sound` opens without the `JONES_STR_SOUNDERROR` message and
       `Sound_Set3DGlobals: module is not open` no longer appears in the log.
       Checked: `boot` log; `J3D_NO_AUDIO` and `--headless` open no device and change nothing else.
@@ -580,7 +585,7 @@ survive a save and load.
       the pause time fixed (it broke the round trip, nothing audible); restored channel handles shift by 1234 in
       retail, kept (phase 8). Not done: listening by a person.
 - [x] **P4.10** (S) Output device changes while running (headphones in and out).
-      Done: miniaudio follows the default device and keeps the stream's format. Not done: the check by hand.
+      Done: AVAudioEngine stops on an output change and the device starts it again. Not done: the check by hand.
 - [x] **P4.11** (S) Delete the DirectSound part of `win32_shim_dx.h`.
       Done: and the `dsound.h` and `Mmreg.h` stand-ins.
 ## Complete Phase 4 Code Audit
@@ -598,7 +603,7 @@ phase's code, the newly reachable sound code under ASan and UBSan in every test,
 - Not yet run: the exit test itself, listening to the first three levels, through a save and load, by a person; and
   headphones in and out.
 - Left open, each with its phase: retail's restored channel handles and hard-right pan, OpenJones3D's sound fixes
-  (phase 8 fix series); a DirectSound 3D path (phase 9, if ever).
+  (phase 8 fix series). The DirectSound 3D path, left out at first, was added afterwards (decision 19).
 ### Phase 5: Movies
 
 Exit test: the five intro movies and every cutscene movie in the GOBs play with audio in sync and can be skipped; a
@@ -758,7 +763,7 @@ j3dport/
   Jones3D/              imported; Win32 calls resolved by the shim until phase 7
   Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
   platform/apple/       main.c, shim/, host_apple.m, wkernel_sdl.c, stdDisplay_sdl.c, display_metal.m,
-                        std3D_metal.c, render_metal.m, stdControl_sdl.c, audio_device_ma.c
+                        std3D_metal.c, render_metal.m, stdControl_sdl.c, audio_device_avf.m
                         + bundle and locator (8)
   platform/common/      crt_posix.c, host_path.h, host_clock.h, host_dirs.c, wuRegistry_file.c,
                         stdDisplay_vbuffer.c, stdDisplay_common.c, host_screenshot.c,
@@ -766,8 +771,7 @@ j3dport/
                         SoundDriver_mix.c, host_audio.h     + insane_os/ (5), j3dgui/ (6)
   tools/                gen_null_platform.py, layout_audit.py, gobtool.py     + rc2table.py (6)
   tests/                harness.c, levelload.c, cogcheck.c, saveload.c, display.c, present.c, render.c,
-                        keys.c, input.sh, sounddriver.c     + moviecheck.c (5)
-  third_party/          miniaudio/ (4)
+                        keys.c, input.sh, sounddriver.c, audio3d.c     + moviecheck.c (5)
   docs/                 PORT-PLAN.md, PORTING.md, and the decomp's reference documents
 ```
 
@@ -813,7 +817,7 @@ copy is required. ScummVM-derived code must keep its GPL notices; GPLv2+ is comp
 
 ### 7.6 Tooling
 
-SDL3 and miniaudio are stable; Metal and Apple clang are first-party. No deprecated framework is used.
+SDL3 is stable; Metal and Apple clang are first-party. No deprecated framework is used.
 
 ### 7.7 Retail bugs that only worked by accident
 

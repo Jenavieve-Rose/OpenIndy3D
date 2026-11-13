@@ -61,5 +61,10 @@ float J3DAPI SoundDriver_GetPanFromTable(int pan);
 uint32_t J3DAPI SoundDriver_GetTimeMsec(void);
 void J3DAPI SoundDriver_Sleep(unsigned int dwMilliseconds);
 
+// Port: Sound_SetReverseSound passes its setting on. Sound_Update negates the listener's front and top vectors unless it
+// is set; the port's 3D listener undoes that, and mirrors the scene left to right when it is set (PORT-PLAN.md
+// decision 19).
+void J3DAPI SoundDriver_SetReverseSound(int bReverse);
+
 J3D_EXTERN_C_END
 #endif // SOUND_DRIVER_H

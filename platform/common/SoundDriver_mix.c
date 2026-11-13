@@ -2,12 +2,16 @@
  * SoundDriver for the port (PORT-PLAN.md P4.3 to P4.6): Libs/sound/Driver.h over a software mixer, in place of
  * retail's DirectSound driver (Libs/sound/Driver.c, excluded from the build).
  *
- * What it emulates. Retail's driver had two paths. With 3D sound hardware and the "3D sound" option on, mono buffers
- * were DirectSound 3D buffers that the hardware positioned. Without it (and for every stereo buffer) the driver asked
- * the game for each channel's volume and pan, sithSoundMixer_CalcCameraRelativeSoundMix, and set them on plain
- * buffers. This driver is the second path: it reports no 3D hardware, so the options dialog greys the 3D check box
- * exactly as on a retail machine without it, and every sound is placed by the game's own camera-relative mix
- * (docs/PORTING.md, "Phase 4: the sound driver", for why).
+ * What it emulates. Retail's driver had two paths, and this one has both (PORT-PLAN.md decision 19):
+ *
+ *   - Without 3D sound (the "3D sound" option off, retail's default): the driver asks the game for each channel's
+ *     volume and pan, sithSoundMixer_CalcCameraRelativeSoundMix, and sets them on plain buffers, mixed in software.
+ *   - With 3D sound on: mono positioned sounds are 3D voices, as DirectSound 3D buffers were. The driver applies
+ *     DirectSound 3D's distance model (inverse distance between each voice's minimum and maximum distance, with the
+ *     game's rolloff) and doppler (with the game's doppler and distance factors, from each sound's velocity and the
+ *     camera's), and the device places the voice around the listener (HRTF through AVAudioEnvironmentNode on the
+ *     apple build). The driver reports 3D hardware in every build, so the game's channel bookkeeping, and with it every
+ *     save, is the same with or without a device.
  *
  * Two clocks. Everything the sound module can observe about a voice (playing or not, its play cursor) is computed from
  * SoundDriver_GetTimeMsec, the engine clock: the position advances by frequency x elapsed time while the voice plays.
@@ -15,15 +19,20 @@
  * frame clock (headless, --record, --replay) therefore sees exactly the same sound state every time, which keeps saves
  * and recorded runs byte-identical, and the null build, which has no device, runs the sound module unchanged.
  *
- * Threads. The game thread calls the driver; the device's thread calls SoundDriver_Render. SoundDriver_lock guards the
- * voice list and every field the renderer reads; the game thread holds it only for a few stores at a time.
+ * Doppler and the 3D distance gain change only what is rendered, never the engine-clock state, so a 3D voice's play
+ * cursor can lead or trail what is heard by the doppler shift (a few percent at most).
+ *
+ * Threads. The game thread calls the driver; the device's threads call SoundDriver_Render and SoundDriver_RenderSlot.
+ * SoundDriver_lock guards the voice list, the slot table and every field the renderers read; the game thread holds it
+ * only for a few stores at a time.
  *
  * Retail code kept unchanged: the decibel table, the pan table, the four conversion functions (P4.5),
- * CalcListeneSoundMix, CalcDistToListener and Update3DSound's software half.
+ * CalcListeneSoundMix, CalcDistToListener, and Update3DSound and CreateAndPlay's handling of the channel flags.
  */
 #include <sound/Driver.h>
 #include <sound/AudioLib.h>
 
+#include <rdroid/Math/rdVector.h>
 #include <std/General/stdMath.h>
 
 #include <platform/common/host_audio.h>
@@ -44,6 +53,9 @@
 #define SOUNDDRIVER_PAN_MAX       10000
 #define SOUNDDRIVER_FREQUENCY_MIN 100
 #define SOUNDDRIVER_FREQUENCY_MAX 100000
+
+// DirectSound 3D: the speed of sound in metres per second; the game's distance factor turns its units into metres.
+#define SOUNDDRIVER_SPEEDOFSOUND  343.3
 
 // The PCM of one buffer, shared by a buffer and its duplicates (DuplicateSoundBuffer shared memory too).
 typedef struct SoundVoiceData
@@ -71,12 +83,25 @@ struct SoundVoice
     double position;    // in frames, at positionTime
     uint32_t positionTime;
 
-    // What the renderer reads (under SoundDriver_lock).
+    // 3D (game thread): a DirectSound 3D buffer's state.
+    int b3D;            // made with DSBCAPS_CTRL3D: mono, 3D sound on, not a 2D sound
+    int bHeadRelative;  // DS3DMODE_DISABLE: no placement, heard at the listener
+    int bPlaced;        // a position has been set; until then it is placed at once instead of at the next commit
+    rdVector3 pos3D;
+    rdVector3 vel3D;
+    float minDistance;
+    float maxDistance;
+
+    // What the renderers read (under SoundDriver_lock).
+    int slot;           // the device's 3D slot, or -1: then (or with no 3D) it is mixed into the stereo bus
     int bRender;
     double renderPosition;
     double renderStep;  // source frames per output frame
     float gainLeft;
     float gainRight;
+    float gain3D;       // DirectSound volume x 3D distance gain
+    float gain3DDistance;
+    double doppler;     // render-rate factor from doppler
 };
 
 static float SoundDriver_maxVolume = 1.0f;
@@ -104,6 +129,18 @@ static int SoundDriver_bHasDevice = 0;
 static uint32_t SoundDriver_outputRate = 48000;
 static volatile int SoundDriver_bFocused = 1; // read by the renderer without the lock: a stale value costs one block
 
+// 3D (decision 19). SoundDriver_bUse3DCaps is retail's: 3D voices are made while it is set.
+static int SoundDriver_bUse3DCaps = 0;
+static int SoundDriver_bReverse = 0;          // the game's "Reverse sound": Sound_Update's vectors are not negated
+static SoundVoice* SoundDriver_apSlots[J3DAUDIO_NUM3DSLOTS] = { 0 };
+static rdVector3 SoundDriver_listenerFront = { 0.0f, 1.0f, 0.0f };
+static rdVector3 SoundDriver_listenerUp = { 0.0f, 0.0f, 1.0f };
+static rdVector3 SoundDriver_listenerVel = { 0 };
+static int SoundDriver_bListenerVelGiven = 0;  // the game passed a velocity (it passes NULL; then it is derived)
+static rdVector3 SoundDriver_prevListenerPos = { 0 };
+static uint32_t SoundDriver_prevListenerTime = 0;
+static int SoundDriver_bHasPrevListener = 0;
+
 static const int SoundDriver_aDBTable[256] = {
     -9640, -4810, -4210, -3850, -3600, -3410, -3250, -3120, -3000, -2900, -2810, -2730, -2650, -2580, -2520, -2460,
     -2400, -2350, -2300, -2250, -2210, -2160, -2120, -2080, -2050, -2010, -1980, -1950, -1910, -1880, -1850, -1830,
@@ -127,7 +164,9 @@ void J3DAPI SoundDriver_InitPanTable(void);
 void J3DAPI SoundDriver_CalcListeneSoundMix(float x, float y, float z, float volume, float pitch, float* newVolume, float* pan, float* newPitch, float minRadius, float maxRadius, SoundEnvFlags envflags);
 double J3DAPI SoundDriver_CalcDistToListener(float x1, float y1, float z1, float x2, float y2, float z2);
 
-static void SoundDriver_Render(float* pOut, uint32_t frameCount, void* pUser);
+static void SoundDriver_Render(float* pLeft, float* pRight, uint32_t frameCount, void* pUser);
+static int SoundDriver_RenderSlot(int slot, float* pMono, uint32_t frameCount, void* pUser);
+static void SoundDriver_Place3DVoice(SoundVoice* pVoice);
 
 /* ---- Voices ------------------------------------------------------------------------------------------------------- */
 
@@ -173,6 +212,16 @@ static void SoundDriver_UpdateRenderParams(SoundVoice* pVoice)
         right *= pVoice->pan <= -SOUNDDRIVER_PAN_MAX ? 0.0f : powf(10.0f, (float)pVoice->pan / 2000.0f);
     }
 
+    if ( pVoice->b3D )
+    {
+        // A DirectSound 3D buffer has no pan; its distance gain comes from SoundDriver_Place3DVoice.
+        pVoice->gain3D    = gain * pVoice->gain3DDistance;
+        pVoice->gainLeft  = pVoice->gain3D; // used only when no slot was free: heard centred
+        pVoice->gainRight = pVoice->gain3D;
+        pVoice->renderStep = (double)pVoice->frequency * pVoice->doppler / (double)SoundDriver_outputRate;
+        return;
+    }
+
     pVoice->gainLeft   = left;
     pVoice->gainRight  = right;
     pVoice->renderStep = (double)pVoice->frequency / (double)SoundDriver_outputRate;
@@ -193,6 +242,11 @@ static SoundVoice* SoundDriver_NewVoice(SoundVoiceData* pData, uint32_t numChann
     pVoice->frequency         = frequency;
     pVoice->volume            = SOUNDDRIVER_VOLUME_MAX;
     pVoice->positionTime      = SoundDriver_GetTimeMsec();
+    pVoice->slot              = -1;
+    pVoice->gain3DDistance    = 1.0f;
+    pVoice->doppler           = 1.0;
+    pVoice->minDistance       = -1.0f;
+    pVoice->maxDistance       = -1.0f;
     ++pData->refCount;
 
     pthread_mutex_lock(&SoundDriver_lock);
@@ -247,13 +301,17 @@ int J3DAPI SoundDriver_Open(int bNoSound3D, int bGlobalFocus, HWND hwnd, SoundDe
     SoundDriver_pfLogError         = pfLogError;
     SoundDriver_bNoDSound3D        = bNoSound3D;
     SoundDriver_bUseGlobalFocusBuf = bGlobalFocus;
+    SoundDriver_bUse3DCaps         = !bNoSound3D; // retail: when the hardware has 3D buffers, which the port always has
+    SoundDriver_bHasPrevListener   = 0;
+    rdVector_Set3(&SoundDriver_listenerVel, 0.0f, 0.0f, 0.0f);
 
     SoundDriver_InitPanTable();
 
     if ( !SoundDriver_bOpen )
     {
         SoundDriver_outputRate = 48000;
-        SoundDriver_bHasDevice = J3DAudio_OpenDevice(SoundDriver_Render, NULL, &SoundDriver_outputRate);
+        SoundDriver_bHasDevice = J3DAudio_OpenDevice(SoundDriver_Render, SoundDriver_RenderSlot, NULL, &SoundDriver_outputRate);
+        J3DAudio_SetMirror(SoundDriver_bReverse);
         if ( !SoundDriver_bHasDevice || SoundDriver_outputRate == 0 )
         {
             SoundDriver_outputRate = 48000; // voices keep their render parameters consistent; nothing pulls them
@@ -282,6 +340,7 @@ void J3DAPI SoundDriver_Close(void)
     // Sound_Close releases its channels first; free anything left so a reopen (Sound_Set3DHWState) starts clean.
     pVoice = SoundDriver_pVoices;
     SoundDriver_pVoices = NULL;
+    memset(SoundDriver_apSlots, 0, sizeof(SoundDriver_apSlots));
     while ( pVoice )
     {
         SoundVoice* pNext = pVoice->pNext;
@@ -302,14 +361,22 @@ void J3DAPI SoundDriver_SetMaxVolume(float volume)
     SoundDriver_maxVolume = volume;
 }
 
+// The port always has 3D voices (decision 19): with no device they are kept but not heard, so the channel flags, and
+// every save, do not depend on whether a device is open.
 int J3DAPI SoundDriver_Has3DHW(void)
 {
-    return 0;
+    return 1;
 }
 
 int J3DAPI SoundDriver_Use3DCaps(void)
 {
-    return 0;
+    return SoundDriver_bUse3DCaps;
+}
+
+void J3DAPI SoundDriver_SetReverseSound(int bReverse)
+{
+    SoundDriver_bReverse = bReverse != 0;
+    J3DAudio_SetMirror(SoundDriver_bReverse);
 }
 
 SoundDevice* J3DAPI SoundDriver_GetDSound(void)
@@ -369,6 +436,28 @@ void J3DAPI SoundDriver_Sleep(unsigned int dwMilliseconds)
 
 /* ---- Voices (P4.4) ------------------------------------------------------------------------------------------------ */
 
+// Makes a voice a 3D voice and gives it a free device slot (none free: it is heard centred on the stereo bus).
+static void SoundDriver_Make3D(SoundVoice* pVoice, int b3D)
+{
+    pthread_mutex_lock(&SoundDriver_lock);
+    pVoice->b3D = b3D != 0;
+    if ( pVoice->b3D )
+    {
+        for ( int i = 0; i < J3DAUDIO_NUM3DSLOTS; ++i )
+        {
+            if ( !SoundDriver_apSlots[i] )
+            {
+                SoundDriver_apSlots[i] = pVoice;
+                pVoice->slot = i;
+                break;
+            }
+        }
+    }
+
+    SoundDriver_UpdateRenderParams(pVoice);
+    pthread_mutex_unlock(&SoundDriver_lock);
+}
+
 SoundVoice* J3DAPI SoundDriver_CreateAndPlay(int samplesPerSec, int nBitsPerSample, int numChannels, const uint8_t* pSoundData, size_t dataSize, tSoundChannelFlag* pFlags, SoundVoice* pSBuffer)
 {
     SoundVoice* pVoice;
@@ -392,9 +481,12 @@ SoundVoice* J3DAPI SoundDriver_CreateAndPlay(int samplesPerSec, int nBitsPerSamp
         pVoice->volume    = pSBuffer->volume;
         pVoice->pan       = pSBuffer->pan;
         pVoice->frequency = pSBuffer->frequency;
-        pthread_mutex_lock(&SoundDriver_lock);
-        SoundDriver_UpdateRenderParams(pVoice);
-        pthread_mutex_unlock(&SoundDriver_lock);
+        SoundDriver_Make3D(pVoice, pSBuffer->b3D);
+        if ( SoundDriver_bUse3DCaps && pVoice->b3D )
+        {
+            *pFlags |= SOUND_CHANNEL_HWMIXING;
+        }
+
         *pFlags |= SOUND_CHANNEL_UNKNOWN_800000;
     }
     else
@@ -448,8 +540,33 @@ SoundVoice* J3DAPI SoundDriver_CreateAndPlay(int samplesPerSec, int nBitsPerSamp
             *pFlags |= SOUND_CHANNEL_GLOBALFOCUS;
         }
 
-        // A software buffer: no hardware mixing, never a 3D buffer (Use3DCaps is false).
-        *pFlags &= ~SOUND_CHANNEL_HWMIXING;
+        // Retail: with 3D sound, every sound the game positions is a 3D buffer, except a stereo one, which cannot be
+        // and is marked so (UNKNOWN_8000000). Sounds played as 2D carry SOUND_CHANNEL_USE3DCAPS (Sound_Play).
+        if ( SoundDriver_bUse3DCaps && (*pFlags & SOUND_CHANNEL_USE3DCAPS) == 0 )
+        {
+            *pFlags |= SOUND_CHANNEL_3DSOUND;
+            if ( numChannels == 2 )
+            {
+                *pFlags |= SOUND_CHANNEL_UNKNOWN_8000000;
+            }
+            else
+            {
+                SoundDriver_Make3D(pVoice, 1);
+            }
+        }
+
+        // Retail required every buffer to be in hardware with 3D sound on, and set SOUND_CHANNEL_HWMIXING on all of them,
+        // which keeps Update3DSound from setting a volume. Port: only a 3D voice is marked so. A stereo positioned sound,
+        // which hardware could not place, would otherwise play at full volume at any distance; it gets the game's mix,
+        // as without 3D sound.
+        if ( SoundDriver_bUse3DCaps && pVoice->b3D )
+        {
+            *pFlags |= SOUND_CHANNEL_HWMIXING;
+        }
+        else
+        {
+            *pFlags &= ~SOUND_CHANNEL_HWMIXING;
+        }
 
         // Retail: a channel being restarted from far away starts at the bottom of the scale (its volume is set again
         // by the next Update3DSound); every other buffer starts at full volume.
@@ -478,6 +595,11 @@ void J3DAPI SoundDriver_Release(SoundVoice* pDSBuf)
     }
 
     pthread_mutex_lock(&SoundDriver_lock);
+    if ( pDSBuf->slot >= 0 )
+    {
+        SoundDriver_apSlots[pDSBuf->slot] = NULL;
+    }
+
     for ( ppLink = &SoundDriver_pVoices; *ppLink; ppLink = &(*ppLink)->pNext )
     {
         if ( *ppLink == pDSBuf )
@@ -556,7 +678,16 @@ tSoundChannelFlag J3DAPI SoundDriver_GetStatusAndCaps(SoundVoice* pDSBuffer)
         flags |= pDSBuffer->bLoop ? SOUND_CHANNEL_LOOP | SOUND_CHANNEL_PLAYING : SOUND_CHANNEL_PLAYING;
     }
 
-    return flags | SOUND_CHANNEL_SWMIXING | (pDSBuffer->caps & SOUND_CHANNEL_GLOBALFOCUS);
+    if ( pDSBuffer->b3D )
+    {
+        flags |= SOUND_CHANNEL_3DSOUND | SOUND_CHANNEL_HWMIXING; // DSBCAPS_CTRL3D, DSBCAPS_LOCHARDWARE
+    }
+    else
+    {
+        flags |= SOUND_CHANNEL_SWMIXING;
+    }
+
+    return flags | (pDSBuffer->caps & SOUND_CHANNEL_GLOBALFOCUS);
 }
 
 /* ---- Volume, pan, frequency (P4.5) -------------------------------------------------------------------------------- */
@@ -692,7 +823,6 @@ void J3DAPI SoundDriver_InitPanTable(void)
 
 void J3DAPI SoundDriver_SetListenerPosition(const rdVector3* pPos, const rdVector3* pVelocity, const rdVector3* pTopOrient, const rdVector3* pFrontOrient, const rdVector3* pRightOrient)
 {
-    (void)pVelocity;
     (void)pRightOrient;
 
     if ( pPos )
@@ -700,6 +830,22 @@ void J3DAPI SoundDriver_SetListenerPosition(const rdVector3* pPos, const rdVecto
         SoundDriver_curListenerPos.x = pPos->x;
         SoundDriver_curListenerPos.y = pPos->y;
         SoundDriver_curListenerPos.z = pPos->z;
+    }
+
+    // The 3D listener (applied at ListenerCommitDeferred, as DirectSound's deferred settings were). Sound_Update negates
+    // the front and top vectors unless "Reverse sound" is set; negating both keeps DirectSound's right vector but turns
+    // the listener round, so the port undoes it and places the listener as the camera is (decision 19).
+    if ( pFrontOrient && pTopOrient )
+    {
+        float sign = SoundDriver_bReverse ? 1.0f : -1.0f;
+        rdVector_Set3(&SoundDriver_listenerFront, sign * pFrontOrient->x, sign * pFrontOrient->y, sign * pFrontOrient->z);
+        rdVector_Set3(&SoundDriver_listenerUp, sign * pTopOrient->x, sign * pTopOrient->y, sign * pTopOrient->z);
+    }
+
+    SoundDriver_bListenerVelGiven = pVelocity != NULL;
+    if ( pVelocity )
+    {
+        SoundDriver_listenerVel = *pVelocity;
     }
 
     if ( !SoundDriver_pfCalcListenerSoundMix && pTopOrient && pFrontOrient )
@@ -719,20 +865,150 @@ void J3DAPI SoundDriver_SetListenerPosition(const rdVector3* pPos, const rdVecto
     }
 }
 
-// The 3D listener's deferred settings: there is no 3D listener; the software mix applies each change as it is made.
+// Applies a frame's listener and 3D voice changes together, as IDirectSound3DListener::CommitDeferredSettings did.
+// The game passes no listener velocity (sithSoundMixer_Update gives NULL), so for doppler the port derives it from the
+// camera's movement on the engine clock: a jump faster than half the speed of sound (a cut or a teleport) counts as
+// standing still, and the estimate is smoothed over frames.
 void J3DAPI SoundDriver_ListenerCommitDeferred(void)
 {
+    uint32_t now = SoundDriver_GetTimeMsec();
+    float aPos[3], aFront[3], aUp[3];
+    SoundVoice* pVoice;
+
+    if ( !SoundDriver_bUse3DCaps )
+    {
+        SoundDriver_bHasPrevListener = 0;
+        return;
+    }
+
+    if ( !SoundDriver_bListenerVelGiven )
+    {
+        if ( SoundDriver_bHasPrevListener && now != SoundDriver_prevListenerTime )
+        {
+            double dt = (double)(uint32_t)(now - SoundDriver_prevListenerTime) / 1000.0;
+            rdVector3 v;
+            double speed;
+            rdVector_Set3(&v,
+                (float)((SoundDriver_curListenerPos.x - SoundDriver_prevListenerPos.x) / dt),
+                (float)((SoundDriver_curListenerPos.y - SoundDriver_prevListenerPos.y) / dt),
+                (float)((SoundDriver_curListenerPos.z - SoundDriver_prevListenerPos.z) / dt));
+            speed = sqrt((double)v.x * v.x + (double)v.y * v.y + (double)v.z * v.z) * SoundDriver_defaultDistanceFactor;
+            if ( speed > SOUNDDRIVER_SPEEDOFSOUND / 2.0 )
+            {
+                rdVector_Set3(&v, 0.0f, 0.0f, 0.0f);
+            }
+
+            rdVector_Set3(&SoundDriver_listenerVel,
+                0.5f * (SoundDriver_listenerVel.x + v.x),
+                0.5f * (SoundDriver_listenerVel.y + v.y),
+                0.5f * (SoundDriver_listenerVel.z + v.z));
+        }
+
+        if ( !SoundDriver_bHasPrevListener || now != SoundDriver_prevListenerTime )
+        {
+            SoundDriver_prevListenerPos  = SoundDriver_curListenerPos;
+            SoundDriver_prevListenerTime = now;
+            SoundDriver_bHasPrevListener = 1;
+        }
+    }
+
+    aPos[0]   = SoundDriver_curListenerPos.x; aPos[1]   = SoundDriver_curListenerPos.y; aPos[2]   = SoundDriver_curListenerPos.z;
+    aFront[0] = SoundDriver_listenerFront.x;  aFront[1] = SoundDriver_listenerFront.y;  aFront[2] = SoundDriver_listenerFront.z;
+    aUp[0]    = SoundDriver_listenerUp.x;     aUp[1]    = SoundDriver_listenerUp.y;     aUp[2]    = SoundDriver_listenerUp.z;
+    J3DAudio_SetListener(aPos, aFront, aUp);
+
+    for ( pVoice = SoundDriver_pVoices; pVoice; pVoice = pVoice->pNext ) // only the game thread changes the list
+    {
+        if ( pVoice->b3D && pVoice->bPlaced )
+        {
+            SoundDriver_Place3DVoice(pVoice);
+        }
+    }
 }
 
-// Sets a 3D buffer's position and velocity. No buffer is a 3D buffer (Use3DCaps is false), so, as in retail without 3D
-// hardware, there is nothing to do: Update3DSound places the voice from the game's mix.
+// DirectSound 3D's model for one voice, against the current listener: the inverse distance law between the voice's
+// minimum and maximum distance (the gain holds at the maximum distance, it does not fall to silence), and doppler from
+// the voice's and the listener's velocity along the line between them. A head-relative voice (DS3DMODE_DISABLE) is
+// heard at the listener, unattenuated and unshifted.
+static void SoundDriver_Place3DVoice(SoundVoice* pVoice)
+{
+    float gain = 1.0f;
+    double doppler = 1.0;
+    float aPos[3];
+
+    if ( pVoice->bHeadRelative )
+    {
+        aPos[0] = SoundDriver_curListenerPos.x; aPos[1] = SoundDriver_curListenerPos.y; aPos[2] = SoundDriver_curListenerPos.z;
+    }
+    else
+    {
+        double dx = pVoice->pos3D.x - SoundDriver_curListenerPos.x;
+        double dy = pVoice->pos3D.y - SoundDriver_curListenerPos.y;
+        double dz = pVoice->pos3D.z - SoundDriver_curListenerPos.z;
+        double dist = sqrt(dx * dx + dy * dy + dz * dz);
+        double minDist = pVoice->minDistance < 0.0f ? SoundDriver_minDistance : pVoice->minDistance;
+        double maxDist = pVoice->maxDistance < 0.0f ? SoundDriver_maxDistance : pVoice->maxDistance;
+
+        if ( maxDist < minDist )
+        {
+            maxDist = minDist;
+        }
+
+        if ( dist > minDist && minDist > 0.0 )
+        {
+            double d = dist > maxDist ? maxDist : dist;
+            gain = (float)(minDist / (minDist + SoundDriver_defaultRolloffFactor * (d - minDist)));
+        }
+
+        if ( dist > 1e-4 && SoundDriver_defaultDopplerFactor > 0.0f )
+        {
+            double scale = SoundDriver_defaultDistanceFactor * SoundDriver_defaultDopplerFactor / dist; // to m/s along the line
+            double c  = SOUNDDRIVER_SPEEDOFSOUND;
+            double vl = (SoundDriver_listenerVel.x * dx + SoundDriver_listenerVel.y * dy + SoundDriver_listenerVel.z * dz) * scale;
+            double vs = (pVoice->vel3D.x * dx + pVoice->vel3D.y * dy + pVoice->vel3D.z * dz) * scale;
+            vl = vl > c / 2.0 ? c / 2.0 : vl < -c / 2.0 ? -c / 2.0 : vl;
+            vs = vs > c / 2.0 ? c / 2.0 : vs < -c / 2.0 ? -c / 2.0 : vs;
+            doppler = (c + vl) / (c + vs); // listener toward the source raises it; the source moving away lowers it
+        }
+
+        aPos[0] = pVoice->pos3D.x; aPos[1] = pVoice->pos3D.y; aPos[2] = pVoice->pos3D.z;
+    }
+
+    pthread_mutex_lock(&SoundDriver_lock);
+    pVoice->gain3DDistance = gain;
+    pVoice->doppler = doppler;
+    SoundDriver_UpdateRenderParams(pVoice);
+    pthread_mutex_unlock(&SoundDriver_lock);
+
+    if ( pVoice->slot >= 0 )
+    {
+        J3DAudio_SetSlotPosition(pVoice->slot, aPos);
+    }
+}
+
+// Sets a 3D buffer's position, velocity and distances (DirectSound: deferred to the next commit). A voice that has never
+// been placed is placed at once, so it does not start at the origin.
 void J3DAPI SoundDriver_SetPosAndVelocity(SoundVoice* pBuffer, float x, float y, float z, float velX, float velY, float velZ, float minDistance, float maxDistance, SoundEnvFlags envflags)
 {
-    (void)pBuffer; (void)x; (void)y; (void)z; (void)velX; (void)velY; (void)velZ;
-    (void)minDistance; (void)maxDistance; (void)envflags;
+    (void)envflags;
+
+    if ( !pBuffer || !SoundDriver_bUse3DCaps || !pBuffer->b3D )
+    {
+        return;
+    }
+
+    rdVector_Set3(&pBuffer->pos3D, x, y, z);
+    rdVector_Set3(&pBuffer->vel3D, velX, velY, velZ);
+    pBuffer->minDistance = minDistance < 0.0f ? SoundDriver_minDistance : minDistance;
+    pBuffer->maxDistance = maxDistance < 0.0f ? SoundDriver_maxDistance : maxDistance;
+    if ( !pBuffer->bPlaced )
+    {
+        pBuffer->bPlaced = 1;
+        SoundDriver_Place3DVoice(pBuffer);
+    }
 }
 
-// Retail's body, without the DirectSound 3D buffer mode switch (only reached with Use3DCaps).
+// Retail's body; the DirectSound 3D buffer mode switch sets the voice's head-relative flag.
 int J3DAPI SoundDriver_Update3DSound(SoundVoice** ppDSBuf, float x, float y, float z, float volume, float pitch, tSoundChannelFlag* pChannelFlags, float minRadius, float maxRadius, SoundEnvFlags envflags)
 {
     int b3DControl;
@@ -781,6 +1057,19 @@ int J3DAPI SoundDriver_Update3DSound(SoundVoice** ppDSBuf, float x, float y, flo
         newPitch = pitch;
     }
 
+    // Retail's condition, kept as written: the inner && makes it (flags & 1) == 0, so the mode is switched only for a
+    // channel without SOUND_CHANNEL_PLAYING. DS3DMODE_DISABLE plays a sound at the listener (b3DControl: it is there).
+    if ( SoundDriver_Use3DCaps()
+        && (*pChannelFlags & (SOUND_CHANNEL_USE3DCAPS && (*pChannelFlags & SOUND_CHANNEL_UNKNOWN_8000000) == 0)) == 0
+        && pDSBuf && pDSBuf->b3D )
+    {
+        pDSBuf->bHeadRelative = b3DControl;
+        if ( pDSBuf->bPlaced )
+        {
+            SoundDriver_Place3DVoice(pDSBuf); // DS3D_IMMEDIATE
+        }
+    }
+
     // Note: No need to check for null pDSBuf because all underlying functions do that
     if ( (*pChannelFlags & SOUND_CHANNEL_HWMIXING) == 0 || (*pChannelFlags & SOUND_CHANNEL_DISABLEHWMIXING) != 0 )
     {
@@ -822,7 +1111,7 @@ int J3DAPI SoundDriver_Update3DSound(SoundVoice** ppDSBuf, float x, float y, flo
 
 void J3DAPI SoundDriver_SetGlobals(float distanceFactor, float minDistance, float maxDistance, float rolloffFactor, float dopplerFactor)
 {
-    // Kept for a 3D path; the software mix does not use them.
+    // The 3D voices' defaults (DirectSound 3D's listener and buffer settings). The game sets 10, 0.5, 2.5, 1, 1.
     SoundDriver_defaultDistanceFactor = distanceFactor / 10.0f;
     SoundDriver_minDistance = minDistance;
     SoundDriver_maxDistance = maxDistance;
@@ -966,42 +1255,97 @@ double J3DAPI SoundDriver_CalcDistToListener(float x1, float y1, float z1, float
     return x1 + z2 - x2 + (y2 - y1 < 0.0f ? -(y2 - y1) : y2 - y1);
 }
 
-/* ---- Rendering (device thread) ------------------------------------------------------------------------------------ */
-
-void J3DAudio_Render(float* pOut, uint32_t frameCount)
-{
-    SoundDriver_Render(pOut, frameCount, NULL);
-}
+/* ---- Rendering (device threads) ----------------------------------------------------------------------------------- */
 
 void J3DAudio_SetFocus(int bFocused)
 {
     SoundDriver_bFocused = bFocused != 0;
 }
 
-// Mixes every rendering voice into pOut: linear interpolation between source frames, DirectSound's volume and pan as
-// gains. A voice that runs off its end stops rendering; its engine-clock state is unaffected.
-static void SoundDriver_Render(float* pOut, uint32_t frameCount, void* pUser)
+// Adds one voice to pLeft and pRight (or, with pRight NULL, to the mono pLeft, stereo sources averaged): linear
+// interpolation between source frames, the given gains. A voice that runs off its end stops rendering; its engine-clock
+// state is unaffected. Caller holds the lock.
+static void SoundDriver_MixVoice(SoundVoice* pVoice, float* pLeft, float* pRight, uint32_t frameCount, float gainLeft, float gainRight)
+{
+    const int16_t* pSamples = pVoice->pData->aSamples;
+    size_t numFrames = pVoice->pData->numFrames;
+    double pos = pVoice->renderPosition;
+    double step = pVoice->renderStep;
+    uint32_t i;
+
+    for ( i = 0; i < frameCount; ++i )
+    {
+        size_t frame = (size_t)pos;
+        size_t next;
+        float frac;
+        float l, r;
+
+        if ( frame >= numFrames )
+        {
+            if ( !pVoice->bLoop )
+            {
+                pVoice->bRender = 0;
+                break;
+            }
+
+            pos = fmod(pos, (double)numFrames);
+            frame = (size_t)pos;
+        }
+
+        next = frame + 1;
+        if ( next >= numFrames )
+        {
+            next = pVoice->bLoop ? 0 : frame;
+        }
+
+        frac = (float)(pos - (double)frame);
+        if ( pVoice->numChannels == 1 )
+        {
+            float a = pSamples[frame];
+            l = r = a + (pSamples[next] - a) * frac;
+        }
+        else
+        {
+            float al = pSamples[2 * frame];
+            float ar = pSamples[2 * frame + 1];
+            l = al + (pSamples[2 * next] - al) * frac;
+            r = ar + (pSamples[2 * next + 1] - ar) * frac;
+        }
+
+        if ( pRight )
+        {
+            pLeft[i]  += l * gainLeft;
+            pRight[i] += r * gainRight;
+        }
+        else
+        {
+            pLeft[i] += 0.5f * (l + r) * gainLeft;
+        }
+
+        pos += step;
+    }
+
+    pVoice->renderPosition = pos;
+}
+
+// The stereo bus: every rendering voice without a 3D slot, with DirectSound's volume and pan as gains.
+static void SoundDriver_Render(float* pLeft, float* pRight, uint32_t frameCount, void* pUser)
 {
     const float scale = 1.0f / 32768.0f;
     int bFocused = SoundDriver_bFocused;
     SoundVoice* pVoice;
 
     (void)pUser;
-    memset(pOut, 0, (size_t)frameCount * 2 * sizeof(float));
+    memset(pLeft, 0, (size_t)frameCount * sizeof(float));
+    memset(pRight, 0, (size_t)frameCount * sizeof(float));
 
     pthread_mutex_lock(&SoundDriver_lock);
     for ( pVoice = SoundDriver_pVoices; pVoice; pVoice = pVoice->pNext )
     {
-        const int16_t* pSamples = pVoice->pData->aSamples;
-        size_t numFrames = pVoice->pData->numFrames;
-        double pos = pVoice->renderPosition;
-        double step = pVoice->renderStep;
         float gainLeft  = pVoice->gainLeft * scale;
         float gainRight = pVoice->gainRight * scale;
-        float* pDst = pOut;
-        uint32_t i;
 
-        if ( !pVoice->bRender || numFrames == 0 )
+        if ( !pVoice->bRender || pVoice->slot >= 0 || pVoice->pData->numFrames == 0 )
         {
             continue;
         }
@@ -1011,50 +1355,62 @@ static void SoundDriver_Render(float* pOut, uint32_t frameCount, void* pUser)
             gainLeft = gainRight = 0.0f; // muted in the background, still moving
         }
 
-        for ( i = 0; i < frameCount; ++i, pDst += 2 )
-        {
-            size_t frame = (size_t)pos;
-            size_t next;
-            float frac;
-
-            if ( frame >= numFrames )
-            {
-                if ( !pVoice->bLoop )
-                {
-                    pVoice->bRender = 0;
-                    break;
-                }
-
-                pos = fmod(pos, (double)numFrames);
-                frame = (size_t)pos;
-            }
-
-            next = frame + 1;
-            if ( next >= numFrames )
-            {
-                next = pVoice->bLoop ? 0 : frame;
-            }
-
-            frac = (float)(pos - (double)frame);
-            if ( pVoice->numChannels == 1 )
-            {
-                float a = pSamples[frame];
-                float s = a + (pSamples[next] - a) * frac;
-                pDst[0] += s * gainLeft;
-                pDst[1] += s * gainRight;
-            }
-            else
-            {
-                float al = pSamples[2 * frame];
-                float ar = pSamples[2 * frame + 1];
-                pDst[0] += (al + (pSamples[2 * next] - al) * frac) * gainLeft;
-                pDst[1] += (ar + (pSamples[2 * next + 1] - ar) * frac) * gainRight;
-            }
-
-            pos += step;
-        }
-
-        pVoice->renderPosition = pos;
+        SoundDriver_MixVoice(pVoice, pLeft, pRight, frameCount, gainLeft, gainRight);
     }
     pthread_mutex_unlock(&SoundDriver_lock);
+}
+
+// One 3D slot, mono, for the device to place: the voice's volume times its distance gain, at its doppler-shifted rate.
+static int SoundDriver_RenderSlot(int slot, float* pMono, uint32_t frameCount, void* pUser)
+{
+    const float scale = 1.0f / 32768.0f;
+    int bAudible = 0;
+    SoundVoice* pVoice;
+
+    (void)pUser;
+    memset(pMono, 0, (size_t)frameCount * sizeof(float));
+    if ( slot < 0 || slot >= J3DAUDIO_NUM3DSLOTS )
+    {
+        return 0;
+    }
+
+    pthread_mutex_lock(&SoundDriver_lock);
+    pVoice = SoundDriver_apSlots[slot];
+    if ( pVoice && pVoice->bRender && pVoice->pData->numFrames != 0 )
+    {
+        float gain = pVoice->gain3D * scale;
+        if ( !SoundDriver_bFocused && (pVoice->caps & SOUND_CHANNEL_GLOBALFOCUS) == 0 )
+        {
+            gain = 0.0f;
+        }
+
+        SoundDriver_MixVoice(pVoice, pMono, NULL, frameCount, gain, gain);
+        bAudible = gain != 0.0f;
+    }
+    pthread_mutex_unlock(&SoundDriver_lock);
+    return bAudible;
+}
+
+// Test entry points (host_audio.h).
+void J3DAudio_Render(float* pOut, uint32_t frameCount)
+{
+    float aLeft[512], aRight[512];
+    while ( frameCount )
+    {
+        uint32_t n = frameCount > 512 ? 512 : frameCount;
+        SoundDriver_Render(aLeft, aRight, n, NULL);
+        for ( uint32_t i = 0; i < n; ++i )
+        {
+            pOut[2 * i]     = aLeft[i];
+            pOut[2 * i + 1] = aRight[i];
+        }
+
+        pOut += 2 * n;
+        frameCount -= n;
+    }
+}
+
+int J3DAudio_RenderSlot(int slot, float* pMono, uint32_t frameCount)
+{
+    return SoundDriver_RenderSlot(slot, pMono, frameCount, NULL);
 }

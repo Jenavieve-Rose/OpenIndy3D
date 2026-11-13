@@ -197,7 +197,7 @@ if(J3D_PLATFORM STREQUAL "apple")
         stdDisplay_headless.c   # platform/apple/stdDisplay_sdl.c (P2.3)
         std3D_null.c            # platform/apple/std3D_metal.c and render_metal.m (P2.9)
         stdControl_null.c       # platform/apple/stdControl_sdl.c (Phase 3)
-        audio_device_null.c     # platform/apple/audio_device_ma.c (P4.1)
+        audio_device_null.c     # platform/apple/audio_device_avf.m (Phase 4, decision 19)
     )
     set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
     foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
@@ -208,28 +208,14 @@ if(J3D_PLATFORM STREQUAL "apple")
     file(GLOB J3D_PLATFORM_APPLE_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/apple/*.c ${J3D_ROOT}/platform/apple/*.m)
     list(REMOVE_ITEM J3D_PLATFORM_APPLE_SOURCES ${J3D_ROOT}/platform/apple/main.c)
 
-    # miniaudio (third_party/miniaudio, P4.1): the audio output device only. Its switches are public so that every file
-    # including miniaudio.h sees the structures the implementation was compiled with. Third-party code: no -Werror.
-    add_library(miniaudio STATIC ${J3D_ROOT}/third_party/miniaudio/miniaudio.c)
-    target_include_directories(miniaudio SYSTEM PUBLIC ${J3D_ROOT}/third_party/miniaudio)
-    target_compile_definitions(miniaudio PUBLIC
-        MA_NO_DECODING MA_NO_ENCODING MA_NO_GENERATION MA_NO_RESOURCE_MANAGER MA_NO_NODE_GRAPH MA_NO_ENGINE
-        MA_ENABLE_ONLY_SPECIFIC_BACKENDS MA_ENABLE_COREAUDIO MA_NO_RUNTIME_LINKING)
-    target_compile_options(miniaudio PRIVATE -w)
-    target_link_libraries(miniaudio PUBLIC
-        "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation")
-    if(J3D_SANITIZE)
-        target_compile_options(miniaudio PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -g)
-    endif()
-
     add_library(platform_apple STATIC ${J3D_PLATFORM_APPLE_SOURCES} ${J3D_APPLE_NULL_SOURCES})
     target_link_libraries(platform_apple PUBLIC
         platform_core
-        miniaudio
         SDL3::SDL3
         "-framework Cocoa"
         "-framework Metal"
         "-framework QuartzCore"
+        "-framework AVFAudio"
     )
     target_compile_definitions(platform_apple PUBLIC J3D_PLATFORM_APPLE=1)
     # Objective-C files are compiled with ARC. The C-only warning switches in j3d_common apply to them unchanged.
@@ -299,6 +285,7 @@ endforeach()
 #   display    the shared system-memory half of stdDisplay: back buffer, fills, blits, RGB565, SaveScreen (P2.4 to P2.7)
 #   present    (apple builds) the Metal present path, read back from a real window; skipped (77) with no window server
 #   render     (apple builds) the Metal renderer's shaders and fixed-function state, offscreen (P2.10)
+#   audio3d    (apple builds) the audio device places 3D voices on the right side; skipped (77) with no output device
 #   keys       the DIK tables and GetKeyNameTextA and SearchPathA built on them (P3.1, P3.7)
 #   sounddriver the sound driver on the virtual clock, and its mix, rendered without a device (P4.3 to P4.6)
 j3d_executable(display platform_null ${J3D_ROOT}/tests/display.c ${J3D_ROOT}/tests/harness.c)
@@ -315,6 +302,9 @@ if(J3D_PLATFORM STREQUAL "apple")
     add_test(NAME present COMMAND present)
     set_tests_properties(present PROPERTIES
         ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT" SKIP_RETURN_CODE 77)
+    j3d_executable(audio3d platform_apple ${J3D_ROOT}/tests/audio3d.c)
+    add_test(NAME audio3d COMMAND audio3d ${CMAKE_CURRENT_BINARY_DIR}/audio3d.wav)
+    set_tests_properties(audio3d PROPERTIES ENVIRONMENT "J3D_SETTINGS=/dev/null;${J3D_SANITIZER_ENV}" SKIP_RETURN_CODE 77)
     j3d_executable(render platform_apple ${J3D_ROOT}/tests/render.c ${J3D_ROOT}/tests/harness.c)
     add_test(NAME render COMMAND render)
     set_tests_properties(render PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
@@ -329,6 +319,11 @@ endif()
 if(J3D_TEST_DATA)
     set_tests_properties(saveload PROPERTIES
         ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/logs/;${J3D_SANITIZER_ENV}"
+        FAIL_REGULAR_EXPRESSION "ASSERT")
+    # saveload-3d: the same with "Sound 3D" on (decision 19), so 3D voices' channel flags go through the round trip.
+    add_test(NAME saveload-3d COMMAND saveload ${J3D_TEST_DATA})
+    set_tests_properties(saveload-3d PROPERTIES
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Sound_3D=1;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()
 

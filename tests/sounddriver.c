@@ -8,6 +8,10 @@
  *   - retail's conversion tables: GetDecibelVolume, GetIntPan, GetVolumeFromDecibels give retail's values
  *   - the mix: DirectSound's volume and pan as gains, 8-bit samples centred, a one-shot stops rendering at its end,
  *     a loop keeps going, a background window mutes all but global-focus voices
+ *   - with 3D sound on: retail's channel flags for mono, stereo and 2D sounds; mono positioned sounds get a 3D slot;
+ *     DirectSound 3D's inverse distance law between the minimum and maximum distance; doppler from the source's
+ *     velocity and from the listener's, derived from its movement on the engine clock; a head-relative voice is
+ *     unattenuated
  *   - a compressed sound (retail's WVSM codec, the one Sound.c uses) decompresses to what was compressed, within the
  *     codec's error
  *   - AudioLib_UncompressBlock, the ADPCM decoder that retail wrote in x86 assembly and the port translated to C
@@ -26,6 +30,7 @@
 #include <platform/common/host_clock.h>
 #include <sound/AudioLib.h>
 #include <sound/Driver.h>
+#include <rdroid/types.h>
 
 static int sound_numFailed = 0;
 
@@ -393,6 +398,148 @@ static void sound_TestAdpcm(void)
     CHECK(numEscapes > 0);
 }
 
+/* ---- 3D (decision 19) -------------------------------------------------------------------------------------------- */
+
+// A ramp, so the rendered value tells the read position: sample i is 10 i.
+static int16_t sound_aRamp[SOUND_FRAMES];
+
+// The slot's rendered rate, in source frames per output frame, and its gain, from two rendered ramp values.
+static void sound_MeasureSlot(int slot, double* pStep, double* pGain, double knownGain)
+{
+    static float aMono[256];
+    J3DAudio_RenderSlot(slot, aMono, 256);
+    // out[k] = 10 (p0 + k step) gain / 32768
+    if ( pStep )
+    {
+        *pStep = (aMono[200] - aMono[0]) * 32768.0 / (10.0 * 200.0 * knownGain);
+    }
+
+    if ( pGain )
+    {
+        *pGain = (aMono[1] - aMono[0]) * 32768.0 / (10.0 * (double)SOUND_RATE / 48000.0); // at the plain rate
+    }
+}
+
+static void sound_Test3D(void)
+{
+    const rdVector3 origin = { 0.0f, 0.0f, 0.0f };
+    // Sound_Update passes the camera's front and top negated (Reverse sound off): the camera looks along +y, z up.
+    const rdVector3 front = { 0.0f, -1.0f, 0.0f };
+    const rdVector3 top = { 0.0f, 0.0f, -1.0f };
+    const double plainStep = (double)SOUND_RATE / 48000.0;
+    tSoundChannelFlag flags;
+    SoundVoice* pVoice;
+    SoundVoice* pStereo;
+    SoundVoice* p2D;
+    double step, gain;
+    static int16_t aStereo[2 * 100];
+    static float aOut[2 * 64];
+
+    for ( int i = 0; i < SOUND_FRAMES; ++i )
+    {
+        sound_aRamp[i] = (int16_t)(10 * i);
+    }
+
+    SoundDriver_SetGlobals(10.0f, 0.5f, 2.5f, 1.0f, 1.0f); // the game's values (sithSound_Startup)
+    SoundDriver_SetListenerPosition(&origin, NULL, &top, &front, NULL);
+    SoundDriver_ListenerCommitDeferred();
+
+    // Retail's flags: a mono positioned sound is a 3D, hardware-mixed buffer; stereo cannot be 3D; a 2D sound
+    // (Sound_Play adds USE3DCAPS) is neither.
+    flags = SOUND_CHANNEL_PLAYING | SOUND_CHANNEL_LOOP;
+    pVoice = SoundDriver_CreateAndPlay(SOUND_RATE, 16, 1, (const uint8_t*)sound_aRamp, sizeof(sound_aRamp), &flags, NULL);
+    CHECK(pVoice != NULL);
+    CHECK((flags & (SOUND_CHANNEL_3DSOUND | SOUND_CHANNEL_HWMIXING)) == (SOUND_CHANNEL_3DSOUND | SOUND_CHANNEL_HWMIXING));
+    CHECK(SoundDriver_GetStatusAndCaps(pVoice) & SOUND_CHANNEL_3DSOUND);
+
+    flags = SOUND_CHANNEL_PLAYING | SOUND_CHANNEL_LOOP;
+    pStereo = SoundDriver_CreateAndPlay(SOUND_RATE, 16, 2, (const uint8_t*)aStereo, sizeof(aStereo), &flags, NULL);
+    CHECK((flags & (SOUND_CHANNEL_3DSOUND | SOUND_CHANNEL_UNKNOWN_8000000)) == (SOUND_CHANNEL_3DSOUND | SOUND_CHANNEL_UNKNOWN_8000000));
+    CHECK((flags & SOUND_CHANNEL_HWMIXING) == 0); // Port: the game's mix places it (PORTING.md)
+
+    flags = SOUND_CHANNEL_PLAYING | SOUND_CHANNEL_USE3DCAPS;
+    p2D = SoundDriver_CreateAndPlay(SOUND_RATE, 16, 1, (const uint8_t*)sound_aDC, sizeof(sound_aDC), &flags, NULL);
+    CHECK((flags & (SOUND_CHANNEL_3DSOUND | SOUND_CHANNEL_HWMIXING)) == 0);
+    CHECK((SoundDriver_GetStatusAndCaps(p2D) & SOUND_CHANNEL_3DSOUND) == 0);
+
+    // The 3D voice is in slot 0, not on the stereo bus; the 2D voice is on the bus.
+    SoundDriver_SetVolume(p2D, 2.0f);  // 0 dB
+    SoundDriver_SetPan(p2D, 0.5f);
+    SoundDriver_Stop(pStereo);
+    J3DAudio_Render(aOut, 64);
+    CHECK(aOut[0] > 0.0f && aOut[1] > 0.0f);   // the 2D voice
+    SoundDriver_Stop(p2D);
+    J3DAudio_Render(aOut, 64);
+    CHECK(aOut[0] == 0.0f && aOut[1] == 0.0f);  // nothing else on the bus
+
+    // Distance: 2 units away with minimum 0.5 and maximum 2.5 is 0.5 / (0.5 + 1.5) = 0.25; past the maximum the gain
+    // holds at 0.5 / (0.5 + 2) = 0.2.
+    SoundDriver_SetPosAndVelocity(pVoice, 0.0f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 2.5f, 0);
+    sound_MeasureSlot(0, NULL, &gain, 1.0);
+    CHECK(CLOSE_TO(gain, 0.25, 0.01));
+    SoundDriver_SetPosAndVelocity(pVoice, 0.0f, 20.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 2.5f, 0);
+    SoundDriver_ListenerCommitDeferred(); // after the first placement, changes wait for the commit
+    sound_MeasureSlot(0, NULL, &gain, 1.0);
+    CHECK(CLOSE_TO(gain, 0.2, 0.01));
+    SoundDriver_SetPosAndVelocity(pVoice, 0.0f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 2.5f, 0);
+    SoundDriver_ListenerCommitDeferred();
+    sound_MeasureSlot(0, &step, &gain, 1.0);
+    CHECK(CLOSE_TO(gain, 1.0, 0.01));   // inside the minimum distance
+    CHECK(CLOSE_TO(step, plainStep, 1e-3));
+
+    // Doppler, source: moving at a tenth of the speed of sound toward the listener (the game's distance factor is
+    // 10 / 10 = 1 metre per unit) raises the rate by c / (c - c/10) = 1/0.9.
+    SoundDriver_SetPosAndVelocity(pVoice, 0.0f, 2.0f, 0.0f, 0.0f, -34.33f, 0.0f, 0.5f, 2.5f, 0);
+    SoundDriver_ListenerCommitDeferred();
+    sound_MeasureSlot(0, &step, NULL, 0.25);
+    CHECK(CLOSE_TO(step / plainStep, 1.0 / 0.9, 2e-3));
+    // ... and moving away lowers it: c / (c + c/10).
+    SoundDriver_SetPosAndVelocity(pVoice, 0.0f, 2.0f, 0.0f, 0.0f, 34.33f, 0.0f, 0.5f, 2.5f, 0);
+    SoundDriver_ListenerCommitDeferred();
+    sound_MeasureSlot(0, &step, NULL, 0.25);
+    CHECK(CLOSE_TO(step / plainStep, 1.0 / 1.1, 2e-3));
+
+    // Doppler, listener: the game passes no listener velocity; it is derived from the camera's movement. Moving 0.5
+    // units toward the source in 100 ms is 5 units/s, smoothed to half on the first estimate: (c + 2.5) / c.
+    SoundDriver_SetPosAndVelocity(pVoice, 0.0f, 20.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 2.5f, 0);
+    SoundDriver_ListenerCommitDeferred();
+    J3DHost_AdvanceClock(100);
+    {
+        const rdVector3 moved = { 0.0f, 0.5f, 0.0f };
+        SoundDriver_SetListenerPosition(&moved, NULL, &top, &front, NULL);
+        SoundDriver_ListenerCommitDeferred();
+    }
+    sound_MeasureSlot(0, &step, NULL, 0.2);
+    CHECK(CLOSE_TO(step / plainStep, (343.3 + 2.5) / 343.3, 2e-3));
+    // A jump faster than half the speed of sound is a cut: it counts as standing still (the estimate halves).
+    J3DHost_AdvanceClock(10);
+    {
+        const rdVector3 jumped = { 0.0f, 10.0f, 0.0f };
+        SoundDriver_SetListenerPosition(&jumped, NULL, &top, &front, NULL);
+        SoundDriver_ListenerCommitDeferred();
+    }
+    sound_MeasureSlot(0, &step, NULL, 0.2);
+    CHECK(CLOSE_TO(step / plainStep, (343.3 + 1.25) / 343.3, 2e-3));
+
+    // Head-relative (DS3DMODE_DISABLE): Update3DSound switches a 3D buffer at the listener's position to it, for a
+    // channel without SOUND_CHANNEL_PLAYING (retail's condition). It is then heard unattenuated.
+    SoundDriver_SetListenerPosition(&origin, NULL, &top, &front, NULL);
+    SoundDriver_ListenerCommitDeferred();
+    {
+        tSoundChannelFlag chFlags = SOUND_CHANNEL_3DSOUND | SOUND_CHANNEL_HWMIXING | SOUND_CHANNEL_USE3DCAPS;
+        SoundDriver_Update3DSound(&pVoice, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, &chFlags, 0.5f, 2.5f, 0);
+        SoundDriver_SetPosAndVelocity(pVoice, 0.0f, 20.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 2.5f, 0);
+        SoundDriver_ListenerCommitDeferred();
+        sound_MeasureSlot(0, NULL, &gain, 1.0);
+        CHECK(CLOSE_TO(gain, 1.0, 0.01));
+    }
+
+    SoundDriver_Release(pVoice);
+    SoundDriver_Release(pStereo);
+    SoundDriver_Release(p2D);
+    CHECK(J3DAudio_RenderSlot(0, (float*)aOut, 64) == 0); // the slot is free again
+}
+
 int main(void)
 {
     for ( int i = 0; i < SOUND_FRAMES; ++i )
@@ -401,9 +548,11 @@ int main(void)
     }
 
     J3DHost_UseVirtualClock();
-    CHECK(SoundDriver_Open(0, 0, NULL, NULL, NULL, NULL, sound_LogError) == 1);
+
+    // 3D sound off (retail's default "Sound 3D"): the game's mix places everything on the stereo bus.
+    CHECK(SoundDriver_Open(1, 0, NULL, NULL, NULL, NULL, sound_LogError) == 1);
     CHECK(SoundDriver_GetDSound() != NULL);
-    CHECK(SoundDriver_Has3DHW() == 0);
+    CHECK(SoundDriver_Has3DHW() == 1); // always: the channel flags must not depend on a device being open
     CHECK(SoundDriver_Use3DCaps() == 0);
 
     sound_TestTables();
@@ -414,6 +563,12 @@ int main(void)
 
     SoundDriver_Close();
     CHECK(SoundDriver_GetDSound() == NULL);
+
+    // 3D sound on.
+    CHECK(SoundDriver_Open(0, 0, NULL, NULL, NULL, NULL, sound_LogError) == 1);
+    CHECK(SoundDriver_Use3DCaps() == 1);
+    sound_Test3D();
+    SoundDriver_Close();
 
     if ( sound_numFailed )
     {

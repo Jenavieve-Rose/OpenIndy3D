@@ -2927,6 +2927,7 @@ size_t J3DAPI Sound_GetAllInstanceInfo(SoundInstanceInfo* pInfo, size_t maxInfos
 void J3DAPI Sound_SetReverseSound(int bReverse)
 {
     Sound_bReverseSound = bReverse;
+    SoundDriver_SetReverseSound(bReverse); // Port: the 3D listener needs to know whether Sound_Update negates its vectors
 }
 
 #ifdef J3D_DEBUG
