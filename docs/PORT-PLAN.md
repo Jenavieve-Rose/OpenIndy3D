@@ -62,6 +62,10 @@ Phases 2 and 3 are on `main` (at `b0979f2`), merged by fast-forward on 2026-11-1
 `phase3-input`, P3.1 to P3.10 (`250a7a1`) and the audit (`b0979f2`). At `b0979f2` everything builds and every test
 passes in the apple, null and sanitizer trees; the commits before it were not each rebuilt for the merge.
 
+Phase 4 is on `main` (at `e9b6d42`), merged by fast-forward on 2026-11-13: two commits from the branch `phase4-audio`,
+P4.1 to P4.11 (`70558f4`) and the audit (`e9b6d42`, documents only). At `70558f4` everything builds and every test
+passes in the apple (11 tests), null (7) and sanitizer (11) trees.
+
 ## 1. Goal
 
 A native arm64 macOS application that plays the full retail game (all 17 levels: 16 story chapters and the bonus level,
@@ -77,7 +81,7 @@ Paths are relative to `~/Developer/Indy3D_Mac`.
 
 | Item | Location | What it is | Role |
 | --- | --- | --- | --- |
-| The port | `j3dport/` | Git repository, hard fork of the decomp at upstream `319a6fc2`; phases 0 and 1 are on `main` | **Where all work happens.** |
+| The port | `j3dport/` | Git repository, hard fork of the decomp at upstream `319a6fc2`; phases 0 to 4 are on `main` | **Where all work happens.** |
 | Byte-exact decompilation | `infernal-machine-decomp-public-main/` | 100% source for `Indy3D.exe` v1.2 and v1.0, ~188k lines of C, plus zlib 1.0.9 and the INSANE movie player | Pristine upstream copy, for diffing and cherry-picks. Its docs are imported into `j3dport/docs/`. |
 | OpenJones3D v0.3.1 | `OpenJones3D-main/` | Partial reimplementation (87%) that runs by injecting a DLL into the retail exe | Not a base. Source of ~80 catalogued fixes (`CHANGELOG.md`), applied in phase 8. |
 | Retail game data | `Indy3D/` | `RESOURCE/` with `CD1.GOB`, `CD2.GOB`, `JONES3D.GOB`, five `.snm` intro movies, 51 patched `.cog` scripts in `Cog/`; `KEYSETS/*.kfg` | Complete v1.2 install (`INDY3D.EXE` = `55fb00c0…`). The test data root: `-DJ3D_TEST_DATA=…/Indy3D`. |
