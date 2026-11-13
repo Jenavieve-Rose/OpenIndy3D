@@ -19,7 +19,7 @@ confused with section numbers.
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
 | 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Complete |
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
-| 4 | Audio | 11 of 11 | Code audit done; exit test needs a listening pass by hand |
+| 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
@@ -48,9 +48,9 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 Every level renders in a window or fullscreen through Metal: textured, lit, fogged, with the HUD, at the display's
 refresh rate, pillarboxed to 4:3 by default, and plays with the keyboard, the mouse and controllers, using the retail
 key sets or the port's controller default (phase 3), with music, ambience, effects and voices placed by the game's
-own camera-relative mix, or with "Sound 3D" on in 3D with HRTF and doppler (phase 4). Movies do not play (phase 5) and the menus and dialogs do not appear (phase 6);
-the in-game inventory menu works.
-`tools/level_shots.sh` screenshots every level by script.
+own camera-relative mix, or with "Sound 3D" on in 3D with HRTF and doppler (phase 4). Movies do not play (phase 5) and
+the menus and dialogs do not appear (phase 6); the in-game inventory menu works. `tools/level_shots.sh` screenshots
+every level by script.
 
 All of phase 1 is on `main` (at `3c3605a`): sixteen commits made on the branch `phase1-headless`, seven for P1.8 to
 P1.18 (`28e2120` to `b4b56e7`) and nine for P1.19 to P1.30, the audit and the docs (`f0d0935` to `3c3605a`), merged
@@ -587,7 +587,7 @@ survive a save and load.
       it matters once sound is audible.
       Done by measurement: `J3D_AUDIO_DUMP` mixes of the three levels (sound throughout, panned, lip sync generated);
       the pause time fixed (it broke the round trip, nothing audible); restored channel handles shift by 1234 in
-      retail, kept (phase 8). Not done: listening by a person.
+      retail, kept (phase 8). Listened to by hand in `12_sol`, both paths, on headphones (decision 19).
 - [x] **P4.10** (S) Output device changes while running (headphones in and out).
       Done: AVAudioEngine stops on an output change and the device starts it again. Not done: the check by hand.
 - [x] **P4.11** (S) Delete the DirectSound part of `win32_shim_dx.h`.
@@ -604,8 +604,10 @@ phase's code, the newly reachable sound code under ASan and UBSan in every test,
 - [x] Read-through: the lock discipline between the game and device threads, voice lifetime, clock arithmetic.
 - [x] Behaviour: `boot`, `boot-sdl` and the null build write the same autosave; every test passes in the apple, null
       and sanitizer trees.
-- Not yet run: the exit test itself, listening to the first three levels, through a save and load, by a person; and
-  headphones in and out.
+- [x] By ear: listened to by hand on 2026-11-13 in Solomon's Mines (`12_sol`): the game's own mix on speakers and on
+      headphones, then 3D sound with AirPods and head tracking; panning, distance and 3D placement all sounded right.
+- Not yet done by ear: the exit test's own levels (`00` to `02`) through a save and load (`saveload` and
+  `saveload-3d` cover the save state), and headphones plugged in or out while playing (no test covers it).
 - Left open, each with its phase: retail's restored channel handles and hard-right pan, OpenJones3D's sound fixes
   (phase 8 fix series). The DirectSound 3D path, left out at first, was added afterwards (decision 19).
 ### Phase 5: Movies
@@ -844,7 +846,7 @@ guide.
 | 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
 | 2 | Metal renderer, first level on screen | 3 to 4 weeks | Complete: every level renders textured, lit and fogged in a window or fullscreen; the phase audit is done |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Code complete and audited 2026-11-13; the playthrough by hand is open |
-| 4 | Audio complete | 2 weeks | Code complete and audited 2026-11-13; the listening pass by hand is open |
+| 4 | Audio complete | 2 weeks | Complete 2026-11-13, with 3D sound; listened to by hand in `12_sol` |
 | 5 | Movies complete | 2 to 3 weeks | Not started |
 | 6 | All dialogs, save and load in-app | 4 to 6 weeks | Not started |
 | 7 | Full playthrough verified | 2 to 3 weeks | Not started |
@@ -856,8 +858,9 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 ## 9. Immediate next steps
 
 1. **By hand, before phase 7 relies on them:** the phase 3 playthrough of `00_cyn` (keyboard and mouse, then a
-   controller) and the phase 4 listening pass on the first three levels through a save and load, with headphones
-   plugged in and out once. `J3D_AUDIO_DUMP` (BUILDING.md) records what was heard, for comparing later builds.
+   controller), and for phase 4 the remaining checks by ear: the first three levels through a save and load, and
+   headphones plugged in or out while playing (the sound itself was listened to and approved in `12_sol`).
+   `J3D_AUDIO_DUMP` (BUILDING.md) records what was heard, for comparing later builds.
 2. **Phase 5, movies:** INSANE's timer, file I/O and audio sink (the sink can feed the phase 4 mixer as one more
    voice), then the six assembler files as C, `Blocky16` against ScummVM's.
 3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the

@@ -1193,7 +1193,10 @@ The DirectSound part of `win32_shim_dx.h` (interfaces, `WAVEFORMATEX`, `DSBUFFER
   focus muting, WVSM and the ADPCM block against the encoder oracle.
 - `boot`, `boot-sdl`, `saveload`, `input` now run with sound open; their saves carry sound state and stay
   reproducible.
-- By hand: listening in the first three levels, headphones in and out, the background mute.
+- By hand: listened to on 2026-11-13 in Solomon's Mines (`12_sol`): the game's own mix on speakers and on
+  headphones, then 3D sound with AirPods and head tracking; panning, distance and 3D placement all sounded right. Still
+  to do by ear: the first three levels through a save and load, headphones in and out while playing, the background
+  mute.
 
 ### Phase 4 code audit
 
@@ -1272,6 +1275,7 @@ macOS 15 and later.
 **Checks**: `sounddriver` (flags, distance law, doppler from either velocity, the cut rule, head-relative mode),
 `audio3d` (placement through the real device, both sides, ahead and behind, a turned listener, mirroring),
 `saveload-3d` (the round trip with 3D voices, whose channels carry `SOUND_CHANNEL_HWMIXING`), all in the apple and
-sanitizer trees. A scripted turn in level 2 with 3D on and off puts sounds on the same side in both. Not checked
-automatically: how it sounds, an output change while running, head tracking.
+sanitizer trees. A scripted turn in level 2 with 3D on and off puts sounds on the same side in both. By ear, with
+AirPods and head tracking on, in Solomon's Mines: placement, distance and head tracking sounded right. Not checked:
+an output change while running.
 
