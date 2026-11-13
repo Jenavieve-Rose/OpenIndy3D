@@ -1341,8 +1341,23 @@ int J3DAPI sithDSSThing_FullDescription(const SithThing* pThing, DPID idTo, unsi
 
         if ( pThing->renderData.data.pModel3 )
         {
+#ifdef J3D_PORT
+            // Port: renderData.data is a union, and for a sprite (or any thing not drawn with a world model) the
+            // "model" is not in the model tables, so its index is -1. Retail still wrote the 12 bytes at rdModel3's
+            // insertOffset, read from whatever the union held (on 64-bit, a heap pointer, which made two saves of the
+            // same game differ). ProcessFullDescription reads no vector after a -1, so the bytes were then taken as the
+            // thing's alpha and the rest of the record, and a restored sprite got a garbage alpha. Writing the vector
+            // only with a real model index keeps writer and reader in step.
+            int16_t modelIdx = sithModel_GetModelIndex(pThing->renderData.data.pModel3);
+            SITHDSS_PUSHINT16(modelIdx);
+            if ( modelIdx != -1 )
+            {
+                SITHDSS_PUSHVEC3(&pThing->renderData.data.pModel3->insertOffset);
+            }
+#else
             SITHDSS_PUSHINT16(sithModel_GetModelIndex(pThing->renderData.data.pModel3));
             SITHDSS_PUSHVEC3(&pThing->renderData.data.pModel3->insertOffset);
+#endif
         }
         else
         {

@@ -753,6 +753,27 @@ int J3DAPI sithGamesave_SaveFile(const char* pFilename)
         }
         else
         {
+#ifdef J3D_PORT
+            // Port: retail copied the whole symbol value, padding and unused union bytes included. On 64-bit the
+            // union is 16 bytes and an int or float symbol keeps stale pointer bits in its upper bytes, which made two
+            // saves of the same game differ. Only the member the type names is copied; the header is zeroed above.
+            header.aCogGlobalValues[n].type = pSymbol->value.type;
+            switch ( pSymbol->value.type )
+            {
+                case SITHCOG_VALUE_FLOAT:
+                    header.aCogGlobalValues[n].val.floatValue = pSymbol->value.val.floatValue;
+                    break;
+                case SITHCOG_VALUE_INT:
+                    header.aCogGlobalValues[n].val.intValue = pSymbol->value.val.intValue;
+                    break;
+                case SITHCOG_VALUE_VECTOR:
+                    header.aCogGlobalValues[n].val.vecValue = pSymbol->value.val.vecValue;
+                    break;
+                default:
+                    // Pointer, symbol id or string: reset, as retail did
+                    break;
+            }
+#else
             memcpy(&header.aCogGlobalValues[n], &pSymbol->value, sizeof(header.aCogGlobalValues[n]));
             switch ( pSymbol->value.type )
             {
@@ -763,6 +784,7 @@ int J3DAPI sithGamesave_SaveFile(const char* pFilename)
                     memset(&header.aCogGlobalValues[n].val, 0, sizeof(header.aCogGlobalValues[n].val));
                     break;
             }
+#endif
         }
     }
 

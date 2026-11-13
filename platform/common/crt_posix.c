@@ -347,15 +347,24 @@ void J3DHost_srand(unsigned int seed)
 /* ----------------------------------------------------------------------------------------------------------------
  * Time
  * -------------------------------------------------------------------------------------------------------------- */
+// Milliseconds since the first call, plus 1000 so no time the engine sees is 0. winmm's timeGetTime counted from
+// system start; the engine only takes differences, and a process-relative base keeps the values small and the same
+// from run to run up to the moment the virtual clock takes over.
 static uint64_t crt_HostNowMsec(void)
 {
     static mach_timebase_info_data_t timebase;
+    static uint64_t start;
     if ( timebase.denom == 0 )
     {
         mach_timebase_info(&timebase);
+        start = mach_absolute_time();
     }
-    return mach_absolute_time() * timebase.numer / timebase.denom / 1000000u;
+    return (mach_absolute_time() - start) * timebase.numer / timebase.denom / 1000000u + 1000u;
 }
+
+// Where the virtual clock starts: later than any real time before the headless display opens, so time never runs
+// backwards, and the same in every run, so savegames, which store absolute times, are reproducible (PORT-PLAN.md P1.20).
+#define CRT_VIRTUALCLOCK_START 10000000u
 
 // The virtual clock of host_clock.h: when on, time is crt_virtualMsec and only J3DHost_AdvanceClock and Sleep move it.
 static int      crt_bVirtualClock = 0;
@@ -365,7 +374,8 @@ void J3DHost_UseVirtualClock(void)
 {
     if ( !crt_bVirtualClock )
     {
-        crt_virtualMsec   = crt_HostNowMsec();
+        uint64_t now      = crt_HostNowMsec();
+        crt_virtualMsec   = now > CRT_VIRTUALCLOCK_START ? now : CRT_VIRTUALCLOCK_START;
         crt_bVirtualClock = 1;
     }
 }
@@ -388,7 +398,7 @@ static uint64_t crt_NowMsec(void)
     return crt_bVirtualClock ? crt_virtualMsec : crt_HostNowMsec();
 }
 
-// winmm's timeGetTime counts from system start and wraps at 2^32 ms; the engine only takes differences.
+// winmm's timeGetTime wraps at 2^32 ms; the engine only takes differences.
 DWORD WINAPI timeGetTime(void)
 {
     return (DWORD)crt_NowMsec();
