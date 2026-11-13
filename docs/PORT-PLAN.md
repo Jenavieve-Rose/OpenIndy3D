@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 19 of 22 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 20 of 22 | In progress |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **61 of 146** | |
+| **All** | | **62 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -435,7 +435,8 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       messages so the game pauses as retail did. Done: resizable window, Alt+Return and Cmd+Ctrl+F through the
       game's display restart, fullscreen minimizes on focus loss, `stdDisplay_Refresh` restores it. Checked: toggle
       and pause by temporary scripted events (game time stops while unfocused).
-- [ ] **P2.20** (S) 4:3 pillarbox option; the HUD layout assumes 4:3 until the widescreen fixes in P8.9.
+- [x] **P2.20** (S) 4:3 pillarbox option; the HUD layout assumes 4:3 until the widescreen fixes in P8.9. Done: the
+      `Pillarbox` setting, on by default; mouse positions follow. Checked: `present` test.
 - [ ] **P2.21** (S) Remove `rdModel3K_null.c` and the `rdModel3K_*` references (11 sites) now that nothing can enable
       the path.
 - [ ] **P2.22** (M) Visual pass: script a first-frame screenshot of all 17 levels and review each for missing

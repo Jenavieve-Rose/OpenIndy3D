@@ -9,6 +9,7 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,7 @@ static id<MTLTexture>             metal_aTextures[METAL_TEXTURE_RING];
 static size_t                     metal_curTexture;
 static dispatch_semaphore_t       metal_inFlight;
 
+static int      metal_bKeepAspect;
 static int      metal_bCaptureArmed;
 static uint8_t* metal_pCapture;
 static uint32_t metal_captureWidth, metal_captureHeight;
@@ -91,6 +93,30 @@ void J3DMetal_WaitForGPU(void)
 void J3DMetal_SetSceneTexture(id<MTLTexture> texture)
 {
     metal_sceneTexture = texture;
+}
+
+void J3DMetal_PictureRect(float width, float height, float windowWidth, float windowHeight, int bKeepAspect,
+    float* pX, float* pY, float* pWidth, float* pHeight)
+{
+    *pX = 0.0f;
+    *pY = 0.0f;
+    *pWidth  = windowWidth;
+    *pHeight = windowHeight;
+    if ( !bKeepAspect || width <= 0.0f || height <= 0.0f || windowWidth <= 0.0f || windowHeight <= 0.0f )
+    {
+        return;
+    }
+
+    const float scale = fminf(windowWidth / width, windowHeight / height);
+    *pWidth  = width * scale;
+    *pHeight = height * scale;
+    *pX      = (windowWidth - *pWidth) / 2.0f;
+    *pY      = (windowHeight - *pHeight) / 2.0f;
+}
+
+void J3DMetal_SetKeepAspect(int bKeepAspect)
+{
+    metal_bKeepAspect = bKeepAspect != 0;
 }
 
 int J3DMetal_OpenPresenter(SDL_Window* pWindow, int bVsync)
@@ -254,6 +280,13 @@ int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, si
         id<MTLCommandBuffer>        commands = [J3DMetal_Queue() commandBuffer];
         id<MTLRenderCommandEncoder> encoder  = [commands renderCommandEncoderWithDescriptor:pass];
         [encoder setRenderPipelineState:metal_pipeline];
+        {
+            // The picture keeps its shape with bars around it (the cleared black), or fills the drawable.
+            float x, y, w, h;
+            J3DMetal_PictureRect((float)texture.width, (float)texture.height, (float)drawable.texture.width,
+                (float)drawable.texture.height, metal_bKeepAspect, &x, &y, &w, &h);
+            [encoder setViewport:(MTLViewport){ x, y, w, h, 0.0, 1.0 }];
+        }
         [encoder setFragmentTexture:texture atIndex:0];
         [encoder setFragmentSamplerState:metal_sampler atIndex:0];
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];

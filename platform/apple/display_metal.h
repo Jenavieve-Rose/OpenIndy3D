@@ -20,6 +20,14 @@ int  J3DMetal_OpenPresenter(struct SDL_Window* pWindow, int bVsync);
 void J3DMetal_ClosePresenter(void);
 int  J3DMetal_IsPresenterOpen(void);
 
+// The rectangle a width x height picture occupies in a windowWidth x windowHeight window (any one unit): the whole
+// window, or with bKeepAspect the largest rectangle of the picture's shape, centred (pillarboxed or letterboxed).
+void J3DMetal_PictureRect(float width, float height, float windowWidth, float windowHeight, int bKeepAspect,
+    float* pX, float* pY, float* pWidth, float* pHeight);
+
+// Whether presents keep the picture's shape (J3DMetal_PictureRect); off at first.
+void J3DMetal_SetKeepAspect(int bKeepAspect);
+
 // Presents a 32 bpp BGRX raster (the back buffer's format; the fourth byte is ignored). Returns 0 when the frame was
 // presented or when the window has no drawable to give (hidden, minimized), 1 on error.
 int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize);

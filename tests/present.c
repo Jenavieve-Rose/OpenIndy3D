@@ -4,6 +4,9 @@
  * (J3DMetal_ArmCapture) and sampled at the centre of each quadrant: once with the window at the back buffer's size,
  * once with it at twice that, so the presenter scales as it does fullscreen.
  *
+ * With the window made twice as wide as tall, the 4:3 picture must sit between black bars and mouse positions map
+ * through the same rectangle (P2.20).
+ *
  * Then the renderer and the frame order (P2.9, P2.17): std3D opens on the Metal device, a scene begins (taking the back
  * buffer's pattern), clears depth and ends; then one quadrant is filled grey on the CPU, as retail's CPU writes after a
  * scene landed on the scene's picture. The present must show the scene's picture with the grey quadrant on it. Also checks that the drawable covers the window in
@@ -12,6 +15,7 @@
  * It needs a window server: without one (an SSH session, for example) it is skipped (exit 77), as it is when the
  * window gets no drawable. Exit status otherwise: the number of failed checks.
  */
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -160,6 +164,37 @@ int main(void)
             scaledHeight);
         width = scaledWidth;
         height = scaledHeight;
+
+        // Pillarbox (P2.20, the default): a window twice as wide as it is tall shows the 4:3 picture centred between
+        // black bars, and mouse positions map through the same rectangle.
+        SDL_SetWindowSize(pWindow, 2 * BB_WIDTH * 2, BB_HEIGHT * 2);
+        for ( int i = 0; i < 10; ++i ) { SDL_Event event; while ( SDL_PollEvent(&event) ) {} SDL_Delay(10); }
+        CHECK(stdDisplay_Update() == 0, "Update");
+        J3DMetal_ArmCapture();
+        CHECK(stdDisplay_Update() == 0, "Update");
+        uint8_t* pWide = NULL;
+        uint32_t wideWidth = 0, wideHeight = 0;
+        if ( J3DMetal_TakeCapture(&pWide, &wideWidth, &wideHeight) == 0 )
+        {
+            float x, y, w, h;
+            J3DMetal_PictureRect(BB_WIDTH, BB_HEIGHT, (float)wideWidth, (float)wideHeight, 1, &x, &y, &w, &h);
+            CHECK(w < wideWidth && x > 0.0f, "pillarboxed picture %gx%g at %g in %ux%u", w, h, x, wideWidth, wideHeight);
+            const uint8_t* pBar = pWide + ((size_t)(wideHeight / 2) * wideWidth + (size_t)(x / 2)) * 4;
+            CHECK(pBar[0] == 0 && pBar[1] == 0 && pBar[2] == 0, "left bar is black: %u %u %u", pBar[2], pBar[1], pBar[0]);
+            const uint8_t* pRed = pWide + ((size_t)(y + h / 4) * wideWidth + (size_t)(x + w / 4)) * 4; // quadrant 0 centre
+            CHECK(present_Near(pRed[2], 0xFF) && present_Near(pRed[1], 0) && present_Near(pRed[0], 0),
+                "quadrant 0 inside the bars: %u %u %u", pRed[2], pRed[1], pRed[0]);
+            free(pWide);
+
+            int pointsW = 0, pointsH = 0;
+            SDL_GetWindowSize(pWindow, &pointsW, &pointsH);
+            float px, py, pw, ph;
+            J3DMetal_PictureRect(BB_WIDTH, BB_HEIGHT, (float)pointsW, (float)pointsH, 1, &px, &py, &pw, &ph);
+            float mouseX = px + 100.0f * pw / BB_WIDTH, mouseY = py + 30.0f * ph / BB_HEIGHT;
+            J3DApple_WindowToBackBuffer(&mouseX, &mouseY);
+            CHECK(fabsf(mouseX - 100.0f) < 0.01f && fabsf(mouseY - 30.0f) < 0.01f, "pillarboxed mouse maps to (%g,%g)", mouseX, mouseY);
+        }
+        SDL_SetWindowSize(pWindow, 2 * BB_WIDTH, 2 * BB_HEIGHT);
 
         // Mouse positions (P2.15): the window is now twice the back buffer, in points.
         float mouseX = 2.0f * 100.0f, mouseY = 2.0f * 30.0f;

@@ -571,8 +571,8 @@ that only miss NaN.
   `SDL_WINDOW_METAL` unless the video driver is SDL's dummy one) and `stdDisplay_Close` detaches it. Each
   `stdDisplay_Update` (retail's flip) uploads the back buffer into a texture, one of a ring of three so the CPU never
   writes one the GPU is reading, and draws it over the whole drawable with bilinear filtering: a 640×480 mode on a
-  fullscreen 2560×1440 window is scaled to fill the screen (stretched; the 4:3 pillarbox is P2.20). The drawable is
-  the window's size in pixels.
+  fullscreen 2560×1440 window is scaled to the screen (keeping its shape since P2.20). The drawable is the window's
+  size in pixels.
 - Presents wait for the display's refresh (`displaySyncEnabled`), which now paces a windowed run; the 60 Hz hold of
   P2.3 remains only for a window whose presenter failed to open. The game therefore runs at the display's refresh
   rate (60 or 120 Hz), faster than the 1999 hardware did; whether any game logic depends on frame length is for the
@@ -839,3 +839,16 @@ that only miss NaN.
   640×480 window into a 2560×1440 fullscreen one, saves `InWindow=i:0` and exits 0; a focus loss posted at frame 200
   with focus returned a second later (an SDL timer) blocks the next pass for that second with game time unchanged,
   windowed and fullscreen. The keys themselves and real minimizing are checked by hand (scripted input is Phase 3).
+
+### 4:3 pillarbox (P2.20)
+
+- A new port setting, `Pillarbox` (an int in `settings.ini`, or `J3D_REG_Pillarbox`), on by default: the presenter
+  draws the back buffer in the largest rectangle of its own shape that fits the drawable, centred, with black bars
+  (`J3DMetal_PictureRect`); 0 stretches it over the whole drawable, as before. Retail ran its 4:3 modes on 4:3
+  screens; the HUD is laid out for 4:3 until the widescreen fixes (P8.9), and a stretched 640×480 distorts everything.
+  A wide mode (1920×1080 from the mode list) fills a wide screen either way.
+- The setting is read when a mode is set. Mouse positions map through the same rectangle (`J3DApple_WindowToBackBuffer`),
+  so a click in a bar lands outside the back buffer.
+- Checked: the `present` test makes the window twice as wide as tall and expects black bars, the picture centred, and
+  a mouse position in the picture mapped to the right back-buffer pixel; with `J3D_REG_Pillarbox=0` those checks fail,
+  as they should.

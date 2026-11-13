@@ -115,6 +115,9 @@ press Cmd-Q, to quit. To run in a window instead, at a size from the mode list:
 J3D_REG_InWindow=1 J3D_REG_Width=800 J3D_REG_Height=600 build/jones3d --data /path/to/data-root
 ```
 
+A 4:3 mode on a wide screen is pillarboxed (black bars at the sides); `J3D_REG_Pillarbox=0`, or `Pillarbox=i:0` in the
+settings file, stretches it instead. Alt+Return or Cmd+Ctrl+F switches between fullscreen and a window.
+
 A null build has no display: without `--headless` it opens the GOBs, loads its string tables, starts the engine and
 exits when it enumerates the displays. With `--headless` either build loads the first level and runs:
 

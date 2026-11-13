@@ -38,6 +38,7 @@
 #include <std/General/std.h>
 #include <std/Win95/stdDisplay.h>
 #include <std/Win95/stdWin95.h>
+#include <w32util/wuRegistry.h>
 
 #include <platform/apple/display_metal.h>
 #include <platform/apple/render_metal.h>
@@ -50,6 +51,7 @@
 #define STDDISPLAY_FRAME_NSEC (SDL_NS_PER_SECOND / 60)
 
 static int    stdDisplay_bStartup = 0;
+static int    stdDisplay_bKeepAspect = 1; // the "Pillarbox" setting (P2.20)
 static Uint64 stdDisplay_lastFrameNsec = 0;
 
 // The classic 4:3 sizes offered whether or not the display lists them, so the retail defaults (640x480) and the sizes
@@ -347,6 +349,11 @@ int J3DAPI stdDisplay_SetMode(size_t modeNum, int bFullscreen, size_t numBackBuf
     stdDisplay_bModeSet    = 1;
     stdDisplay_bFullscreen = bFullscreen;
 
+    // P2.20: keep the picture's shape (4:3 modes pillarboxed on a wide screen) unless "Pillarbox" is 0. A port setting:
+    // the HUD is laid out for 4:3 (until the widescreen fixes, P8.9), and a stretched 640x480 distorts everything.
+    stdDisplay_bKeepAspect = wuRegistry_GetInt("Pillarbox", 1) != 0;
+    J3DMetal_SetKeepAspect(stdDisplay_bKeepAspect);
+
     // The presenter, once per open display. Retail created its primary surface here; its failure failed the mode.
     if ( !J3DMetal_IsPresenterOpen() && stdDisplay_CanPresent() )
     {
@@ -431,8 +438,12 @@ void J3DApple_WindowToBackBuffer(float* pX, float* pY)
         return;
     }
 
-    *pX = *pX * (float)stdDisplay_backBuffer.rasterInfo.width / (float)width;
-    *pY = *pY * (float)stdDisplay_backBuffer.rasterInfo.height / (float)height;
+    // The same rectangle the presenter draws the picture in (pillarboxed with the option on, P2.20).
+    const float bbWidth = (float)stdDisplay_backBuffer.rasterInfo.width, bbHeight = (float)stdDisplay_backBuffer.rasterInfo.height;
+    float x, y, w, h;
+    J3DMetal_PictureRect(bbWidth, bbHeight, (float)width, (float)height, stdDisplay_bKeepAspect, &x, &y, &w, &h);
+    *pX = (*pX - x) * bbWidth / w;
+    *pY = (*pY - y) * bbHeight / h;
 }
 
 // Retail, on reactivation (bReload 1): restore the cooperative level, the fullscreen display mode and the lost surfaces.
