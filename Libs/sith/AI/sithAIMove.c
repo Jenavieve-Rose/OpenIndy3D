@@ -194,6 +194,10 @@ void J3DAPI sithAIMove_UpdateMineCar(SithAIControlBlock* pLocal, float secDeltaT
         return;
     }
 
+    // Port: retail read moveState without ever setting it here (stack contents); sithAIMove_UpdateTurn, which this
+    // function follows, sets it from sithAIMove_AIGetMoveState, a pure getter, so it is set the same way.
+    moveState = sithAIMove_AIGetMoveState(pLocal);
+
     meshIdx = sithThing_GetThingMeshIndex(pThing, "redarmy");
     rdVector_Copy3(&jointPos, &pThing->renderData.paJointMatrices[meshIdx].dvec);
     rdVector_Sub3(&toLook, &pLocal->lookPos, &jointPos);

@@ -318,7 +318,7 @@ void J3DAPI sithVoice_UpdateLipSync(SithThing* pThing)
 
 void J3DAPI sithVoice_PlayVoice(SithCog* pCog)
 {
-    int guid;
+    int guid = -1; // Port: was unset when no channel could be played; -1 as the code below uses for no channel
     int curWait;
     float volume;
     tSoundHandle hSnd;

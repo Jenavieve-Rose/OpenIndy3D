@@ -1709,7 +1709,7 @@ int J3DAPI sithWorld_WriteEntryBinary(SithWorld* pWorld, const char* pFilename)
     CndWorld worldHeader;
     tFileHandle fh;
     size_t i;
-    uint32_t fileSize;
+    uint32_t fileSize = 0; // Port: written as a placeholder before it is set
     size_t written;
     int result;
 

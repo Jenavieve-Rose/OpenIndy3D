@@ -426,7 +426,7 @@ int J3DAPI sithSurface_ReadSurfacesListBinary(tFileHandle fh, SithWorld* pWorld)
     SithSurface* pSurf;
     CndSurfaceInfo* aCndSurfaces = NULL;
     CndSurfaceInfo* pCndSurf;
-    CndSurfaceVertInfo* aCndSurfVerts;
+    CndSurfaceVertInfo* aCndSurfVerts = NULL; // Port: the error path frees it; was uninitialised
     const CndSurfaceVertInfo* pCndSurfVert;
 
     size = sizeof(CndSurfaceInfo) * pWorld->numSurfaces;

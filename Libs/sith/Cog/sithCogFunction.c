@@ -2690,7 +2690,7 @@ void J3DAPI sithCogFunction_ResetWeaponModel(SithCog* pCog)
 
 void J3DAPI sithCogFunction_LoadHolsterModel(SithCog* pCog)
 {
-    rdModel3* pModel;
+    rdModel3* pModel = NULL; // Port: was unset when no file name is passed
     int typeId;
 
     const char* pMdlFilename = sithCogExec_PopString(pCog);

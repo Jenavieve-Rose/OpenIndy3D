@@ -408,7 +408,9 @@ int J3DAPI sithPlayerActions_Activate(SithThing* pPlayer)
         int playerNum;
         SithSector* pStartSector;
         /* Original bug: bExitedSector is never initialised; the debug code tests whatever its slot holds. */
-        int bExitedSector;
+        // Port: 1. The code clears it when the raft starts in another sector than the player, so it means "same
+        // sector": the player's sector gets its exited message and the raft enters without a second one.
+        int bExitedSector = 1;
         rdVector3 raftPos;
         rdMatrix34 raftOrient;
 

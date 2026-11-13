@@ -891,9 +891,11 @@ HBITMAP J3DAPI sithGamesave_CreateThumbnail(void)
     ColorInfo currentthumbColorInfo = { STDCOLOR_RGB, 24, 8, 8, 8, 0, 8, 16, 0, 0, 0, 0, 0, 0 };
     BITMAPINFO bmpInfo;
     LONG imageSize;
-    HDC hHdc;
-    HDC hdcThumb;
-    HBITMAP hBmp;
+    // Port: NULL, were uninitialised. The error path deletes whichever of them is set, and reached early it deleted
+    // stack contents.
+    HDC hHdc = NULL;
+    HDC hdcThumb = NULL;
+    HBITMAP hBmp = NULL;
     void* pPixmap;
 
     if ( sithGamesave_hBmpThumbnail )

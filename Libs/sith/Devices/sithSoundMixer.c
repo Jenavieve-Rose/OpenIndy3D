@@ -99,7 +99,7 @@ tSoundChannelHandle J3DAPI sithSoundMixer_PlaySound(tSoundHandle hSnd, float vol
 
 tSoundChannelHandle J3DAPI sithSoundMixer_PlaySoundPos(tSoundHandle hSnd, rdVector3* pos, SithSector* pSector, float volume, float minRadius, float maxRadius, SoundPlayFlag playflags)
 {
-    SoundEnvFlags envflags;
+    SoundEnvFlags envflags = 0; // Port: retail ORed the underwater flag into an uninitialised local
 
     if ( !sithSoundMixer_bStartup ) {
         return 0;

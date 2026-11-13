@@ -1861,6 +1861,11 @@ void J3DAPI sithAnimate_UpdatePushItemAnim(SithAnimationSlot* pAnim, float secDe
         pAnim->pItemThing->moveInfo.physics.surfDrag = 0.0f;
 
         // One final item push
+        // Port: retail left motionDirection unset on this path and pushed along whatever the stack held (in practice,
+        // probably the direction the previous frame's call had copied from direction3 into the same slot). The other
+        // path pushes along pAnim->direction3, so this one does too. OpenJones3D zeroes it instead, which skips the
+        // final push (its comment says it should be direction3). To be checked in the A/B pass (PORT-PLAN.md P7.5).
+        rdVector_Copy3(&motionDirection, &pAnim->direction3);
         distancePushed = sithCollision_MoveThing(pAnim->pItemThing, &motionDirection, moveDistance, 0);
 
         // Restore item surface drag, and mark animation as finished
@@ -1954,6 +1959,7 @@ void J3DAPI sithAnimate_UpdatePullItemAnim(SithAnimationSlot* pAnim, float secDe
         pAnim->pItemThing->moveInfo.physics.surfDrag = 0.0f;
 
         // One final item pull
+        rdVector_Copy3(&moveDir, &pAnim->direction3); // Port: unset in retail; see sithAnimate_UpdatePushItemAnim
         distPulled = sithCollision_MoveThing(pAnim->pItemThing, &moveDir, moveDist, 0);
 
         // Restore item surface drag, and mark animation as finished

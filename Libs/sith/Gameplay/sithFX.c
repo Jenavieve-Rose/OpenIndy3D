@@ -140,7 +140,7 @@ void J3DAPI sithFX_DestroyFairyDustDeluxe(SithThing* pThing)
 
 void J3DAPI sithFX_CreateFairyDust(const rdVector3* pos, SithSector* pSector)
 {
-    SithThing* pDust;
+    SithThing* pDust = NULL; // Port: NULL when the template is missing (see below); was uninitialised
 
     SithThing* pTemplate = sithTemplate_GetTemplate("+imp2_trail");
     if ( pTemplate )

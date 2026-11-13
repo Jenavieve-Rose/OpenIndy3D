@@ -2427,7 +2427,7 @@ void J3DAPI sithPuppet_DefaultCallback(SithThing* pPuppetThing, int track, rdKey
             if ( (pThing->moveStatus == SITHPLAYERMOVE_PUSHING || pThing->moveStatus == SITHPLAYERMOVE_PULLING) && markerType == RDKEYMARKER_MOVE )
             {
                 SithSurface* pSurface;
-                int scrapeMode;
+                int scrapeMode = 0; // Port: was unset for a surface with none of the flags below; 0 is the hard scrape, as for the flagged surfaces the chain does not name
 
                 pSurface = pThing->attach.attachedToStructure.pSurfaceAttached;
                 if ( !pSurface )

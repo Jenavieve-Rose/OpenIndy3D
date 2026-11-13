@@ -3640,6 +3640,7 @@ static int J3DAPI sithAIInstinct_SnakeMungeTestCheck(SithAIControlBlock* pLocal,
         return 0;
     }
 
+    mask = 0; // Port: retail ORed the flags below into an uninitialised local (PORT-PLAN.md Phase 1 audit)
     mask |= 0x62010;
     result = sithAIUtil_CheckPathToPos(pLocal, pCurSector, &beginPos, mask, 0.0f, distance + sithAIInstinct_flt_539A64, sithAIInstinct_flt_539A60, pDirection, &curHitPos);
     switch ( result )

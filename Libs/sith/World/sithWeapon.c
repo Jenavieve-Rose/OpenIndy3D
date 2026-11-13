@@ -1739,6 +1739,7 @@ SithThing* J3DAPI sithWeapon_FireProjectile(SithThing* pShooter, const SithThing
         }
 
         rdMatrix_Copy34(&muzzleOrient, &pShooter->renderData.paJointMatrices[jointIdx]);
+        rdVector_Set3(&fireOffset, 0.0f, 0.0f, 0.0f); // Port: retail rotated by an uninitialised local; 0 as OpenJones3D does
         rdMatrix_PreRotate34(&muzzleOrient, &fireOffset);
     }
     else
