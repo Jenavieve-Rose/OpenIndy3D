@@ -1,5 +1,11 @@
 #include "Sound.h"
 
+// Port: retail walked its channel, fade and sound-info tables backwards with `while ( (p--, n-- != 0) )`, which
+// decrements the pointer once more than the loop runs, and with no sound device open the tables are NULL, so the first
+// decrement was arithmetic on a null pointer (UBSan, PORT-PLAN.md P1.21). The 30 loops now read
+// `while ( n-- != 0 ) { --p; ... }`: the pointer has the same value in every pass, the counter is unchanged, and none of
+// the functions reads the pointer after its loop without reassigning it first.
+
 #include <rdroid/Math/rdVector.h>
 
 #include "AudioLib.h"
@@ -329,8 +335,9 @@ int J3DAPI Sound_Save(tFileHandle fh)
         return 0;
     }
 
-    while ( (--pCurrentChannel, channelNumber-- != 0) )
+    while ( channelNumber-- != 0 )
     {
+        --pCurrentChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         // TODO: Save also 2D sounds 
         if ( pCurrentChannel->handle != SOUND_INVALIDHANDLE
             && ((pCurrentChannel->flags & (SOUND_CHANNEL_LOOP | SOUND_CHANNEL_PLAYING)) == (SOUND_CHANNEL_LOOP | SOUND_CHANNEL_PLAYING)
@@ -890,8 +897,9 @@ void J3DAPI Sound_Pause(void)
 
         Sound_msecPauseStartTime = SoundDriver_GetTimeMsec();
 
-        while ( (pChannel--, i-- != 0) )
+        while ( i-- != 0 )
         {
+            --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( pChannel->handle != SOUND_INVALIDHANDLE )
             {
                 if ( (pChannel->flags & SOUND_CHANNEL_FAR) == 0 )
@@ -929,8 +937,9 @@ void J3DAPI Sound_Resume(void)
 
         Sound_msecElapsed += SoundDriver_GetTimeMsec() - Sound_msecPauseStartTime;
 
-        while ( (pChannel--, i-- != 0) )
+        while ( i-- != 0 )
         {
+            --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( pChannel->handle != SOUND_INVALIDHANDLE )
             {
                 if ( (pChannel->flags & SOUND_CHANNEL_PAUSED) != 0 )
@@ -1095,8 +1104,9 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
         j = soundbank_aNumSounds[i];
         pSndInfo = &soundbank_apSoundInfos[i][j];
 
-        while ( (pSndInfo--, j-- != 0) )
+        while ( j-- != 0 )
         {
+            --pSndInfo; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( soundbank_apSoundCache[i]
                 && streqi((const char*)pFilename, (const char*)&soundbank_apSoundCache[i][pSndInfo->nameOffset]) )
             {
@@ -1423,8 +1433,9 @@ tSoundHandle J3DAPI Sound_GetSoundHandle(uint32_t idx)
             int i = soundbank_aNumSounds[bankNum];
             SoundInfo* pSndInfo = &soundbank_apSoundInfos[bankNum][i];
 
-            while ( (pSndInfo--, i-- != 0) )
+            while ( i-- != 0 )
             {
+                --pSndInfo; // Port: decremented in the loop condition in retail, see the note at the top of the file
                 if ( pSndInfo->hSnd && pSndInfo->idx == idx )
                 {
                     return pSndInfo->hSnd;
@@ -1450,8 +1461,9 @@ size_t J3DAPI Sound_GetSoundIndex(tSoundHandle hSnd)
                 return SOUND_INVALISOUNDINFOINDEX;
             }
 
-            while ( pSndInfo--, i-- != 0 )
+            while ( i-- != 0 )
             {
+                --pSndInfo; // Port: decremented in the loop condition in retail, see the note at the top of the file
                 if ( pSndInfo->hSnd == hSnd )
                 {
                     return pSndInfo->idx;
@@ -1468,8 +1480,9 @@ tSoundChannelHandle J3DAPI Sound_GetChannelHandle(int guid)
     size_t i = Sound_numChannels;
     tSoundChannel* pChannel = &Sound_apChannels[i];
 
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE && pChannel->guid == guid )
         {
             return pChannel->handle;
@@ -1489,8 +1502,9 @@ int J3DAPI Sound_GetChannelGUID(tSoundChannelHandle hChannel)
         return SOUND_INVALIDGUID;
     }
 
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle == hChannel )
         {
             return pChannel->guid;
@@ -1511,8 +1525,9 @@ void J3DAPI Sound_SetChannelGUID(tSoundChannelHandle hChannel, int guid)
         return;
     }
 
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle == hChannel )
         {
             pChannel->guid = guid;
@@ -1599,8 +1614,9 @@ void J3DAPI Sound_SetMaxVolume(float maxVolume)
         Sound_maxVolume = maxVolume;
         SoundDriver_SetMaxVolume(Sound_maxVolume);
 
-        while ( pChannel--, i-- != 0 )
+        while ( i-- != 0 )
         {
+            --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( pChannel->handle != SOUND_INVALIDHANDLE )
             {
                 SoundDriver_SetVolume(pChannel->pDSoundBuffer, pChannel->volume * Sound_maxVolume);
@@ -1748,8 +1764,9 @@ found_channel:
                 size_t i = Sound_numChannels;
                 tSoundChannel* pCurChannel = &Sound_apChannels[i];
 
-                while ( pCurChannel--, i-- != 0 )
+                while ( i-- != 0 )
                 {
+                    --pCurChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
                     if ( pCurChannel->handle != SOUND_INVALIDHANDLE )
                     {
                         if ( pCurChannel->priority < curPriority )
@@ -1883,8 +1900,9 @@ tSoundChannelHandle J3DAPI Sound_PlayThing(tSoundHandle hSnd, float volume, int 
         hCurChannel = Sound_numChannels;
         pChan = &Sound_apChannels[hCurChannel];
 
-        while ( (pChan--, hCurChannel-- != 0) )
+        while ( hCurChannel-- != 0 )
         {
+            --pChan; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( pChan->hSnd == hSnd && pChan->thingId == thingID )
             {
                 return SOUND_INVALIDHANDLE;
@@ -2010,8 +2028,9 @@ void J3DAPI Sound_StopThing(int thingId, tSoundHandleType handle)
     }
 
     // Iterate channels in reverse order and stop all channels with specific sound handle and thing id
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE
             && (pChannel->flags & (SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND)) != 0
             && pChannel->thingId == thingId
@@ -2079,8 +2098,9 @@ void J3DAPI Sound_FadeVolume(tSoundChannelHandle hChannel, float volume, float s
     }
 
     {
-        while ( (pCurFade--, i-- != 0) )
+        while ( i-- != 0 )
         {
+            --pCurFade; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( !pCurFade->hChannel )
             {
                 pCurFade->hChannel      = hChannel;
@@ -2103,8 +2123,9 @@ void J3DAPI Sound_FadeVolume(tSoundChannelHandle hChannel, float volume, float s
     pCurFade = &Sound_aFades[STD_ARRAYLEN(Sound_aFades)];
     i = STD_ARRAYLEN(Sound_aFades);
     {
-        while ( (pCurFade--, i-- != 0) )
+        while ( i-- != 0 )
         {
+            --pCurFade; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( pCurFade->hChannel )
             {
                 if ( (int)(pCurFade->msecEndTime - curTime) > nRemaining )
@@ -2162,8 +2183,9 @@ void J3DAPI Sound_SetVolumeThing(int thingId, tSoundHandleType handle, float vol
     }
 
     // Iterate channels in reverse order to apply new volume
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE
             && (pChannel->flags & (SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND)) != 0
             && pChannel->thingId == thingId
@@ -2192,8 +2214,9 @@ void J3DAPI Sound_FadeVolumeThing(int thingId, tSoundHandleType handle, float st
     }
 
     // Iterate channels in reverse order to apply volume fade
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE
             && (pChannel->flags & (SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND)) != 0
             && pChannel->thingId == thingId
@@ -2221,8 +2244,9 @@ int J3DAPI Sound_IsThingFadingVol(int thingId, tSoundHandleType handle)
     }
 
     // Iterate through channels in reverse order to find matching sound with volume fade
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE
             && (pChannel->flags & (SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND)) != 0
             && pChannel->thingId == thingId
@@ -2299,8 +2323,9 @@ void J3DAPI Sound_FadePitch(tSoundChannelHandle hChannel, float pitch, float sec
     }
 
     {
-        while ( (pCurFade--, i-- != 0) )
+        while ( i-- != 0 )
         {
+            --pCurFade; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( !pCurFade->hChannel )
             {
                 pCurFade->hChannel      = hChannel;
@@ -2323,8 +2348,9 @@ void J3DAPI Sound_FadePitch(tSoundChannelHandle hChannel, float pitch, float sec
     pCurFade = &Sound_aFades[STD_ARRAYLEN(Sound_aFades)];
     i = STD_ARRAYLEN(Sound_aFades);
     {
-        while ( (pCurFade--, i-- != 0) )
+        while ( i-- != 0 )
         {
+            --pCurFade; // Port: decremented in the loop condition in retail, see the note at the top of the file
             if ( pCurFade->hChannel )
             {
                 if ( (int)(pCurFade->msecEndTime - curTime) > nRemaining )
@@ -2382,8 +2408,9 @@ void J3DAPI Sound_SetPitchThing(int thingId, tSoundHandleType handle, float pitc
     }
 
     // Iterate through channels in reverse order
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE
             && (pChannel->flags & (SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND)) != 0
             && pChannel->thingId == thingId
@@ -2413,8 +2440,9 @@ int J3DAPI Sound_IsThingFadingPitch(int thingId, tSoundHandleType handle)
         return 0;
     }
 
-    while ( (pChannel--, i-- != 0) )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE
             && (pChannel->flags & (SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND)) != 0
             && pChannel->thingId == thingId
@@ -2533,8 +2561,9 @@ void J3DAPI Sound_Update(const rdVector3* pPos, const rdVector3* pVelocity, rdVe
 
     SoundDriver_SetListenerPosition(pPos, pVelocity, pTopOrient, pFrontOrient, pRightOrient);
 
-    while ( pCurChannel--, count-- != 0 )
+    while ( count-- != 0 )
     {
+        --pCurChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pCurChannel->handle != SOUND_INVALIDHANDLE && (pCurChannel->flags & SOUND_CHANNEL_3DSOUND) != 0 )
         {
             SoundThingInfo thngSndInfo;
@@ -2603,8 +2632,9 @@ void J3DAPI Sound_Update(const rdVector3* pPos, const rdVector3* pVelocity, rdVe
                             size_t i = Sound_numChannels;
                             tSoundChannel* pChannel = &Sound_apChannels[i];
 
-                            while ( pChannel--, i-- != 0 )
+                            while ( i-- != 0 )
                             {
+                                --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
                                 if ( pChannel->handle == hChannel )
                                 {
                                     pChannel->flags &= ~SOUND_CHANNEL_RESTART;
@@ -2653,8 +2683,9 @@ void J3DAPI Sound_Update(const rdVector3* pPos, const rdVector3* pVelocity, rdVe
                             size_t i = Sound_numChannels;
                             tSoundChannel* pChannel = &Sound_apChannels[i];
 
-                            while ( pChannel--, i-- != 0 )
+                            while ( i-- != 0 )
                             {
+                                --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
                                 if ( pChannel->handle == hChannel )
                                 {
                                     pChannel->flags &= ~SOUND_CHANNEL_RESTART;
@@ -2855,8 +2886,9 @@ size_t J3DAPI Sound_GetAllInstanceInfo(SoundInstanceInfo* pInfo, size_t maxInfos
     size_t numChannels = Sound_numChannels;
     tSoundChannel* pCurChannel = &Sound_apChannels[numChannels];
 
-    while ( (pCurChannel--, numChannels-- != 0) )
+    while ( numChannels-- != 0 )
     {
+        --pCurChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pCurChannel->handle != SOUND_INVALIDHANDLE )
         {
             SoundInfo* pSndInfo = Sound_GetSoundInfo(pCurChannel->hSnd);
@@ -3108,8 +3140,9 @@ SoundInfo* J3DAPI Sound_GetSoundInfo(tSoundHandle hSnd)
             int i = soundbank_aNumSounds[bankNum];
             SoundInfo* pCurSndInfo = &soundbank_apSoundInfos[bankNum][i];
 
-            while ( (pCurSndInfo--, i-- != 0) )
+            while ( i-- != 0 )
             {
+                --pCurSndInfo; // Port: decremented in the loop condition in retail, see the note at the top of the file
                 if ( pCurSndInfo->hSnd == hSnd )
                 {
                     return pCurSndInfo;
@@ -3131,8 +3164,9 @@ tSoundChannel* J3DAPI Sound_GetChannel(tSoundChannelHandle hChannel)
         return NULL;
     }
 
-    while ( pChannel--, i-- != 0 )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle == hChannel )
         {
             return pChannel;
@@ -3152,8 +3186,9 @@ tSoundChannel* J3DAPI Sound_GetChannelBySoundHandle(tSoundHandle hSnd)
         return NULL;
     }
 
-    while ( pChannel--, i-- != 0 )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE && pChannel->hSnd == hSnd )
         {
             return pChannel;
@@ -3168,8 +3203,9 @@ uint8_t* J3DAPI Sound_GetSoundBufferData(LPDIRECTSOUNDBUFFER pDSBuf, size_t* pDa
     size_t i = Sound_numChannels;
     tSoundChannel* pChannel = &Sound_apChannels[i];
 
-    while ( pChannel--, i-- != 0 )
+    while ( i-- != 0 )
     {
+        --pChannel; // Port: decremented in the loop condition in retail, see the note at the top of the file
         if ( pChannel->handle != SOUND_INVALIDHANDLE && pChannel->pDSoundBuffer == pDSBuf )
         {
             SoundInfo* pSoundInfo = Sound_GetSoundInfo(pChannel->hSnd);

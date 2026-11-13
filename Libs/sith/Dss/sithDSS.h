@@ -10,6 +10,18 @@
 
 J3D_EXTERN_C_START
 
+// Port: the 16- and 32-bit fields of a message sit at any byte offset. Retail stored and loaded them through cast
+// pointers, which x86 allows and C does not (UBSan, PORT-PLAN.md P1.21); these helpers copy the same bytes.
+#define SITHDSS_DEFINE_ACCESSORS(name, type) \
+    static inline void sithDSS_Put##name(uint8_t** ppData, type value) { memcpy(*ppData, &value, sizeof(value)); *ppData += sizeof(value); } \
+    static inline type sithDSS_Get##name(uint8_t** ppData) { type value; memcpy(&value, *ppData, sizeof(value)); *ppData += sizeof(value); return value; }
+SITHDSS_DEFINE_ACCESSORS(Int16, int16_t)
+SITHDSS_DEFINE_ACCESSORS(UInt16, uint16_t)
+SITHDSS_DEFINE_ACCESSORS(Int32, int32_t)
+SITHDSS_DEFINE_ACCESSORS(UInt32, uint32_t)
+SITHDSS_DEFINE_ACCESSORS(Float, float)
+#undef SITHDSS_DEFINE_ACCESSORS
+
 //Helper macros for data serialization / de-serialization
 
 #define SITHDSS_ENDOUT (sithMulti_message.length = pCurDSSMsgData_ - sithMulti_message.data)
@@ -18,11 +30,11 @@ J3D_EXTERN_C_START
 
 #define SITHDSS_PUSHINT8(x) (*(*(int8_t**)&pCurDSSMsgData_)++ = (x))
 #define SITHDSS_PUSHUINT8(x) (*pCurDSSMsgData_++ = (x))
-#define SITHDSS_PUSHINT16(x) (*(*(int16_t**)&pCurDSSMsgData_)++ = (x))
-#define SITHDSS_PUSHUINT16(x) (*(*(uint16_t**)&pCurDSSMsgData_)++ = (x))
-#define SITHDSS_PUSHINT32(x) (*(*(int32_t**)&pCurDSSMsgData_)++ = (x))
-#define SITHDSS_PUSHUINT32(x) (*(*(uint32_t**)&pCurDSSMsgData_)++ = (x))
-#define SITHDSS_PUSHFLOAT(x) (*(*(float**)&pCurDSSMsgData_)++ = (x))
+#define SITHDSS_PUSHINT16(x) sithDSS_PutInt16(&pCurDSSMsgData_, (x))
+#define SITHDSS_PUSHUINT16(x) sithDSS_PutUInt16(&pCurDSSMsgData_, (x))
+#define SITHDSS_PUSHINT32(x) sithDSS_PutInt32(&pCurDSSMsgData_, (x))
+#define SITHDSS_PUSHUINT32(x) sithDSS_PutUInt32(&pCurDSSMsgData_, (x))
+#define SITHDSS_PUSHFLOAT(x) sithDSS_PutFloat(&pCurDSSMsgData_, (x))
 #define SITHDSS_PUSHVEC2(x) sithDSS_WriteVec2(&pCurDSSMsgData_, (x))
 #define SITHDSS_PUSHVEC3(x) (memcpy(pCurDSSMsgData_, (x), sizeof(rdVector3)), pCurDSSMsgData_ += sizeof(rdVector3))
 #define SITHDSS_PUSHVEC4(x) (memcpy(pCurDSSMsgData_, (x), sizeof(rdVector4)), pCurDSSMsgData_ += sizeof(rdVector4))
@@ -32,11 +44,11 @@ J3D_EXTERN_C_START
 
 #define SITHDSS_POPINT8() sithDSS_ReadInt8(&pCurDSSMsgData_)
 #define SITHDSS_POPUINT8() (*pCurDSSMsgData_++)
-#define SITHDSS_POPINT16() (*(*(int16_t**)&pCurDSSMsgData_)++)
-#define SITHDSS_POPUINT16() (*(*(uint16_t**)&pCurDSSMsgData_)++)
-#define SITHDSS_POPINT32() (*(*(int32_t**)&pCurDSSMsgData_)++)
-#define SITHDSS_POPUINT32() (*(*(uint32_t**)&pCurDSSMsgData_)++)
-#define SITHDSS_POPFLOAT() (*(*(float**)&pCurDSSMsgData_)++)
+#define SITHDSS_POPINT16() sithDSS_GetInt16(&pCurDSSMsgData_)
+#define SITHDSS_POPUINT16() sithDSS_GetUInt16(&pCurDSSMsgData_)
+#define SITHDSS_POPINT32() sithDSS_GetInt32(&pCurDSSMsgData_)
+#define SITHDSS_POPUINT32() sithDSS_GetUInt32(&pCurDSSMsgData_)
+#define SITHDSS_POPFLOAT() sithDSS_GetFloat(&pCurDSSMsgData_)
 #define SITHDSS_POPVEC2(x) sithDSS_ReadVec2(&pCurDSSMsgData_, (x))
 #define SITHDSS_POPVEC3(x) (memcpy((x), pCurDSSMsgData_, sizeof(rdVector3)), pCurDSSMsgData_ += sizeof(rdVector3))
 #define SITHDSS_POPVEC4(x) (memcpy((x), pCurDSSMsgData_, sizeof(rdVector4)), pCurDSSMsgData_ += sizeof(rdVector4))

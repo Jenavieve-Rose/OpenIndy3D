@@ -2,6 +2,10 @@
  * insane_lecshare: the LEC module framework's share registry (retail 0x004EB210-0x004EBDE0): a registry of up to 512 published
  * interfaces, looked up by `NAME` or `NAME=provider` strings, plus the start-up/shut-down walk over the registered modules and a
  * small formatted-message ring. `lec.h` names its table.
+ *
+ * Port: the backward walks over the registry start at `lec_state.entries + n - 1` instead of `&lec_state.entries[n - 1]`,
+ * which indexed element -1 of the array when the registry was empty (UBSan, PORT-PLAN.md P1.21). The pointer is not
+ * dereferenced in that case, as in retail.
  */
 #include <stdarg.h>
 #include <stddef.h>
@@ -83,7 +87,7 @@ LecShare* LecShare_Init(LecErrorFn pError, LecModuleEntry* pModules, const char*
 int LecShare_UnregisterAll(void)
 {
     int n = lec_state.count;
-    LecEntry* p = &lec_state.entries[n - 1];
+    LecEntry* p = lec_state.entries + n - 1;
 
     while (n-- != 0) {
         if (p->pName && LecShare_NameLen(p->pName) == 9 && LecShare_NameNCmp("LECMODULE", p->pName, LecShare_NameLen(p->pName)) == 0) {
@@ -154,7 +158,7 @@ static void LecShare_Reset(const char* pA, const char* pB)
 static int LecShare_Publish(const char* pName, void* pInterface)
 {
     int n = lec_state.count;
-    LecEntry* p = &lec_state.entries[n - 1];
+    LecEntry* p = lec_state.entries + n - 1;
     int i = n;
 
     lec_state.pSearch = NULL;
@@ -194,7 +198,7 @@ static int LecShare_Unpublish(const char* pName)
 #else
     LecShare_Strip((char*)pName);
 #endif
-    p = &lec_state.entries[n - 1];
+    p = lec_state.entries + n - 1;
     while (n-- != 0) {
         if (p->pName && LecShare_NameCmp(p->pName, pName) == 0) {
             int refs = p->refs;
@@ -257,7 +261,7 @@ static void* LecShare_Subscribe(const char* pName, const char* pPreferred)
 static int LecShare_Unsubscribe(void* pInterface)
 {
     int n = lec_state.count;
-    LecEntry* p = &lec_state.entries[n - 1];
+    LecEntry* p = lec_state.entries + n - 1;
     int i = n;
 
     lec_state.pSearch = NULL;
@@ -386,7 +390,7 @@ static int LecShare_Count(const char* pName)
 {
     int n = 0;
     int i = lec_state.count;
-    LecEntry* p = &lec_state.entries[i - 1];
+    LecEntry* p = lec_state.entries + i - 1;
 
     while (i-- != 0) {
         if (p->pName) {
@@ -402,7 +406,7 @@ static int LecShare_Count(const char* pName)
 static LecEntry* LecShare_Find(const char* pName)
 {
     int n = lec_state.count;
-    LecEntry* p = &lec_state.entries[n - 1];
+    LecEntry* p = lec_state.entries + n - 1;
     int i = n;
 
     while (i-- != 0) {

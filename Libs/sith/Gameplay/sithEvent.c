@@ -164,7 +164,9 @@ void J3DAPI sithEvent_ResetFreeBufferTable(void)
 {
     int i;
 
-    for ( i = STD_ARRAYLEN(aFreeEventBufferIdxs); i >= 0; --i )
+    // Port: retail ran i down to 0 and so wrote -1 one element past the end of the table, into whichever global the
+    // linker put next. The 256 entries it meant to fill are the same.
+    for ( i = STD_ARRAYLEN(aFreeEventBufferIdxs); i > 0; --i )
     {
         aFreeEventBufferIdxs[STD_ARRAYLEN(aFreeEventBufferIdxs) - i] = i - 1;
     }

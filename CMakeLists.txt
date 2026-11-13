@@ -19,6 +19,7 @@ endif()
 # configuration unless the engine's debug asserts are asked for explicitly.
 option(J3D_WERROR_SHORTEN "Treat -Wshorten-64-to-32 as an error (enable once the Phase 1 audit is closed)" OFF)
 option(J3D_DEBUG_ASSERTS "Compile the engine's debug-only J3D_ASSERT checks" OFF)
+option(J3D_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer (PORT-PLAN.md P1.21)" OFF)
 
 set(J3D_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 set(J3D_GENERATED ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -76,6 +77,15 @@ target_compile_options(j3d_common INTERFACE
     -Wno-microsoft-anon-tag
     -Wno-deprecated-declarations   # sprintf and friends, deprecated by the macOS SDK; reported once optimisation is on
 )
+
+# Sanitizer build: every target, the tests included, is compiled and linked with ASan and UBSan. Configure it in its
+# own build directory (docs/BUILDING.md). UBSan reports are recoverable in the binaries, so a manual run with
+# UBSAN_OPTIONS=halt_on_error=0 lists every report; the tests set halt_on_error=1 so the first one fails them.
+if(J3D_SANITIZE)
+    target_compile_options(j3d_common INTERFACE -fsanitize=address,undefined -fno-omit-frame-pointer -g)
+    target_link_options(j3d_common INTERFACE -fsanitize=address,undefined)
+    set(J3D_SANITIZER_ENV "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1;ASAN_OPTIONS=detect_leaks=0")
+endif()
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Engine libraries. Sources are globbed per library; files whose job is the Windows platform layer are removed here
@@ -198,6 +208,7 @@ foreach(test IN LISTS J3D_TESTS)
     target_link_options(${test} PRIVATE LINKER:-no_warn_duplicate_libraries)
     if(J3D_TEST_DATA)
         add_test(NAME ${test} COMMAND ${test} ${J3D_TEST_DATA})
+        set_tests_properties(${test} PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
     endif()
 endforeach()
 
@@ -209,6 +220,6 @@ endforeach()
 if(J3D_TEST_DATA)
     add_test(NAME boot COMMAND jones3d --data ${J3D_TEST_DATA} --headless --frames 600)
     set_tests_properties(boot PROPERTIES
-        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot/logs/"
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()

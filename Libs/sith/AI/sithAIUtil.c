@@ -608,8 +608,7 @@ int J3DAPI sithAIUtil_SyncWpnts(DPID idTo, unsigned int outstream)
         SITHDSS_PUSHFLOAT(sithAIUtil_aWpntOwners[wpntNum].cosTurnAlignAngle);
     }
 
-    *(int*)pCurDSSMsgData_ = sithAIUtil_activeWpntLayer;
-    pCurDSSMsgData_ += 4;
+    SITHDSS_PUSHINT32(sithAIUtil_activeWpntLayer); // Port: was a cast-pointer store and an advance
 
     sithMulti_message.type   = SITHDSS_SYNCWPNT;
     SITHDSS_ENDOUT;
@@ -619,32 +618,34 @@ int J3DAPI sithAIUtil_SyncWpnts(DPID idTo, unsigned int outstream)
 int J3DAPI sithAIUtil_ProcessSyncWpnts(const SithMessage* pMsg)
 {
     int idx, j;
-    const int* pData = (const int*)&pMsg->data[0];
+    // Port: retail read the message through a const int*, but the message data is not 4-byte aligned (UBSan,
+    // PORT-PLAN.md P1.21). The DSS pop helpers read the same words.
+    uint8_t* pCurDSSMsgData_ = (uint8_t*)&pMsg->data[0];
 
 #line 936
     SITH_ASSERTREL(pMsg);
 
     for ( idx = 0; idx < 60; ++idx )
     {
-        sithAIUtil_aAIWpnts[idx].thingNum     = *pData++;
-        sithAIUtil_aAIWpnts[idx].flags        = *pData++;
-        sithAIUtil_aAIWpnts[idx].numUsedLinks = *pData++;
+        sithAIUtil_aAIWpnts[idx].thingNum     = SITHDSS_POPINT32();
+        sithAIUtil_aAIWpnts[idx].flags        = SITHDSS_POPINT32();
+        sithAIUtil_aAIWpnts[idx].numUsedLinks = SITHDSS_POPINT32();
         for ( j = 0; j < 8; ++j )
         {
-            sithAIUtil_aAIWpnts[idx].aWpntLinks[j] = *pData++;
+            sithAIUtil_aAIWpnts[idx].aWpntLinks[j] = SITHDSS_POPINT32();
         }
 
-        sithAIUtil_aAIWpnts[idx].rank = *pData++;
+        sithAIUtil_aAIWpnts[idx].rank = SITHDSS_POPINT32();
     }
 
     for ( idx = 0; idx < 10; ++idx )
     {
-        sithAIUtil_aWpntOwners[idx].thingNum          = *pData++;
-        sithAIUtil_aWpntOwners[idx].waypointNum       = *pData++;
-        sithAIUtil_aWpntOwners[idx].cosTurnAlignAngle = *(const float*)pData++;
+        sithAIUtil_aWpntOwners[idx].thingNum          = SITHDSS_POPINT32();
+        sithAIUtil_aWpntOwners[idx].waypointNum       = SITHDSS_POPINT32();
+        sithAIUtil_aWpntOwners[idx].cosTurnAlignAngle = SITHDSS_POPFLOAT();
     }
 
-    sithAIUtil_activeWpntLayer = *pData++;
+    sithAIUtil_activeWpntLayer = SITHDSS_POPINT32();
     return 1;
 }
 

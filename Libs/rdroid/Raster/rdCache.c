@@ -393,7 +393,9 @@ void J3DAPI rdCache_SendFaceListToHardware(size_t numPolys, rdCacheProcEntry* pC
 
             ++pCurPoly;
             ++polyNum;
-            if ( totalIndices + 3 * (pCurPoly->numVertices - 2) >= std3D_maxVertices )
+            // Port: retail read the face after the last one here (past rdCache_aProcFaces when the cache was full) before
+            // the loop condition stopped at numPolys; the extra test skips that read and ends the loop the same way.
+            if ( polyNum < numPolys && totalIndices + 3 * (pCurPoly->numVertices - 2) >= std3D_maxVertices )
             {
                 break;
             }

@@ -9,6 +9,15 @@
 #include "../lec.h"
 #include "../Util/List.h"
 #include "Memory.h"
+#include <string.h>
+
+// Port: retail put a 4-byte size header before the block and the raw address as a 4-byte guard after it, in a
+// malloc(size + 8). On 64-bit the guard is 8 bytes and overran the allocation by 4, and the 4-byte header left every
+// block only 4-byte aligned. The header is now 16 bytes (malloc's alignment) and the guard is pointer-sized and
+// copied unaligned. The usage figures still count size + 4, as retail printed them.
+#define MEMORY_HEADER 16
+#define MEMORY_ALLOCSIZE(size) ((size_t)(size) + MEMORY_HEADER + sizeof(char*))
+
 
 typedef struct MemoryRecord
 {
@@ -72,21 +81,21 @@ static void memory_Unregister(void)
 
 static void* memory_debugAlloc(int size, const char* pFile, int line)
 {
-    char* pRaw = malloc(size + 8);
+    char* pRaw = malloc(MEMORY_ALLOCSIZE(size));
     if (!pRaw) {
         return NULL;
     }
     memory_Track(pRaw, size, pFile, line, "Alloc");
     *(int*)pRaw = size;
     memory_total += size + 4;
-    return pRaw + 4;
+    return pRaw + MEMORY_HEADER;
 }
 
 static int memory_Track(char* pRaw, int size, const char* pFile, int line, const char* pOp)
 {
     MemoryRecord* pRecord;
 
-    *(char**)(pRaw + size + 4) = pRaw;
+    memcpy(pRaw + MEMORY_HEADER + size, &pRaw, sizeof(pRaw));
     if (memory_total > memory_maxTotal) {
         memory_maxTotal = memory_total;
     }
@@ -111,7 +120,7 @@ static int memory_Track(char* pRaw, int size, const char* pFile, int line, const
 
 static void memory_debugFree(void* pBlock, const char* pFile, int line)
 {
-    char* pRaw = (char*)pBlock - 4;
+    char* pRaw = (char*)pBlock - MEMORY_HEADER;
 
     memory_total -= *(int*)pRaw + 4;
     if (!memory_Check(pRaw, *(int*)pRaw, pFile, line, "Free")) {
@@ -122,7 +131,11 @@ static void memory_debugFree(void* pBlock, const char* pFile, int line)
 static int memory_Check(char* pRaw, int size, const char* pFile, int line, const char* pOp)
 {
     MemoryRecord* pRecord;
-    int bad = *(char**)(pRaw + size + 4) != pRaw;
+    char* pGuard;
+    int bad;
+
+    memcpy(&pGuard, pRaw + MEMORY_HEADER + size, sizeof(pGuard));
+    bad = pGuard != pRaw;
 
     for (pRecord = (MemoryRecord*)memory_list.head.pNext; &pRecord->link != &memory_list.tail; pRecord = (MemoryRecord*)pRecord->link.pNext) {
         if (pRaw == pRecord->pBlock) {
@@ -146,14 +159,16 @@ static void* memory_debugRealloc(void* pBlock, int size, const char* pFile, int 
     char* pNew;
     int base;
 
-    if (pRaw) {
-        pRaw -= 4;
-        base = memory_total - *(int*)pRaw - 4;
+    if (!pRaw) {
+        // Port: retail read the size header through NULL here; realloc(NULL, n) is an allocation
+        return memory_debugAlloc(size, pFile, line);
     }
+    pRaw -= MEMORY_HEADER;
+    base = memory_total - *(int*)pRaw - 4;
     if (memory_Check(pRaw, *(int*)pRaw, pFile, line, "Re-Free")) {
         return NULL;
     }
-    pNew = realloc(pRaw, size + 8);
+    pNew = realloc(pRaw, MEMORY_ALLOCSIZE(size));
     if (!pNew) {
         memory_Track(pRaw, *(int*)pRaw, pFile, line, "Re-UnAlloc");
         return NULL;
@@ -161,5 +176,5 @@ static void* memory_debugRealloc(void* pBlock, int size, const char* pFile, int 
     memory_Track(pNew, size, pFile, line, "Re-Alloc");
     *(int*)pNew = size;
     memory_total = base + size + 4;
-    return pNew + 4;
+    return pNew + MEMORY_HEADER;
 }

@@ -1358,7 +1358,7 @@ int J3DAPI sithDSSThing_FullDescription(const SithThing* pThing, DPID idTo, unsi
                 const SithActorWeaponInfo* pWeaponInfo = &pActorInfo->weaponInfo;
                 const SithActorVoiceInfo* pVoiceInfo = &pActorInfo->voiceInfo;
 
-                *(*(float**)&pCurDSSMsgData_)++ = pWeaponInfo->secWeaponActivationStartTime;
+                SITHDSS_PUSHFLOAT(pWeaponInfo->secWeaponActivationStartTime); // Port: was a cast-pointer store
                 SITHDSS_PUSHFLOAT(pWeaponInfo->secTimeLastRapidFired);
                 SITHDSS_PUSHFLOAT(pWeaponInfo->secWeaponActivationWaitEndTime);
                 SITHDSS_PUSHFLOAT(pWeaponInfo->secWeaponActivationWaitTime);
@@ -1638,8 +1638,7 @@ int J3DAPI sithDSSThing_ProcessFullDescription(const SithMessage* pMsg)
 
             case SITH_MT_PATH:
                 pPath = &pThing->moveInfo.pathMovement;
-                data16 = *(int16_t*)pCurDSSMsgData_;
-                pCurDSSMsgData_ += sizeof(int16_t);
+                data16 = SITHDSS_POPINT16(); // Port: was a cast-pointer load and an advance
                 pPath->mode = data16;
                 SITHDSS_POPVEC3(&pPath->vecDeltaPos);
                 pPath->moveTimeRemaining = SITHDSS_POPFLOAT();
@@ -1648,17 +1647,13 @@ int J3DAPI sithDSSThing_ProcessFullDescription(const SithMessage* pMsg)
                 SITHDSS_POPVEC3(&pPath->rotOffset);
                 SITHDSS_POPVEC3(&pPath->goalPYR);
                 pPath->rotDelta = SITHDSS_POPFLOAT();
-                data16 = *(int16_t*)pCurDSSMsgData_;
-                pCurDSSMsgData_ += sizeof(int16_t);
+                data16 = SITHDSS_POPINT16(); // Port: was a cast-pointer load and an advance
                 pPath->numBlockedMoves = data16;
-                data16 = *(int16_t*)pCurDSSMsgData_;
-                pCurDSSMsgData_ += sizeof(int16_t);
+                data16 = SITHDSS_POPINT16(); // Port: was a cast-pointer load and an advance
                 pPath->currentFrame = data16;
-                data16 = *(int16_t*)pCurDSSMsgData_;
-                pCurDSSMsgData_ += sizeof(int16_t);
+                data16 = SITHDSS_POPINT16(); // Port: was a cast-pointer load and an advance
                 pPath->nextFrame = data16;
-                data16 = *(int16_t*)pCurDSSMsgData_;
-                pCurDSSMsgData_ += sizeof(int16_t);
+                data16 = SITHDSS_POPINT16(); // Port: was a cast-pointer load and an advance
                 pPath->goalFrame = data16;
                 SITHDSS_POPVEC3(&pPath->curOrient.rvec);
                 SITHDSS_POPVEC3(&pPath->curOrient.lvec);
@@ -1666,8 +1661,7 @@ int J3DAPI sithDSSThing_ProcessFullDescription(const SithMessage* pMsg)
                 SITHDSS_POPVEC3(&pPath->curOrient.dvec);
                 SITHDSS_POPVEC3(&pPath->rotateToPYR);
 
-                data16 = *(int16_t*)pCurDSSMsgData_;
-                pCurDSSMsgData_ += sizeof(int16_t);
+                data16 = SITHDSS_POPINT16(); // Port: was a cast-pointer load and an advance
                 pPath->numFrames = data16;
                 if ( pPath->numFrames )
                 {

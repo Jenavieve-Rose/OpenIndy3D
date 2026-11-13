@@ -9,6 +9,17 @@
 #define STDMEMORY_BLOCKUSED 0x8000
 #define STDMEMORY_BLOCKSIZE 0x7FFF
 
+// Port: the guard word after a block sits at an arbitrary byte offset (sizes are not rounded); x86 stored it unaligned,
+// which is undefined in C. memcpy is the same store.
+#define STDMEMORY_WRITETRAILER(pDest) do { DWORD trailer_ = STDMEMORY_HEADERMAGIC; memcpy((pDest), &trailer_, sizeof(trailer_)); } while ( 0 )
+
+static inline int stdMemory_TrailerIntact(const void* pTrailer)
+{
+    DWORD trailer;
+    memcpy(&trailer, pTrailer, sizeof(trailer));
+    return trailer == STDMEMORY_HEADERMAGIC;
+}
+
 static tMemoryBlock stdMemory_aZoneData[STDMEMORY_ZONECOUNT];
 tMemoryState stdMemory_curState;
 
@@ -123,7 +134,7 @@ void* J3DAPI stdMemory_Malloc(size_t size, const char* pFilename, size_t line)
     memset((char*)pInfo + sizeof(tMemoryHeader), 0xCC, size);
 
     pHeader->magic = STDMEMORY_HEADERMAGIC;
-    *(DWORD*)((char*)pInfo + size + sizeof(tMemoryHeader)) = STDMEMORY_HEADERMAGIC;
+    STDMEMORY_WRITETRAILER((char*)pInfo + size + sizeof(tMemoryHeader)); // Port: was an unaligned DWORD store
     stdMemory_curState.totalBytes += size;
     stdMemory_curState.maxBytes = (stdMemory_curState.maxBytes > stdMemory_curState.totalBytes) ? stdMemory_curState.maxBytes : stdMemory_curState.totalBytes;
     ++stdMemory_curState.totalAllocs;
@@ -143,7 +154,7 @@ void J3DAPI stdMemory_Free(void* pBytes)
 
 #line 335
     STD_ASSERTREL(pHeader->magic==0x12345678);
-    STD_ASSERTREL(*(DWORD *)((BYTE *)pBytes+pHeader->size)==0x12345678);
+    STD_ASSERTREL(stdMemory_TrailerIntact((BYTE*)pBytes + pHeader->size)); // Port: was an unaligned DWORD load
 
     memset(pBytes, STD_MEMORY_FREE_PATTERN, pHeader->size);
     if ( pHeader->pNext )
@@ -196,7 +207,7 @@ void* J3DAPI stdMemory_Realloc(void* pBytes, size_t size, const char* pFilename,
         pHeader->pPrev->pNext = pHeader;
     }
     pHeader->magic = STDMEMORY_HEADERMAGIC;
-    *(DWORD*)((char*)pInfo + size + sizeof(tMemoryHeader)) = STDMEMORY_HEADERMAGIC;
+    STDMEMORY_WRITETRAILER((char*)pInfo + size + sizeof(tMemoryHeader)); // Port: was an unaligned DWORD store
     stdMemory_curState.totalBytes += size - oldSize;
     stdMemory_curState.maxBytes = (stdMemory_curState.maxBytes > stdMemory_curState.totalBytes) ? stdMemory_curState.maxBytes : stdMemory_curState.totalBytes;
     return (char*)pInfo + sizeof(tMemoryHeader);
@@ -216,7 +227,13 @@ void* J3DAPI stdMemory_BlockMalloc(size_t size)
     if ( size > 4096 ) {
         return stdMemory_BlockAlloc(size);
     }
+#ifdef J3D_PORT
+    // Port: blocks were rounded to 4 bytes, which kept the 8-byte zone headers (and the blocks after them) aligned only
+    // on 32-bit. Rounding to the pointer size keeps both pointer-aligned on 64-bit; the zone size is a multiple of it.
+    size = (size + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
+#else
     size = (size + 3) & ~3;
+#endif
     for ( i = 0, pZone = stdMemory_aZoneData; i < STDMEMORY_ZONECOUNT && pZone->bAlloced; ++i, ++pZone )
     {
         if ( pZone->largestSize >= size ) {

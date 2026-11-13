@@ -314,7 +314,8 @@ int J3DAPI stdConffile_ReadLine(void)
         _strlwr(pLine);
 
         len = strlen(stdConffile_aLine);
-        if ( stdConffile_aLine[len - 2] == '\\' )
+        // Port: retail read stdConffile_aLine[-1] here for a one-character line (the last line of a file with no newline)
+        if ( len >= 2 && stdConffile_aLine[len - 2] == '\\' )
         {
             nRead = STDCONFFILE_LINESIZE - len;
             if ( !nRead )
@@ -328,7 +329,7 @@ int J3DAPI stdConffile_ReadLine(void)
         else
         {
             bEnd = 1;
-            if ( stdConffile_aLine[len - 1] == '\r' || stdConffile_aLine[len - 1] == '\n' )
+            if ( len >= 1 && (stdConffile_aLine[len - 1] == '\r' || stdConffile_aLine[len - 1] == '\n') ) // Port: len guard
             {
                 stdConffile_aLine[len - 1] = '\0';
             }

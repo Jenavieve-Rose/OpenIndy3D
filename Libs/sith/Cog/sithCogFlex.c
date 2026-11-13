@@ -297,6 +297,12 @@ static const YY_CHAR yy_ec[128] =
        30,   30,   51,   52,   53,   54,    1
     } ;
 
+/* Port: this is a 7-bit scanner (flex -7), so yy_ec has 128 entries, and it was indexed with the plain signed char of
+ * the input. A byte of 0x80 or more (the "e" with diaeresis in a comment of 10_SEA_Vol_Frets.cog) indexed up to 128
+ * bytes before the table and took whatever class retail's data layout put there. Such bytes now take the class of a
+ * letter, which keeps a comment a comment (PORT-PLAN.md P1.21). */
+#define J3D_YY_EC(c) ((unsigned char)(c) < 128 ? yy_ec[(unsigned char)(c)] : yy_ec['a'])
+
 static const YY_CHAR yy_meta[55] =
     {   0,
         1,    1,    2,    1,    1,    1,    1,    1,    1,    1,
@@ -497,7 +503,7 @@ YY_DECL
 yy_match:
 	do
 	    {
-	    register YY_CHAR yy_c = yy_ec[*yy_cp];
+	    register YY_CHAR yy_c = J3D_YY_EC(*yy_cp);
 	    if ( yy_accept[yy_current_state] )
 		{
 		yy_last_accepting_state = yy_current_state;
@@ -922,7 +928,7 @@ static yy_state_type yy_get_previous_state()
 
     for ( yy_cp = yytext + YY_MORE_ADJ; yy_cp < yy_c_buf_p; ++yy_cp )
 	{
-	register YY_CHAR yy_c = (*yy_cp ? yy_ec[*yy_cp] : 1);
+	register YY_CHAR yy_c = (*yy_cp ? J3D_YY_EC(*yy_cp) : 1);
 	if ( yy_accept[yy_current_state] )
 	    {
 	    yy_last_accepting_state = yy_current_state;
