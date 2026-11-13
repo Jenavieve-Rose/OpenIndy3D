@@ -173,8 +173,10 @@ j3d_library(sith
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Platform layer, as three libraries:
-#   platform_core   real implementations every build shares (CRT names, paths, settings, VBuffers, headless display)
-#   platform_null   the generated null backends: every Windows-facing function exists and fails or does nothing
+#   platform_core   real implementations every build shares (CRT names, paths, settings, VBuffers, display queries
+#                   and back buffer)
+#   platform_null   the generated null backends: every Windows-facing function exists and fails or does nothing;
+#                   plus the headless display device (stdDisplay_headless.c)
 #   platform_apple  the SDL3 and Metal backends (J3D_PLATFORM=apple), plus the null backends they do not yet replace
 # The engine libraries call into the platform and the platform calls back into them, so the platform is not a
 # dependency of jones3d_game: each executable links jones3d_game and exactly one of platform_null and platform_apple.
@@ -191,8 +193,9 @@ if(J3D_PLATFORM STREQUAL "apple")
     # Null backend files that an Apple backend replaces whole. A backend that replaces only part of a null file is
     # handled in tools/gen_null_platform.py instead, by moving the rest into a file of its own.
     set(J3D_APPLE_REPLACES_NULL
-        wkernel_null.c      # platform/apple/wkernel_sdl.c (P2.2)
-        win32_msg_null.c    # the game window's message queue and timers, also wkernel_sdl.c
+        wkernel_null.c          # platform/apple/wkernel_sdl.c (P2.2)
+        win32_msg_null.c        # the game window's message queue and timers, also wkernel_sdl.c
+        stdDisplay_headless.c   # platform/apple/stdDisplay_sdl.c (P2.3)
     )
     set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
     foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
@@ -274,6 +277,19 @@ foreach(test IN LISTS J3D_TESTS)
         set_tests_properties(${test} PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
     endif()
 endforeach()
+
+# Tests that need no game data, registered in every configuration:
+#   display    the shared system-memory half of stdDisplay: back buffer, fills, blits, RGB565, SaveScreen (P2.4 to P2.7)
+#   present    (apple builds) the Metal present path, read back from a real window; skipped (77) with no window server
+j3d_executable(display platform_null ${J3D_ROOT}/tests/display.c ${J3D_ROOT}/tests/harness.c)
+add_test(NAME display COMMAND display)
+set_tests_properties(display PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
+if(J3D_PLATFORM STREQUAL "apple")
+    j3d_executable(present platform_apple ${J3D_ROOT}/tests/present.c ${J3D_ROOT}/tests/harness.c)
+    add_test(NAME present COMMAND present)
+    set_tests_properties(present PROPERTIES
+        ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT" SKIP_RETURN_CODE 77)
+endif()
 
 # boot: the game itself (its null-backend build, J3D_HEADLESS_TARGET), headless (in-memory display, virtual clock), for
 # 600 frames of the first level: 20 seconds of game time, which covers level open, the level-start autosave and the

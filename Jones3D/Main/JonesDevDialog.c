@@ -702,7 +702,7 @@ size_t J3DAPI JonesDevDialog_FindClosestVideoMode(const StdDisplayEnvironment* p
 
     for ( i = 0; i < pList->aDisplayInfos[deviceNum].numModes; ++i )
     {
-        if ( pDisplay->aModes[i].rasterInfo.colorInfo.bpp == 16 )
+        if ( pDisplay->aModes[i].rasterInfo.colorInfo.bpp == 32 ) // Port: retail searched the 16 bpp modes; the port's are all 32 bpp
         {
             if ( pDisplay->aModes[i].rasterInfo.width == pVideoMode->rasterInfo.width && pDisplay->aModes[i].rasterInfo.height == pVideoMode->rasterInfo.height )
             {

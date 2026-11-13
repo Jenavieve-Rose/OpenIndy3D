@@ -32,8 +32,15 @@ int J3DAPI stdBmp_WriteVBuffer(const char* pFilename, tVBuffer* pVBuffer)
         return 1;
     }
 
+#ifdef J3D_PORT
+    // Port: the rows written are 24-bit, padded to 4 bytes as BMP requires. Retail sized the header from the source
+    // depth (32 bpp: a third too large) and wrote unpadded rows, which only read back right when 3 * width was a
+    // multiple of 4.
+    imageSize = (DWORD)(((3 * (size_t)pVBuffer->rasterInfo.width + 3) & ~(size_t)3) * pVBuffer->rasterInfo.height); // Port: narrowing cast
+#else
     /* Retail uses the source depth, even though the output rows are 24-bit. */
     imageSize = pVBuffer->rasterInfo.width * pVBuffer->rasterInfo.height * pVBuffer->rasterInfo.colorInfo.bpp / 8;
+#endif
 
     memset(&fileHeader, 0, sizeof(fileHeader));
 
@@ -82,7 +89,11 @@ int J3DAPI stdBmp_WriteVBuffer(const char* pFilename, tVBuffer* pVBuffer)
         return 1;
     }
 
+#ifdef J3D_PORT
+    size = (3 * (size_t)pVBuffer->rasterInfo.width + 3) & ~(size_t)3; // Port: 24 bpp, padded to 4 bytes
+#else
     size = 3 * pVBuffer->rasterInfo.width; // 3 - 24 bpp
+#endif
 #line 537
     pRow = (uint8_t*)STDMALLOC(size);
     if ( !pRow )
@@ -108,7 +119,7 @@ int J3DAPI stdBmp_WriteVBuffer(const char* pFilename, tVBuffer* pVBuffer)
         );
 
         nWritten = std_pHS->pFileWrite(fh, pRow, size);
-        if ( nWritten != 3 * pVBuffer->rasterInfo.width )
+        if ( nWritten != size ) // Port: the padded row; retail compared with 3 * width, its unpadded row size
         {
 #line 556
             stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error attempting to write %d bytes to file '%s'.\n", size, pFilename, 0, 0);

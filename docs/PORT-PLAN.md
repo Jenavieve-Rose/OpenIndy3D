@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 2 of 22 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 8 of 22 | In progress |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **44 of 146** | |
+| **All** | | **50 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -32,13 +32,13 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 
 | Check | Result |
 | --- | --- |
-| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 compiler warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8); in the default `J3D_PLATFORM=apple` tree, one linker warning about Homebrew's SDL3 deployment target (P8.3) |
-| `ctest` (with `-DJ3D_TEST_DATA`) | `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` in the apple build |
+| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 compiler warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the two programs that link SDL3 (P8.3) |
+| `ctest` | `display` passes (no game data needed), and `present` in the apple build (needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` in the apple build |
 | The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All four pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
 | `python3 tools/layout_audit.py` | `0 retail on-disk type(s) differ` |
-| `jones3d --data <data>` | Opens the three GOBs, loads the string tables, starts the engine, stops at `stdDisplay_Open` (no display backend) |
+| `jones3d --data <data>` | Apple build: opens the game window (fullscreen or windowed, at the mode the settings name), runs the game in it and presents every frame through Metal at the display's refresh; the frames are black until the renderer draws (P2.9 on). Null build: stops at the display enumeration (no display backend) |
 | `jones3d --data <data> --headless --frames 600` | Loads `00_cyn`, writes the level-start autosave, runs 600 frames (20 s of game time) of the opening cutscene and shuts down cleanly, exit 0, in under a second. Two runs print the same log and write byte-identical saves |
 | `saveload <data>` | After 300 frames, a save restored into a fresh world matches the world that was saved (236 things, positions bit for bit, COG globals, game time), and a save of the restored game matches the first; the game then runs 300 more frames |
 | Long paths | `boot` and `saveload` pass with a 257-character `Install Path`; `boot`, `levelload` and `cogcheck` with a 229-character data root |
@@ -167,14 +167,16 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    platform/                                      │
    ├─ common/crt_posix.c, host_path.h   MSVC CRT names, path conversion      exists
    ├─ common/host_clock.h, host_dirs.c  virtual clock, user and log folders  exists
-   ├─ common/stdDisplay_headless.c      in-memory display for tests          exists
+   ├─ common/stdDisplay_common.c        display queries, modes, back buffer  exists
+   ├─ common/null/stdDisplay_headless.c in-memory display for tests          exists
    ├─ common/wuRegistry_file.c          settings.ini                         exists
    ├─ common/stdDisplay_vbuffer.c       system-memory VBuffers               exists
    ├─ common/null/*_null.c              generated null backends              exists, shrinks every phase
    ├─ apple/main.c                      entry point, --data                  exists
    ├─ apple/shim/                       Win32 and DirectX type headers       exists, deleted in phase 7
-   ├─ wkernel_sdl.c                     event loop, window proc messages     phase 2
-   ├─ stdDisplay_sdl.c                  window, modes, back buffer, present  phase 2
+   ├─ apple/wkernel_sdl.c               event loop, window proc messages     exists
+   ├─ apple/stdDisplay_sdl.c            display device, modes                exists
+   ├─ apple/display_metal.m             back-buffer present over Metal       exists
    ├─ std3D_metal.m                     Metal rasterizer                     phase 2
    ├─ stdControl_sdl.c                  keyboard to DIK, mouse, gamepads     phase 3
    ├─ SoundDriver_ma.c                  miniaudio voices, 3D listener        phase 4
@@ -356,19 +358,34 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       uses SDL's dummy driver and the new `boot-sdl` test runs the event loop. Checked: a window opens and a quit
       event closes it with exit 0 (also under the sanitizers); `boot-sdl` matches `boot`'s log and save. Focus loss
       and keys are checked by review only until scripted input exists (Phase 3).
-- [ ] **P2.3** (M) `stdDisplay_sdl.c`, device and modes: `Startup`, `Open`, `Close`, one display device, the mode list
+- [x] **P2.3** (M) `stdDisplay_sdl.c`, device and modes: `Startup`, `Open`, `Close`, one display device, the mode list
       (desktop modes plus window sizes, within the engine's 64-mode cap), `SetMode`, `FindClosestMode`,
-      `GetCurrentVideoMode`, `IsFullscreen`, `CanRenderWindowed`.
-- [ ] **P2.4** (S) Back buffer: a 32-bit BGRA system-memory VBuffer as the engine's back buffer;
-      `LockBackBuffer`/`UnlockBackBuffer`, `BackBufferFill`, `ClearRect`, `GetBackBufferSize`.
-- [ ] **P2.5** (M) `stdDisplay_VBufferFill` and `stdDisplay_VBufferCopy` with colour key: port the retail
-      system-memory blit paths for 32 bpp only; `EncodeFromRGB565`.
-- [ ] **P2.6** (M) First present path: upload the back buffer to a Metal texture and draw it as a full-screen quad to
+      `GetCurrentVideoMode`, `IsFullscreen`, `CanRenderWindowed`. Done: the backend-independent half of `stdDisplay`
+      (queries, `FindClosestMode`, the back buffer) moved to `stdDisplay_common.c`, shared with the headless device;
+      fullscreen covers the display at the desktop mode with no mode change; the null `std3D` builds its display
+      environment from `stdDisplay` as retail did, and the game's mode search takes 32 bpp modes, so the `Width` and
+      `Height` settings apply. Checked: all tests pass in apple, null and sanitizer trees, `boot-sdl` and `boot` saves
+      still identical; windowed 800x600 and default fullscreen verified on screen (`docs/PORTING.md`, "Display device
+      and modes").
+- [x] **P2.4** (S) Back buffer: a 32-bit BGRA system-memory VBuffer as the engine's back buffer;
+      `LockBackBuffer`/`UnlockBackBuffer`, `BackBufferFill`, `ClearRect`, `GetBackBufferSize`. Done: shared by both
+      backends in `stdDisplay_common.c`; return values as retail. Checked: `display` test.
+- [x] **P2.5** (M) `stdDisplay_VBufferFill` and `stdDisplay_VBufferCopy` with colour key: port the retail
+      system-memory blit paths for 32 bpp only; `EncodeFromRGB565`. Done: `BlitSysToSys` for 8, 16, 24 and 32 bpp, with
+      a signed clip against both buffers (retail could read and write out of bounds). Checked: `display` test, every
+      overhang and key case against a pixel-by-pixel reference.
+- [x] **P2.6** (M) First present path: upload the back buffer to a Metal texture and draw it as a full-screen quad to
       the `CAMetalLayer` drawable in `stdDisplay_Refresh`, with vsync. Check: the level-load progress screen is
-      visible.
-- [ ] **P2.7** (S) `stdDisplay_SaveScreen`, plus `--screenshot-at <frame>` so images can be captured by script.
-- [ ] **P2.8** (S) Remaining `stdDisplay` entries: `CreateZBuffer`, memory queries, `SetDefaultResolution`, clipper
-      functions as no-ops. The four `*BufferDC` functions and `FlipToGDISurface` stay null until P6.5.
+      visible. Done: `display_metal.m`, called from `stdDisplay_Update` (retail's flip; `Refresh` re-sets a mode);
+      a ring of three textures, bilinear scaling to the window, vsync. The load screen is drawn through `std3D`, so it
+      appears with P2.9 to P2.12; checked instead by the new `present` test, which reads the drawable back and compares
+      it with a pattern drawn through `stdDisplay`, unscaled and scaled.
+- [x] **P2.7** (S) `stdDisplay_SaveScreen`, plus `--screenshot-at <frame>` so images can be captured by script. Done:
+      `--screenshot-at <n>[,<n>...]` and `--screenshot-file`; `stdBmp_WriteVBuffer` now pads rows and sizes its header
+      correctly. Checked: `display` test; a headless run writes BMPs that `sips` reads.
+- [x] **P2.8** (S) Remaining `stdDisplay` entries: `CreateZBuffer`, memory queries, `SetDefaultResolution`, clipper
+      functions as no-ops. The four `*BufferDC` functions and `FlipToGDISurface` stay null until P6.5. Done: memory
+      queries report the Metal device's working set. `Refresh` also stays null (P2.19).
 
 #### 2B. Metal rasterizer (`std3D_metal.m`)
 
@@ -609,12 +626,14 @@ j3dport/
   LICENSE, NOTICE       exists
   Jones3D/              imported; Win32 calls resolved by the shim until phase 7
   Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
-  platform/apple/       main.c, shim/, host_apple.m   + std3D_metal.m (2), bundle and locator (8)
+  platform/apple/       main.c, shim/, host_apple.m, wkernel_sdl.c, stdDisplay_sdl.c, display_metal.m
+                        + std3D_metal.m (2), bundle and locator (8)
   platform/common/      crt_posix.c, host_path.h, host_clock.h, host_dirs.c, wuRegistry_file.c,
-                        stdDisplay_vbuffer.c, stdDisplay_headless.c, null/
+                        stdDisplay_vbuffer.c, stdDisplay_common.c, host_screenshot.c,
+                        null/ (with stdDisplay_headless.c)
                         + SDL backends (2, 3), SoundDriver_ma.c (4), insane_os/ (5), j3dgui/ (6)
   tools/                gen_null_platform.py, layout_audit.py, gobtool.py     + rc2table.py (6)
-  tests/                harness.c, levelload.c, cogcheck.c, saveload.c          + moviecheck.c (5)
+  tests/                harness.c, levelload.c, cogcheck.c, saveload.c, display.c, present.c   + moviecheck.c (5)
   third_party/          not yet created: miniaudio.h (4)
   docs/                 PORT-PLAN.md, PORTING.md, and the decomp's reference documents
 ```
@@ -682,7 +701,7 @@ guide.
 | --- | --- | --- | --- |
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
 | 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
-| 2 | Metal renderer, first level on screen | 3 to 4 weeks | Started: build plumbing (P2.1), window and event loop (P2.2) |
+| 2 | Metal renderer, first level on screen | 3 to 4 weeks | 2A (window and 2D) complete: window and event loop, display device and modes, back buffer, blits, Metal present, screenshots (P2.1 to P2.8) |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
 | 4 | Audio complete | 2 weeks | Not started |
 | 5 | Movies complete | 2 to 3 weeks | Not started |
@@ -695,9 +714,10 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. **P2.3 to P2.6:** the display device, the back buffer and the first present, so the level-load screen is visible
-   (the window and event loop exist since P2.2).
-3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
+1. **P2.9 to P2.12 (2B):** the Metal renderer's skeleton, shaders, geometry and textures. Everything the game draws,
+   the level-load screen included, goes through `std3D`, so this is where the first game pixels appear; the present
+   path, screenshots and the `present` test from 2A are ready for it.
+2. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 
 To reproduce the measurements at the top of this file:

@@ -7,8 +7,11 @@
  *
  * Port options are taken out of argv before the rest is joined, so the engine's own parser never sees them:
  *   --data <dir>   game data root, the folder that holds RESOURCE/ (sets J3D_DATA; see wuRegistry_file.c)
- *   --headless     run with the in-memory display and no window (sets J3D_HEADLESS; see stdDisplay_headless.c)
+ *   --headless     run on the virtual clock with no window (apple build: SDL's dummy driver) (sets J3D_HEADLESS; see
+ *                  stdDisplay_headless.c and stdDisplay_sdl.c)
  *   --frames <n>   quit after n passes of the game loop (sets J3D_FRAMES; see wkernel_null.c and wkernel_sdl.c)
+ *   --screenshot-at <n>[,<n>...]  write the back buffer after those passes (sets J3D_SCREENSHOT_AT; host_screenshot.h)
+ *   --screenshot-file <path>      the screenshot file name, "{frame}" replaced (sets J3D_SCREENSHOT_FILE)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,6 +70,19 @@ int main(int argc, char** argv)
                 return EXIT_FAILURE;
             }
             setenv("J3D_FRAMES", argv[++i], 1);
+            continue;
+        }
+
+        if ( strcmp(argv[i], "--screenshot-at") == 0 || strcmp(argv[i], "--screenshot-file") == 0 )
+        {
+            if ( i + 1 >= argc )
+            {
+                fprintf(stderr, "%s: %s needs a value\n", argv[0], argv[i]);
+                free(pCmdLine);
+                return EXIT_FAILURE;
+            }
+            setenv(strcmp(argv[i], "--screenshot-at") == 0 ? "J3D_SCREENSHOT_AT" : "J3D_SCREENSHOT_FILE", argv[i + 1], 1);
+            ++i;
             continue;
         }
 

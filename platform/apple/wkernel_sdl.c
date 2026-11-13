@@ -49,6 +49,8 @@
 #include <Jones3D/Main/JonesMain.h>
 #include <std/Win95/stdWin95.h>
 
+#include <platform/common/host_screenshot.h>
+
 #define WKERNEL_WINDOW_WIDTH  640
 #define WKERNEL_WINDOW_HEIGHT 480
 
@@ -705,13 +707,21 @@ static int wkernel_CreateWindow(LPCSTR lpWindowName)
         SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
     }
 
+    // Fullscreen (stdDisplay_sdl.c) covers the display in place, as DirectDraw's exclusive mode did, rather than
+    // moving the window to a Space of its own: a Spaces transition is animated, and macOS ignores it for an app that
+    // is not frontmost, such as one started from a script. P2.19 revisits the fullscreen toggle.
+    SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
+
     if ( !SDL_Init(SDL_INIT_VIDEO) )
     {
         fprintf(stderr, "wkernel: SDL_Init failed: %s\n", SDL_GetError());
         return 1;
     }
 
-    wkernel_pWindow = SDL_CreateWindow(lpWindowName, WKERNEL_WINDOW_WIDTH, WKERNEL_WINDOW_HEIGHT, 0);
+    // A Metal window, for the presenter (stdDisplay_sdl.c), on any driver that has Metal views; the dummy driver has none.
+    const char*     pDriver = SDL_GetCurrentVideoDriver();
+    SDL_WindowFlags flags   = pDriver && strcmp(pDriver, "dummy") != 0 ? SDL_WINDOW_METAL : 0;
+    wkernel_pWindow = SDL_CreateWindow(lpWindowName, WKERNEL_WINDOW_WIDTH, WKERNEL_WINDOW_HEIGHT, flags);
     if ( !wkernel_pWindow )
     {
         fprintf(stderr, "wkernel: SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -763,6 +773,7 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
         result = JonesMain_Process();
         ++numFrames;
+        J3DHost_AfterFrame(numFrames); // --screenshot-at
     }
 
     wkernel_DestroyWindow();
@@ -782,7 +793,20 @@ void J3DAPI wkernel_SetWindowStyle(LONG dwNewLong)
 BOOL J3DAPI wkernel_SetWindowSize(int width, int height)
 {
     // Retail added its frame to the size; SDL sizes the client area directly, which is the same result.
-    return wkernel_pWindow && SDL_SetWindowSize(wkernel_pWindow, width, height);
+    if ( !wkernel_pWindow )
+    {
+        return FALSE;
+    }
+
+    // In a fullscreen mode retail's window already matched the screen (DirectDraw had set the display to the mode's
+    // size), so the call changed nothing. A fullscreen SDL window would shrink to the size given; it keeps the screen
+    // and the present path scales the back buffer to it (stdDisplay_sdl.c).
+    if ( (SDL_GetWindowFlags(wkernel_pWindow) & SDL_WINDOW_FULLSCREEN) != 0 )
+    {
+        return TRUE;
+    }
+
+    return SDL_SetWindowSize(wkernel_pWindow, width, height);
 }
 
 void J3DAPI wkernel_SetWindowProc(WKERNELWNDPROC pfProc)

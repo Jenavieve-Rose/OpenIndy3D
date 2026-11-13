@@ -194,9 +194,10 @@ VBuffers and a texture format even when nothing is drawn.
 `jones3d --headless --frames <n>` runs the real game loop with no window, renderer, input or sound, for tests
 (PORT-PLAN.md P1.17, P1.18). `ctest` runs it for 600 frames as the `boot` test.
 
-- `platform/common/stdDisplay_headless.c` implements the device, mode and back-buffer half of `stdDisplay` in memory:
-  one device, one 640×480 32 bpp mode, a system-memory back buffer, fill, lock and `SaveScreen`. Its functions are
-  named in the generator's `IMPLEMENTED_ELSEWHERE`. `stdDisplay_Open` still fails, as in Phase 0, unless
+- `platform/common/null/stdDisplay_headless.c` (moved from `platform/common/` in P2.3, see "Display device and
+  modes") is the null build's display device, in memory: one device and one 640×480 32 bpp mode. The queries, the
+  system-memory back buffer, fill, lock and `SaveScreen` are in `platform/common/stdDisplay_common.c`. These functions
+  are named in the generator's `IMPLEMENTED_ELSEWHERE`. `stdDisplay_Open` still fails, as in Phase 0, unless
   `J3D_HEADLESS` is set (`--headless`). `stdDisplay_VBufferCopy` and the GDI device-context functions remain null.
 - The null `std3D` starts and opens and reports one device; `std3D_GetValidDimensions` returns the size asked for.
 - `platform/common/host_clock.h`, in `crt_posix.c`: `timeGetTime`, `GetTickCount` and `Sleep` run on a virtual clock
@@ -449,7 +450,7 @@ that only miss NaN.
   (`platform/apple/host_apple.h`), so no engine file includes an Objective-C header.
 - `platform/apple/host_apple.m`: `J3DApple_LogHostInfo`, called by `main.c` in the apple build only, prints the macOS
   version, the default Metal device and the SDL3 version before the engine starts.
-- Homebrew's SDL3 is built for the host's macOS version, so linking `jones3d` against it prints one linker warning
+- Homebrew's SDL3 is built for the host's macOS version, so linking `jones3d` against it prints one linker warning (since P2.6 a second one, for the `present` test)
   (`building for macOS-13.0, but linking with dylib ... built for newer version`). It goes away when SDL3 is shipped
   inside the bundle, built for the deployment target (PORT-PLAN.md P8.3). Until then the binary runs only on macOS
   versions as new as the build machine's SDL3.
@@ -475,9 +476,11 @@ that only miss NaN.
   `win32_msg_null.c`, which the apple build leaves out with `wkernel_null.c` (`J3D_APPLE_REPLACES_NULL`).
 - `--headless` selects SDL's `dummy` video driver unless `SDL_VIDEO_DRIVER` is set, so the apple binary runs headless
   through the same event loop. `boot-sdl` (`ctest`, apple builds) is `boot` run that way; its log matches the null
-  run's line for line (apart from the `Host:` line) and its autosave is byte-identical.
+  run's line for line (apart from the `Host:` line, and since P2.3 the display lines) and its autosave is
+  byte-identical.
 - `wkernel_SetWindowStyle` makes the window bordered for a style with `WS_CAPTION` (windowed mode) and borderless
-  otherwise; `wkernel_SetWindowSize` sets the client size. Resizing, fullscreen and pause on minimize are P2.19.
+  otherwise; `wkernel_SetWindowSize` sets the client size (since P2.3 not while the window is fullscreen, see "Display
+  device and modes"). Resizing, the fullscreen toggle and pause on minimize are P2.19.
 - `platform/apple/main.c`: retail returned 1 from `WinMain` for every normal quit (`WM_QUIT`). The process now exits 0
   for 0 and 1 and fails for -1 (startup failed). A `--frames` run must return 0 (its frame count reached); one that
   ends earlier, for example because a level failed to load and the game closed itself, still fails.
@@ -487,3 +490,129 @@ that only miss NaN.
   sanitizers. Not checked by script, because macOS does not let a background process take focus: the pause on focus
   loss and the key messages. Phase 3 brings scripted input.
 
+### Display device and modes (P2.3)
+
+- `stdDisplay` is split by what changes between backends. `platform/common/stdDisplay_common.c` (every build) has the
+  queries (`GetNumDevices`, `GetDevice`, `GetCurrentDevice`, `GetNumVideoModes`, `GetVideoMode`,
+  `GetCurrentVideoMode`, `IsFullscreen`, `CanRenderWindowed`), `FindClosestMode` (the retail body, unchanged),
+  `SetDefaultResolution`, `ClearMode` and the 32 bpp system-memory back buffer with its fill, lock and `SaveScreen`.
+  A backend supplies the device and mode list and the window side: `Startup`, `Shutdown`, `Open`, `Close`, `SetMode`
+  and `Update`. The null build's backend is `platform/common/null/stdDisplay_headless.c` (unchanged in behaviour); the
+  apple build's is `platform/apple/stdDisplay_sdl.c`, which leaves the headless file out
+  (`J3D_APPLE_REPLACES_NULL`). The retail statics they share (`stdDisplay_aVideoModes`, `stdDisplay_numDevices`,
+  `stdDisplay_primaryVideoMode`, `stdDisplay_bFullscreen`) are declared in `platform/common/stdDisplay_common.h`.
+- `stdDisplay_sdl.c` reports one display device: the display the game window is on, named after it, with the driver
+  name `SDL <video driver>` (stored as the `Display` setting), 3D capable and able to render in a window.
+- The mode list is all 32 bpp (BGRA, the back buffer's format). It holds, in pixels: the desktop's size; the 4:3
+  sizes 640×480, 800×600, 1024×768, 1152×864, 1280×960 and 1600×1200 that fit the desktop; and the display's own
+  fullscreen modes no larger than the desktop, without duplicates, at most 64 (the retail array), sorted as retail
+  sorted them (bpp, width, height). The desktop size and 640×480 are always present. A mode's pixel size is SDL's
+  point size times its pixel density, so a Retina display's native size is listed. On the development machine
+  (2560×1440 display) that is 14 modes; SDL's `dummy` driver (headless) gives 3, from its 1024×768 desktop.
+- Fullscreen does not change the display mode, which retail's DirectDraw exclusive mode did. A fullscreen mode makes
+  the window cover the display at the desktop's own mode, and the back buffer has the mode's size; the present path
+  scales it to the screen (P2.6). `stdDisplay_Close` takes the window out of fullscreen, as releasing DirectDraw gave
+  the desktop its mode back. `wkernel_sdl.c` turns off SDL's macOS Spaces fullscreen
+  (`SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES`): it is animated, and macOS ignores it for an app that is not frontmost
+  (found when testing from a script: the window stayed 640×480). `wkernel_SetWindowSize` leaves a fullscreen window
+  alone: retail's window already matched the screen in a fullscreen mode, and SDL would shrink it to the size given.
+- `stdDisplay_Update` presents through Metal since P2.6 ("Present path"). Headless, it moves the virtual clock by 33 ms
+  as before.
+- `stdDisplay_Open` with a device number equal to the device count fails; retail tested `>` and would open one past
+  the end of the device array.
+- `stdDisplay_GetCurrentDevice` reports the open device and fails when none is open; retail copied device
+  `stdDisplay_curDevice` whenever any device existed. `stdDisplay_SetDefaultResolution` rebuilds the whole windowed
+  mode, so its row size and byte size follow the new size (retail stored only the width and height).
+- The null `std3D_BuildDisplayEnvironment` (generator override) now enumerates as retail `std3D.c` did: every
+  `stdDisplay` device, opened and closed in turn, with its mode list, and the one null 3D device on each 3D-capable
+  display. Before, it returned a fixed environment with one 640×480 mode, so the game never saw the SDL mode list and
+  the `Width` and `Height` settings had no effect. As in retail, a device that cannot be opened fails the call; in a
+  null build without `--headless` the game now stops there (the display error), a little earlier than before. The
+  headless display now opens during this enumeration, so the virtual clock starts there instead of at
+  `JonesDisplay_Startup`.
+- `Jones3D/Main/JonesDevDialog.c`, `JonesDevDialog_FindClosestVideoMode`: retail looked only at 16 bpp modes (taking
+  the one matching the `Width` and `Height` settings, otherwise the last 16 bpp mode). The port's modes are all 32 bpp,
+  so it looks at those. Without the change no mode matched and the game always took mode 0. The display settings
+  dialog's colour-depth handling is P6.16.
+- Checked: `boot`, `boot-sdl` and the other tests pass in the apple, null and sanitizer trees; `boot-sdl` and `boot`
+  still write byte-identical autosaves. With the Cocoa driver, `InWindow=1` and `Width`/`Height` 800×600 give an
+  800×600 client area; the default settings (fullscreen, 640×480) cover the 2560×1440 display and leave fullscreen on
+  exit, exit status 0.
+
+### Back buffer (P2.4)
+
+- The back buffer is a 32 bpp BGRX system-memory VBuffer in the mode's size (`J3DDisplay_CreateBackBuffer`), made by
+  `SetMode` in both backends. `LockBackBuffer` hands out its pixels and pitch, `UnlockBackBuffer` does nothing (the
+  pixels never move), `BackBufferFill`, `ClearRect` and `VBufferFill` fill it whole or by rectangle, and
+  `GetBackBufferSize` reports it. All of it is in `stdDisplay_common.c`, shared with the headless display that
+  introduced it in P1.17.
+- Return values as retail: `stdDisplay_VBufferFill` returns 1 once it has filled (both retail branches did),
+  `stdDisplay_BackBufferFill` returns 0 on success (retail returned `ColorFillSurface`'s 0), which
+  `JonesDisplay_Startup` relies on, and 1 with no mode set. The headless display of P1.17 returned `VBufferFill`'s
+  result from `BackBufferFill` and had `VBufferFill` return 0; no caller reads `VBufferFill`'s result.
+
+### Blits (P2.5)
+
+- `stdDisplay_VBufferCopy` is retail's `BlitSysToSys` (the system-memory pair of its four blit paths; every port
+  VBuffer is in system memory) for 8, 16, 24 and 32 bpp, with the colour key for 8, 16 and 32 bpp as retail.
+- Retail clipped against the destination only, in unsigned arithmetic, so a rectangle starting left of or above the
+  destination with `x + width` still negative passed its "entirely outside" test and was read and written out of
+  bounds; the source rectangle was not clipped at all. The port clips in signed arithmetic against both buffers. Every
+  copy that retail performed in bounds is performed identically. Nothing in the game calls `VBufferCopy` today.
+- `stdDisplay_EncodeFromRGB565` is the retail body (it builds the intro movie's colour table, Phase 5).
+- Found, for Phase 5: the intro movie picks its blitter by comparing the mode's `ColorInfo` with fixed formats whose
+  alpha fields are set (`alphaBPP` 8, shift 24). The port's mode reports no alpha, as retail's DirectDraw enumeration
+  did, so no format matches and the intro is skipped. Phase 5 decides which side changes.
+
+### Present path (P2.6)
+
+- `platform/apple/display_metal.m` (C interface `display_metal.h`) presents the back buffer. `stdDisplay_SetMode`
+  attaches it to the game window (a `CAMetalLayer` from `SDL_Metal_CreateView`; the window is created with
+  `SDL_WINDOW_METAL` unless the video driver is SDL's dummy one) and `stdDisplay_Close` detaches it. Each
+  `stdDisplay_Update` (retail's flip) uploads the back buffer into a texture, one of a ring of three so the CPU never
+  writes one the GPU is reading, and draws it over the whole drawable with bilinear filtering: a 640×480 mode on a
+  fullscreen 2560×1440 window is scaled to fill the screen (stretched; the 4:3 pillarbox is P2.20). The drawable is
+  the window's size in pixels.
+- Presents wait for the display's refresh (`displaySyncEnabled`), which now paces a windowed run; the 60 Hz hold of
+  P2.3 remains only for a window whose presenter failed to open. The game therefore runs at the display's refresh
+  rate (60 or 120 Hz), faster than the 1999 hardware did; whether any game logic depends on frame length is for the
+  visual pass (P2.22) and phase 7.
+- A headless run with `SDL_VIDEO_DRIVER=cocoa` presents without waiting for the refresh, so the virtual clock still
+  sets its pace; under the dummy driver nothing is presented.
+- The shaders are compiled from source when the presenter opens. The fourth byte of a back-buffer pixel is ignored
+  (X8R8G8B8); the drawable is opaque.
+- Planned check not reachable in phase 2A: the plan's check for P2.6 was "the level-load progress screen is visible",
+  but that screen is drawn through `std3D` (`rdWallpaper`), as is everything else the game draws apart from the intro
+  movie (Phase 5). It becomes visible with the Metal renderer (P2.9 to P2.12). P2.6 is checked by the `present` test
+  instead: a pattern drawn into the back buffer through `stdDisplay` is presented in a real window, read back from
+  the drawable (`J3DMetal_ArmCapture`) and compared, at the back buffer's size and scaled to twice it. The test fails
+  for a flipped image or a wrong clip in a blit (both tried).
+- `stdDisplay_GetTextureMemory` and `stdDisplay_GetTotalMemory` (P2.8) report the Metal device's recommended working
+  set as the total and what is not yet allocated from it as free (retail asked DirectDraw for video memory); the
+  display device carries the same figures. The headless display reports a nominal 256 MB for both.
+
+### Screenshots (P2.7)
+
+- `stdDisplay_SaveScreen` writes the back buffer as a 24-bit BMP through `stdBmp_WriteVBuffer`, as retail.
+- `Libs/std/General/stdBmp.c`, `stdBmp_WriteVBuffer`: retail computed the header's image size from the source depth
+  (32 bpp, a third larger than the 24-bit rows it wrote) and wrote rows without the 4-byte padding BMP requires, so the
+  file only read back right when 3 × width was a multiple of 4. The port pads the rows and sizes the header from them
+  (`#ifdef J3D_PORT`, retail kept beside it).
+- `jones3d --screenshot-at <n>[,<n>...]` (`J3D_SCREENSHOT_AT`) writes the back buffer after those passes of the game
+  loop, to `--screenshot-file <path>` (`J3D_SCREENSHOT_FILE`; `{frame}` becomes the frame number; default
+  `jones3d-{frame}.bmp` in the current directory), and reports each file on stdout
+  (`platform/common/host_screenshot.c`, called by both event loops after every pass). Until the renderer draws
+  (P2.9 on), the back buffer is black at every frame of the game; P2.17 decides how screenshots include the 3D scene.
+- `tests/display.c` (no game data needed, every build) checks the back buffer, fills, every blit case against a
+  pixel-by-pixel reference, `EncodeFromRGB565` and a `SaveScreen` at a width that needs row padding.
+
+### Remaining stdDisplay entries (P2.8)
+
+- `stdDisplay_CreateZBuffer` succeeds and creates nothing: the Metal renderer owns its depth texture (P2.9).
+- `stdDisplay_SetBufferClipper` returns 0 (no clipper set), so `JonesDialog` never removes one;
+  `stdDisplay_RemoveBufferClipper` returns `S_OK`. Retail attached a window clipper so GDI dialogs drew over a
+  fullscreen surface; the port's dialogs are the game's own (Phase 6).
+- `stdDisplay_SetDefaultResolution` (P2.3) and the memory queries (above) complete the list. Left null on purpose:
+  `GetFrontBufferDC`, `ReleaseFrontBufferDC`, `GetBackBufferDC`, `ReleaseBackBufferDC` and `FlipToGDISurface` (P6.5),
+  `stdDisplay_Refresh` (re-sets the mode after focus returns; P2.19) and `GetDirectDraw` (no DirectDraw).
+- `tests/harness.c` gained `harness_StartupStd`, the std host services alone, for tests that need no game data.

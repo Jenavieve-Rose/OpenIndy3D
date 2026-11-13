@@ -9,6 +9,10 @@
 // The player's settings file is not touched (J3D_SETTINGS defaults to /dev/null). Returns 0 on success.
 int harness_Startup(const char* pDataRoot);
 
+// Starts only the std library's host services (prints, files, memory, asserts): enough for tests of the platform
+// layer that need no game data. Returns 0 on success.
+int harness_StartupStd(void);
+
 // Line-buffers stdout and installs the SIGSEGV/SIGBUS backtrace handler. Call first.
 void harness_InstallHandlers(void);
 

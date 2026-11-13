@@ -21,28 +21,8 @@ LPDIRECTDRAW4 J3DAPI stdDisplay_GetDirectDraw(void)
     return NULL;
 }
 
-int J3DAPI stdDisplay_CreateZBuffer(LPDDPIXELFORMAT pPixelFormat, int bSystemMemory)
-{
-    return (int)0;
-}
-
 void J3DAPI stdDisplay_Refresh(int bReload)
 {
-}
-
-int J3DAPI stdDisplay_VBufferCopy(tVBuffer* pDest, tVBuffer* pSrc, unsigned int blitX, int blitY, const StdRect* pRect, int bAlpha)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_GetTextureMemory(size_t* pTotal, size_t* pFree)
-{
-    return (int)0;
-}
-
-int J3DAPI stdDisplay_GetTotalMemory(size_t* pTotal, size_t* pFree)
-{
-    return (int)0;
 }
 
 HDC J3DAPI stdDisplay_GetFrontBufferDC(void)
@@ -66,19 +46,4 @@ void J3DAPI stdDisplay_ReleaseBackBufferDC(HDC hdc)
 int J3DAPI stdDisplay_FlipToGDISurface(void)
 {
     return (int)0;
-}
-
-int J3DAPI stdDisplay_SetBufferClipper(int bFrontBuffer)
-{
-    return (int)0;
-}
-
-HRESULT J3DAPI stdDisplay_RemoveBufferClipper(int bFrontBuffer)
-{
-    return E_NOTIMPL;
-}
-
-uint32_t J3DAPI stdDisplay_EncodeFromRGB565(uint16_t pixel)
-{
-    return (uint32_t)0;
 }

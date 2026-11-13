@@ -6,6 +6,7 @@
 #include <string.h>
 #include <std/Win95/std3D.h>
 #include <std/Win95/stdDisplay.h>
+#include <std/General/stdUtil.h>
 
 float std3D_fogDensity;
 size_t std3D_maxVertices;
@@ -182,17 +183,10 @@ void J3DAPI std3D_ClearZBuffer(void)
 
 StdDisplayEnvironment* J3DAPI std3D_BuildDisplayEnvironment(void)
 {
-    static StdVideoMode     mode;
-    static Device3D         device;
-    static StdDisplayInfo   info;
+    static StdDisplayInfo        aInfos[STD_ARRAYLEN(stdDisplay_aDisplayDevices)];
+    static StdVideoMode          aModes[STD_ARRAYLEN(stdDisplay_aDisplayDevices)][64]; // stdDisplay's mode cap
+    static Device3D              device;
     static StdDisplayEnvironment env;
-
-    memset(&mode, 0, sizeof(mode));
-    mode.aspectRatio                    = 1.0f;
-    mode.rasterInfo.width               = 640;
-    mode.rasterInfo.height              = 480;
-    mode.rasterInfo.colorInfo.colorMode = STDCOLOR_RGB;
-    mode.rasterInfo.colorInfo.bpp       = 32;
 
     memset(&device, 0, sizeof(device));
     device.caps.bHAL       = 1;
@@ -200,17 +194,54 @@ StdDisplayEnvironment* J3DAPI std3D_BuildDisplayEnvironment(void)
     strcpy(device.deviceName, "Null");
     strcpy(device.deviceDescription, "Null HAL (no renderer until Phase 2)");
 
-    memset(&info, 0, sizeof(info));
-    info.displayDevice.bHAL = 1;
-    strcpy(info.displayDevice.aDeviceName, "Null display");
-    strcpy(info.displayDevice.aDriverName, "null");
-    info.numModes   = 1;
-    info.aModes     = &mode;
-    info.numDevices = 1;
-    info.aDevices   = &device;
+    memset(aInfos, 0, sizeof(aInfos));
+    memset(&env, 0, sizeof(env));
+    if ( !stdDisplay_Startup() )
+    {
+        return NULL;
+    }
 
-    env.numInfos      = 1;
-    env.aDisplayInfos = &info;
+    size_t numInfos = stdDisplay_GetNumDevices();
+    if ( numInfos > STD_ARRAYLEN(aInfos) )
+    {
+        numInfos = STD_ARRAYLEN(aInfos);
+    }
+
+    for ( size_t i = 0; i < numInfos; ++i )
+    {
+        StdDisplayInfo* pInfo = &aInfos[i];
+        if ( stdDisplay_GetDevice(i, &pInfo->displayDevice) || !stdDisplay_Open(i) )
+        {
+            stdDisplay_Shutdown();
+            return NULL;
+        }
+
+        size_t numModes = stdDisplay_GetNumVideoModes();
+        if ( numModes > STD_ARRAYLEN(aModes[i]) )
+        {
+            numModes = STD_ARRAYLEN(aModes[i]);
+        }
+        for ( size_t modeNum = 0; modeNum < numModes; ++modeNum )
+        {
+            if ( !stdDisplay_GetVideoMode(modeNum, &aModes[i][pInfo->numModes]) )
+            {
+                ++pInfo->numModes;
+            }
+        }
+        pInfo->aModes = aModes[i];
+
+        if ( pInfo->displayDevice.bHAL )
+        {
+            pInfo->numDevices = 1;
+            pInfo->aDevices   = &device;
+        }
+
+        stdDisplay_Close();
+    }
+
+    stdDisplay_Shutdown();
+    env.numInfos      = numInfos;
+    env.aDisplayInfos = aInfos;
     return &env;
 }
 

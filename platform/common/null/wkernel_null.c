@@ -15,6 +15,8 @@
 #include <Jones3D/Main/JonesMain.h>
 #include <std/Win95/stdWin95.h>
 
+#include <platform/common/host_screenshot.h>
+
 #include "null_platform.h"
 
 static const GUID wkernel_guid = { 0x82CE4DA0, 0x9CBF, 0x11D1, { 0x90, 0x85, 0x00, 0x60, 0x97, 0x76, 0x0EA, 0x02 } };
@@ -64,6 +66,7 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
                 result = JonesMain_Process();
                 ++numFrames;
+                J3DHost_AfterFrame(numFrames); // --screenshot-at
                 break;
 
             case -1:

@@ -18,7 +18,7 @@ OUT = ROOT / 'platform' / 'common' / 'null'
 
 # (header, output file, extra includes, phase that replaces it)
 MODULES = [
-    ('Libs/std/Win95/std3D.h',             'std3D_null.c',       ['std/Win95/stdDisplay.h'], 'Phase 2 (Metal renderer)'),
+    ('Libs/std/Win95/std3D.h',             'std3D_null.c',       ['std/Win95/stdDisplay.h', 'std/General/stdUtil.h'], 'Phase 2 (Metal renderer)'),
     ('Libs/std/Win95/stdDisplay.h',        'stdDisplay_null.c',  ['std/General/std.h'],      'Phase 2 (SDL3 display)'),
     ('Libs/std/Win95/stdControl.h',        'stdControl_null.c',  [],                         'Phase 3 (SDL3 input)'),
     ('Libs/std/Win95/stdComm.h',           'stdComm_null.c',     [],                         'never: the game has no multiplayer'),
@@ -28,19 +28,15 @@ MODULES = [
 
 # Bodies that differ from "return 0". Keyed by function name.
 OVERRIDES = {
-    # --- std3D: the startup sequence needs a display environment with one display and one 3D device to enumerate.
+    # --- std3D: the startup sequence needs a display environment to choose its device and mode from. The retail
+    # enumeration (std3D.c) over the display backend: every stdDisplay device with its mode list, and the one null 3D
+    # device on each 3D-capable display. Static storage, so FreeDisplayEnvironment has nothing to free. As in retail,
+    # a device that cannot be opened (a null build without J3D_HEADLESS) fails the whole call.
     'std3D_BuildDisplayEnvironment': '''
-    static StdVideoMode     mode;
-    static Device3D         device;
-    static StdDisplayInfo   info;
+    static StdDisplayInfo        aInfos[STD_ARRAYLEN(stdDisplay_aDisplayDevices)];
+    static StdVideoMode          aModes[STD_ARRAYLEN(stdDisplay_aDisplayDevices)][64]; // stdDisplay's mode cap
+    static Device3D              device;
     static StdDisplayEnvironment env;
-
-    memset(&mode, 0, sizeof(mode));
-    mode.aspectRatio                    = 1.0f;
-    mode.rasterInfo.width               = 640;
-    mode.rasterInfo.height              = 480;
-    mode.rasterInfo.colorInfo.colorMode = STDCOLOR_RGB;
-    mode.rasterInfo.colorInfo.bpp       = 32;
 
     memset(&device, 0, sizeof(device));
     device.caps.bHAL       = 1;
@@ -48,17 +44,54 @@ OVERRIDES = {
     strcpy(device.deviceName, "Null");
     strcpy(device.deviceDescription, "Null HAL (no renderer until Phase 2)");
 
-    memset(&info, 0, sizeof(info));
-    info.displayDevice.bHAL = 1;
-    strcpy(info.displayDevice.aDeviceName, "Null display");
-    strcpy(info.displayDevice.aDriverName, "null");
-    info.numModes   = 1;
-    info.aModes     = &mode;
-    info.numDevices = 1;
-    info.aDevices   = &device;
+    memset(aInfos, 0, sizeof(aInfos));
+    memset(&env, 0, sizeof(env));
+    if ( !stdDisplay_Startup() )
+    {
+        return NULL;
+    }
 
-    env.numInfos      = 1;
-    env.aDisplayInfos = &info;
+    size_t numInfos = stdDisplay_GetNumDevices();
+    if ( numInfos > STD_ARRAYLEN(aInfos) )
+    {
+        numInfos = STD_ARRAYLEN(aInfos);
+    }
+
+    for ( size_t i = 0; i < numInfos; ++i )
+    {
+        StdDisplayInfo* pInfo = &aInfos[i];
+        if ( stdDisplay_GetDevice(i, &pInfo->displayDevice) || !stdDisplay_Open(i) )
+        {
+            stdDisplay_Shutdown();
+            return NULL;
+        }
+
+        size_t numModes = stdDisplay_GetNumVideoModes();
+        if ( numModes > STD_ARRAYLEN(aModes[i]) )
+        {
+            numModes = STD_ARRAYLEN(aModes[i]);
+        }
+        for ( size_t modeNum = 0; modeNum < numModes; ++modeNum )
+        {
+            if ( !stdDisplay_GetVideoMode(modeNum, &aModes[i][pInfo->numModes]) )
+            {
+                ++pInfo->numModes;
+            }
+        }
+        pInfo->aModes = aModes[i];
+
+        if ( pInfo->displayDevice.bHAL )
+        {
+            pInfo->numDevices = 1;
+            pInfo->aDevices   = &device;
+        }
+
+        stdDisplay_Close();
+    }
+
+    stdDisplay_Shutdown();
+    env.numInfos      = numInfos;
+    env.aDisplayInfos = aInfos;
     return &env;''',
     # Textures are converted to the backend's format at load time, so even the null renderer must name one. 32 bpp
     # BGRA (D3D's A8R8G8B8 / X8R8G8B8), the layout the Phase 2 Metal backend uploads. No colour key.
@@ -99,8 +132,8 @@ OVERRIDES = {
     'std3D_FreeDisplayEnvironment': '''
     (void)pEnv; // static storage, see std3D_BuildDisplayEnvironment''',
 
-    # --- std3D with the headless display (platform/common/stdDisplay_headless.c): the device starts and opens, and
-    # draws nothing. Only reached once stdDisplay_Open has succeeded, which needs J3D_HEADLESS.
+    # --- std3D with no renderer: the device starts and opens, and draws nothing. Only reached once stdDisplay_Open has
+    # succeeded: in a null build that needs J3D_HEADLESS (stdDisplay_headless.c), in an apple build it is the SDL display.
     'std3D_Startup': '''
     return 1;''',
     'std3D_Open': '''
@@ -142,14 +175,17 @@ IMPLEMENTED_ELSEWHERE = {
     # platform/common/stdDisplay_vbuffer.c: system-memory VBuffers, needed to load materials without a display
     'stdDisplay_VBufferNew', 'stdDisplay_VBufferFree', 'stdDisplay_VBufferLock', 'stdDisplay_VBufferUnlock',
     'stdDisplay_VBufferSetColorKey', 'stdDisplay_VBufferConvertColorFormat',
-    # platform/common/stdDisplay_headless.c: an in-memory display device, mode and back buffer (J3D_HEADLESS)
+    # the display backends: the device, mode and window half in platform/common/null/stdDisplay_headless.c (null build)
+    # or platform/apple/stdDisplay_sdl.c (apple build), the queries and back buffer in platform/common/stdDisplay_common.c
     'stdDisplay_Startup', 'stdDisplay_Shutdown', 'stdDisplay_Open', 'stdDisplay_Close', 'stdDisplay_SetMode',
     'stdDisplay_ClearMode', 'stdDisplay_Update', 'stdDisplay_GetNumDevices', 'stdDisplay_GetDevice',
     'stdDisplay_GetCurrentDevice', 'stdDisplay_GetNumVideoModes', 'stdDisplay_GetVideoMode',
     'stdDisplay_GetCurrentVideoMode', 'stdDisplay_FindClosestMode', 'stdDisplay_SetDefaultResolution',
     'stdDisplay_GetBackBufferSize', 'stdDisplay_VBufferFill', 'stdDisplay_ClearRect', 'stdDisplay_BackBufferFill',
     'stdDisplay_SaveScreen', 'stdDisplay_CanRenderWindowed', 'stdDisplay_IsFullscreen', 'stdDisplay_LockBackBuffer',
-    'stdDisplay_UnlockBackBuffer',
+    'stdDisplay_UnlockBackBuffer', 'stdDisplay_VBufferCopy', 'stdDisplay_EncodeFromRGB565', 'stdDisplay_CreateZBuffer',
+    'stdDisplay_SetBufferClipper', 'stdDisplay_RemoveBufferClipper', 'stdDisplay_GetTextureMemory',
+    'stdDisplay_GetTotalMemory',
 }
 
 # Prototypes, with or without the J3DAPI marker (rdModel3K.h omits it). typedefs and macros never match: they start

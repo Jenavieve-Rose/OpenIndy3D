@@ -50,6 +50,19 @@ void harness_InstallHandlers(void)
     signal(SIGBUS, harness_Crash);
 }
 
+int harness_StartupStd(void)
+{
+    if ( !getenv("J3D_SETTINGS") )
+    {
+        setenv("J3D_SETTINGS", "/dev/null", 1);
+    }
+
+    stdPlatform_InitServices(&harness_hs);
+    harness_hs.pAssert = harness_Assert;
+    stdStartup(&harness_hs);
+    return 0;
+}
+
 int harness_Startup(const char* pDataRoot)
 {
     char aRoot[512];
