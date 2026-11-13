@@ -55,6 +55,11 @@ P1.18 (`28e2120` to `b4b56e7`) and nine for P1.19 to P1.30, the audit and the do
 by fast-forward on 2026-11-12. Each builds and passes its tests; before `5ba51d2` (P1.30) the `boot` test needs a
 build tree with a short path.
 
+Phases 2 and 3 are on `main` (at `b0979f2`), merged by fast-forward on 2026-11-13: fourteen commits from the branch
+`phase2-display`, thirteen for P2.1 to P2.22 (`b872038` to `ec42ba4`) and the audit (`22a2f9b`), then two from
+`phase3-input`, P3.1 to P3.10 (`250a7a1`) and the audit (`b0979f2`). At `b0979f2` everything builds and every test
+passes in the apple, null and sanitizer trees; the commits before it were not each rebuilt for the merge.
+
 ## 1. Goal
 
 A native arm64 macOS application that plays the full retail game (all 17 levels: 16 story chapters and the bonus level,
