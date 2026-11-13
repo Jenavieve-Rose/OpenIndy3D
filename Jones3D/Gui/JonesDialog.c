@@ -196,6 +196,7 @@ static void J3DAPI JonesDialog_ResetGameState(JonesDialogGameState* pState, int 
 /* retail bug: no return value; the debug build is the same */
 static int J3DAPI JonesDialog_DummyFlipGDI(void)
 {
+    return 0; // Port: retail has no return value on this path; the flip function's result is never read
 }
 
 int J3DAPI JonesDialog_InitCursorTracking(int* pAlreadyInited)

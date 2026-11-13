@@ -660,6 +660,8 @@ int J3DAPI sithPlayerControls_ProcessPlayerDebugControls(SithThing* pThing, floa
             return 1;
         }
     }
+
+    return 0; // Port: retail has no return value on this path; its eax held the last key state, which is 0 here
 }
 
 void J3DAPI sithPlayerControls_ProcessLookControls(SithThing* pThing, float secDeltaTime)
@@ -4341,19 +4343,19 @@ int J3DAPI sithPlayerControls_TryBoardVehicle(SithThing* pThing, int bBoard)
 
                 if ( (dot = rdVector_Dot3(&pActor->orient.lvec, &pCar->orient.rvec)) < 0.707f )
                 {
-                    break;
+                    return 1; // Port: retail fell off the end here with a non-zero eax; see the end of the function
                 }
 
                 rdVector_ScaleAdd3(&checkPos, &pCar->orient.lvec, -0.1f, &pCar->pos);
                 if ( (planeDist = rdMath_DistancePointToPlane(&pActor->pos, &pCar->orient.lvec, &checkPos)) < 0.0f )
                 {
-                    break;
+                    return 1; // Port: retail fell off the end here with a non-zero eax; see the end of the function
                 }
 
                 rdVector_ScaleAdd3(&checkPos, &pCar->orient.lvec, 0.07f, &pCar->pos);
                 if ( (planeDist = rdMath_DistancePointToPlane(&pActor->pos, &pCar->orient.lvec, &checkPos)) > 0.0f )
                 {
-                    break;
+                    return 1; // Port: retail fell off the end here with a non-zero eax; see the end of the function
                 }
 
                 if ( bFoundPlayer )
@@ -4470,19 +4472,19 @@ int J3DAPI sithPlayerControls_TryBoardVehicle(SithThing* pThing, int bBoard)
                 dot = rdVector_Dot3(&pActor->orient.lvec, &pCar->orient.rvec);
                 if ( (dot < 0.0f ? -dot : dot) < 0.707f )
                 {
-                    break;
+                    return 1; // Port: retail fell off the end here with a non-zero eax; see the end of the function
                 }
 
                 rdVector_ScaleAdd3(&checkPos, &pCar->orient.lvec, -0.07f, &pCar->pos);
                 if ( (planeDist = rdMath_DistancePointToPlane(&pActor->pos, &pCar->orient.lvec, &checkPos)) < 0.0f )
                 {
-                    break;
+                    return 1; // Port: retail fell off the end here with a non-zero eax; see the end of the function
                 }
 
                 rdVector_ScaleAdd3(&checkPos, &pCar->orient.lvec, 0.07f, &pCar->pos);
                 if ( (planeDist = rdMath_DistancePointToPlane(&pActor->pos, &pCar->orient.lvec, &checkPos)) > 0.0f )
                 {
-                    break;
+                    return 1; // Port: retail fell off the end here with a non-zero eax; see the end of the function
                 }
 
                 if ( bFoundPlayer )
@@ -4583,6 +4585,12 @@ int J3DAPI sithPlayerControls_TryBoardVehicle(SithThing* pThing, int bBoard)
     {
         return 0;
     }
+
+    // Port: retail has no return value after the switch. Reached from a failed facing or distance check, its eax held
+    // the x87 status word of that compare, which is non-zero, so the caller took the action key as used although
+    // nothing was boarded; those checks now return 1 where they fail. Reached because no vehicle player thing was
+    // found, eax held that zero flag.
+    return 0;
 }
 
 void J3DAPI sithPlayerControls_ExitVehicle(SithThing* pThing)

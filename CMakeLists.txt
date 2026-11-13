@@ -54,6 +54,9 @@ target_compile_options(j3d_common INTERFACE
     # Pointer truncation is a hard error: these are the 64-bit bugs that corrupt memory silently.
     -Werror=int-to-pointer-cast
     -Werror=pointer-to-int-cast
+    # A function that falls off its end returned whatever eax held in retail and returns garbage here. All known cases
+    # are fixed (docs/PORTING.md, "Functions with no return value"); a new one must not get in.
+    -Werror=return-type
     # Every 64-to-32 narrowing is reported. They are triaged in the Phase 1 64-bit audit; see docs/PORTING.md.
     -Wshorten-64-to-32
     $<$<BOOL:${J3D_WERROR_SHORTEN}>:-Werror=shorten-64-to-32>

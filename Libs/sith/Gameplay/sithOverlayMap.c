@@ -255,6 +255,7 @@ int J3DAPI sithOverlayMap_IsMapVisible(void)
 int J3DAPI sithOverlayMap_ToggleMap(void)
 {
     sithOverlayMap_bMapVisible = !sithOverlayMap_bMapVisible; /* retail bug: no return value; the debug build is the same */
+    return 0; // Port: no caller reads it
 }
 
 void J3DAPI sithOverlayMap_ZoomIn(void)
@@ -531,6 +532,8 @@ SithThing* J3DAPI sithOverlayMap_GetCurrentHintThing(void)
     {
         return &sithWorld_pCurrentWorld->aThings[sithOverlayMap_curHintNum];
     }
+
+    return NULL; // Port: the debug code has no return value here; nothing calls the function
 }
 
 void J3DAPI sithOverlayMap_DrawSectors(SithSector* pSector)

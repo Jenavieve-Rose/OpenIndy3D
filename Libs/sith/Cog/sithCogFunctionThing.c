@@ -5296,6 +5296,11 @@ int J3DAPI sithCogFunctionThing_SetThingHeadOrientation(SithThing* pThing, const
             return 0;
         }
     }
+
+    // Port: retail has no return value on these paths. With the head set (or already there) its eax was non-zero, a
+    // pointer left by sithActor_SetHeadPYR or the x87 status word of the last compare, so callers saw success. With
+    // pLook NULL eax was that NULL. (A NULL pThing left eax unset; both callers check pThing first.)
+    return pThing && pLook;
 }
 
 void J3DAPI sithCogFunctionThing_SetThingHeadLookPos(SithCog* pCog)

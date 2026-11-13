@@ -184,6 +184,10 @@ int J3DAPI rdClip_FaceToPlane(const rdClipFrustum* pFrustrum, rdCacheProcEntry* 
             pOutVert->tv = D3DVAL(aTexVerts[pFace->aTexVertices[i]].y + pFace->texVertOffset.y);
         }
     }
+
+    // Port: retail has no return value on this path. Every caller tests the result, and retail's eax still held the
+    // address of the last output vertex, so a face that passed the frustum test always counted as visible.
+    return 1;
 }
 
 void J3DAPI rdClip_VerticesToPlane(rdCacheProcEntry* pProcFace, const rdVector3* aVerts, const rdVector2* aTexVerts, size_t numVerts)

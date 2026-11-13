@@ -1428,6 +1428,8 @@ int J3DAPI rdModel3_Validate(const rdModel3* pModel3)
 
         ++pGeo;
     }
+
+    return 1; // Port: the debug code has no return value here; the only caller asserts on the result
 }
 
 // Discarded by the retail linker (called only by the discarded LoadPostProcess): debug 0x50f4a4.

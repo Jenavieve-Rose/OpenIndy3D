@@ -3710,6 +3710,7 @@ static int J3DAPI sithPhysics_UpdateJeepWheelContact(SithThing* pThing, SithJeep
     }
 
     sithCollision_DecreaseStackLevel();
+    return 0; // Port: retail has no return value on this path; no caller reads it
 }
  
 static int J3DAPI sithPhysics_UpdateJeepWheels(SithThing* pThing, SithJeepState* pState, float secDeltaTime)

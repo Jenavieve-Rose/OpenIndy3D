@@ -1424,6 +1424,7 @@ int J3DAPI sithWeapon_ProcessWeaponControls(SithThing* pThing, float secDeltaTim
         sithPlayerActions_Activate(pThing);
         sithInventory_SetCurrentItem(pThing, SITHWEAPON_NO_WEAPON);
         sithWeapon_bufferedWaponKeyId = -1;
+        return 1; // Port: retail fell off the end from here with a non-zero eax; see the end of the function
     }
 
     if ( sithWeapon_bufferedWaponKeyId != -1 && !sithWeapon_bPlayerWeaponActivated )
@@ -1496,6 +1497,11 @@ int J3DAPI sithWeapon_ProcessWeaponControls(SithThing* pThing, float secDeltaTim
     // Original bug: the function falls off the end without a return value.
     // Retail's epilogue at this path leaves EAX holding whatever the last
     // comparison loaded, and emits no store or load of a result.
+    // Port: return what retail's eax held, because sithControl_Update stops calling the later control callbacks
+    // (JonesControl_ProcessControls, the console key) on a non-zero result. With no buffered weapon key it was the 0
+    // from the chalk key test; with one, it was sithWeapon_bPlayerWeaponActivated, non-zero on this path; after
+    // the chalk was used it was a pointer left by sithInventory_SetCurrentItem (returned above).
+    return sithWeapon_bufferedWaponKeyId != -1 && sithWeapon_bPlayerWeaponActivated;
 }
 
 void J3DAPI sithWeapon_DeselectWeapon(SithThing* pThing)

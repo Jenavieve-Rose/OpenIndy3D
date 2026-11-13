@@ -4506,6 +4506,8 @@ void* J3DAPI jonesConfig_GameFileDialog_HandleWM_COMMAND(HWND hWnd, int nResult,
     switch ( nResult ) /* retail bug: no return value; the debug build is the same */
     {
     }
+    (void)pData;
+    return NULL; // Port: retail has no return value on this path; neither caller reads it
 }
 
 UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -7843,6 +7845,7 @@ int J3DAPI jonesConfig_ShowAdvanceDisplaySettings(HWND hWnd, JonesDisplaySetting
     int result;
 
     result = JonesDialog_ShowDialog(MAKEINTRESOURCE(148), hWnd, jonesConfig_AdvanceDisplaySettingsDialogProc, (LPARAM)pData); /* retail bug: result is never returned; the debug build is the same */
+    return result; // Port: retail has no return value on this path; the caller does not read it
 }
 
 BOOL CALLBACK jonesConfig_AdvanceDisplaySettingsDialogProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -9289,6 +9292,7 @@ int J3DAPI jonesConfig_StoreHandleDragEvent(HWND hwnd, HWND hDlgCtrl)
     dy = cursorPos.y - wndRect.top;
     ImageList_DragEnter(hwnd, dx, dy);
     pCart->bDragging = 1;
+    return 1; // Port: retail has no return value on this path; the caller does not read it
 }
 
 void J3DAPI jonesConfig_StoreDialog_HandleWM_MBUTTONUP(HWND hWnd)
@@ -9408,6 +9412,9 @@ int J3DAPI jonesConfig_StoreInitItemIcons(HWND hWnd, tStoreCartState* pCart)
         pCart->aItemIcons[i] = LoadIconA(hInstance, MAKEINTRESOURCE(JonesHud_aStoreItems[i].iconID));
         ImageList_ReplaceIcon(pCart->hList, -1, pCart->aItemIcons[i]);
     }
+
+    return 1; // Port: retail has no return value on this path. Its caller tests the result: retail's eax held the last
+              // ImageList_ReplaceIcon index, which is non-zero, so the store dialog went on to open
 }
 
 void J3DAPI jonesConfig_StoreSetListColumns(HWND hList, const char* pColumnName)

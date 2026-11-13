@@ -889,6 +889,11 @@ int J3DAPI sithAIInstinct_RandomTurn(SithAIControlBlock* pLocal, SithAIInstinct*
     {
         sithAIMove_AISetLookPosEyeLevel(pLocal, &lookPos);
     }
+
+    // Port: retail has no return value on this path. Its eax was non-zero at least when the look position was blocked,
+    // which made sithAI_InstinctUpdate restart its loop; this instinct had already set its next update time, so the
+    // restart did nothing. 0 gives the same behaviour without the extra pass.
+    return 0;
 }
 
 int J3DAPI sithAIInstinct_OpenDoors(SithAIControlBlock* pLocal, SithAIInstinct* pInstinct, SithAIInstinctState* pState, SithAIEventType event, void* pObject)
@@ -1530,6 +1535,8 @@ int J3DAPI sithAIInstinct_TurretFire(SithAIControlBlock* pLocal, SithAIInstinct*
         sithAIUtil_AISetMode(pLocal, SITHAI_MODE_SEARCHING);
         return 1;
     }
+
+    return 0; // Port: the debug code has no return value here; the instinct is never registered
 }
 
 int J3DAPI sithAIInstinct_CircleStrafe(SithAIControlBlock* pLocal, SithAIInstinct* pInstinct, SithAIInstinctState* pState, SithAIEventType event, SithThing* pThing)

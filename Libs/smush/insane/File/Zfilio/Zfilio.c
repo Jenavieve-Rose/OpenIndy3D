@@ -256,6 +256,10 @@ static int zfilio_seek(ZfileHandle* pFile, int offset, int whence)
             return zfilio_pFilio->Seek((FilioHandle)pFile->hFile, offset, whence);
         }
     }
+
+    // Port: retail has no return value on the gz and closed-file paths (its eax held the handle address, which does
+    // not fit an int here). No caller of the FILIO seek reads the result; 0 is fseek's success value.
+    return 0;
 }
 
 static void zfilio_flush(ZfileHandle* pFile)

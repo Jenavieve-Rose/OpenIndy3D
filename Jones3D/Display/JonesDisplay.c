@@ -218,6 +218,7 @@ int J3DAPI JonesDisplay_ApplyBackBufferSize(JonesDisplaySettings* pSettings)
     JonesDisplay_Close();
     JonesDisplay_Open(pSettings);
     stdDisplay_Refresh(1);
+    return 0; // Port: retail has no return value on this path and nothing calls the function
 }
 
 int J3DAPI JonesDisplay_Restart(JonesDisplaySettings* pSettings)

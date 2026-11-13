@@ -712,6 +712,7 @@ int J3DAPI sithAI_RegisterInstinct(const char* pName, SithAIInstinctFunc pfInsti
     aRegisteredInstincts[numRegisteredInstincts].updateBlockModes = updateBlockModes;
     aRegisteredInstincts[numRegisteredInstincts].triggerEvents    = triggerEvents;
     ++numRegisteredInstincts;
+    return 1; // Port: retail has no return value on this path; no caller reads it
 }
 
 SithAIRegisteredInstinct* J3DAPI sithAI_FindInstinct(const char* pInstinctName)
