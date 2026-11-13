@@ -740,7 +740,7 @@ that only miss NaN.
   conversions without a colour key now expand each channel as the GPU expands a normalised value, v × 255 / (2^n − 1),
   rounded; narrowing ones (the save thumbnail) and keyed ones keep retail's code. Checked: `display` test (565, 1555,
   4444 to 32 bpp; it fails with the old conversion), a headless screenshot of the drawn revolver, every test in the
-  three trees, and the autosaves unchanged.
+  three trees, the autosaves unchanged, and a play-test in Solomon's Mines (the revolver in Indy's hand).
 
 ### Render state, fog, projection and wireframe (P2.13 to P2.16)
 
