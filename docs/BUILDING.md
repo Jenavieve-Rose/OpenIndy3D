@@ -41,7 +41,7 @@ cmake --build build
 | Output | What it is |
 | --- | --- |
 | `build/jones3d` | The game. |
-| `build/levelload`, `build/cogcheck` | The test programs (below). |
+| `build/levelload`, `build/cogcheck`, `build/saveload` | The test programs (below). |
 | `build/lib*.a` | The engine libraries: `zlib`, `std`, `rdroid`, `sound`, `smush`, `sith`, `platform`, `jones3d_game`. |
 
 ## Build with Xcode
@@ -63,11 +63,26 @@ Regenerate the project with the first command after adding or removing source fi
 | --- | --- | --- |
 | `J3D_TEST_DATA` | empty | Data root used by the tests. Registers the tests with `ctest` when set. |
 | `J3D_DEBUG_ASSERTS` | `OFF` | Compiles the engine's debug-only `J3D_ASSERT` checks. Off matches the decomp's release build. |
-| `J3D_WERROR_SHORTEN` | `OFF` | Makes `-Wshorten-64-to-32` an error. The tree does not build with it yet (PORT-PLAN.md, P1.25 to P1.29). |
+| `J3D_WERROR_SHORTEN` | `ON` | Makes `-Wshorten-64-to-32` an error. `Jones3D/Display/jonesConfig.c` is exempt until Phase 6 rewrites its dialog code (PORT-PLAN.md P6.24). |
+| `J3D_SANITIZE` | `OFF` | Builds everything, tests included, with AddressSanitizer and UndefinedBehaviorSanitizer. Use a separate build directory (below). |
 | `CMAKE_BUILD_TYPE` | none | `Debug` or `RelWithDebInfo` as usual, for the Ninja generator. |
 
-A build prints several hundred warnings from the imported sources. They are counted and scheduled in PORT-PLAN.md
-(phase 1D); pointer-truncating casts are already errors.
+Every compiler warning is an error (`-Werror`), apart from two known sets: the 58 narrowing conversions in
+`jonesConfig.c` and one unsequenced write in `Libs/sound/AudioLib.c` (PORT-PLAN.md P4.8). A clean build prints exactly
+those 59 warnings. The MSVC-dialect warnings the decomp would otherwise raise (missing braces, `sprintf` deprecation
+and so on) are switched off in `CMakeLists.txt`.
+
+### Sanitizer build
+
+```sh
+cmake -S . -B build-asan -G Ninja -DJ3D_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DJ3D_TEST_DATA=/path/to/data-root
+cmake --build build-asan
+ctest --test-dir build-asan --output-on-failure
+```
+
+The tests stop at the first UBSan report (`UBSAN_OPTIONS=halt_on_error=1` is set for them). Run a program by hand with
+`UBSAN_OPTIONS=halt_on_error=0` to see every report in one run. Leak detection is off: ASan does not support it on
+Apple silicon.
 
 ## Running
 
@@ -90,10 +105,13 @@ starts the engine, logs to stdout and exits at display open. With it, the game l
 build/jones3d --data /path/to/data-root --headless --frames 600
 ```
 
-A run writes its level-start autosave to `SaveGames/` and any error to `JonesError.txt` under `Install Path`, which
-defaults to the data root, that is, into your game folder. Set `J3D_REG_Install_Path=/some/short/folder/` to send
-them elsewhere; the folder must exist and the whole path must stay under 128 characters. PORT-PLAN.md tracks what
-works.
+Nothing is written into your game folder. Saves (`SaveGames/`), screenshots (`ScreenShots/`) and keysets
+(`KeySets/`) go to `~/Library/Application Support/J3DPort/`; the first run copies the retail keysets there.
+`JonesError.txt` and `JonesLog.txt` go to `~/Library/Logs/J3DPort/`. Paths may be up to 1023 characters, both
+for these folders and for the data root (PORT-PLAN.md P1.30). PORT-PLAN.md tracks what works.
+
+A headless run is deterministic: two runs with the same data and settings print the same log and write
+byte-identical saves.
 
 ### Settings and environment variables
 
@@ -105,7 +123,8 @@ the value names the retail game kept in the registry. The format is described at
 | --- | --- |
 | `J3D_DATA` | The data root. `--data` sets it. |
 | `J3D_SETTINGS` | Path of the settings file to use instead of the default. `/dev/null` runs with defaults and saves nothing. |
-| `J3D_REG_<name>` | Overrides one setting for this run; spaces in the name become underscores, for example `J3D_REG_Start_Mode=2`. |
+| `J3D_REG_<name>` | Overrides one setting for this run; spaces in the name become underscores, for example `J3D_REG_Start_Mode=2`. `J3D_REG_Install_Path=<folder>/` moves saves, screenshots and keysets. |
+| `J3D_LOGS` | Folder for `JonesError.txt` and `JonesLog.txt` instead of `~/Library/Logs/J3DPort/`. |
 | `J3D_TRACE_FILES` | `1` prints every host file that opens successfully to stderr, which shows the loose files overriding GOB contents. |
 | `J3D_HEADLESS` | `1` is `--headless`. |
 | `J3D_FRAMES` | `<n>` is `--frames <n>`. |
@@ -124,6 +143,7 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | --- | --- | --- |
 | `levelload` | Loads the static world and all 17 levels through every binary `.cnd` section loader. | about 40 s |
 | `cogcheck` | Compiles every `.cog` in the three GOBs through the engine's lookup, so loose overrides are the files compiled. | about 2 s |
+| `saveload` | Runs the game headless for 300 frames, saves, restores the save into a freshly loaded level and compares the world (things, positions, sectors, health, COG globals, game time), saves again and compares the two files, then plays 300 more frames. Saves go to `build/saveload-out/SaveGames/`. | under 1 s |
 | `boot` | Runs `jones3d --headless --frames 600`: level open, the level-start autosave and 20 s of game time in the first level. Must exit 0 with no assert. Its autosave goes to `build/boot/SaveGames/`, not the game folder. | under 1 s |
 
 Each can be run directly, which shows its output:
@@ -132,7 +152,12 @@ Each can be run directly, which shows its output:
 build/levelload /path/to/data-root                  # all levels, with section counts per level
 build/levelload /path/to/data-root 00_cyn.cnd       # just the levels named
 build/cogcheck  /path/to/data-root
+J3D_REG_Install_Path=/tmp/j3d/ build/saveload /path/to/data-root 3000 3000   # frames before the save, after the restore
 ```
+
+`saveload` needs `J3D_REG_Install_Path` set to a folder it may write to. The second save may differ from the first
+only in three ways that are retail behaviour, which the comparison allows and PORTING.md describes ("Savegame round
+trip"); anything else fails the test.
 
 The exit status is the number of failures. Lines such as `Symbol … not defined. Assuming float=0.0` come from
 undeclared symbols in the retail scripts and are not failures. An engine assert or a crash prints a backtrace.
@@ -155,6 +180,7 @@ Run these from the repository root.
 
 ```sh
 cmake --build build && ctest --test-dir build --output-on-failure && python3 tools/layout_audit.py
+cmake --build build-asan && ctest --test-dir build-asan --output-on-failure
 ```
 
 Record any change to the imported sources in [PORTING.md](PORTING.md).

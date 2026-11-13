@@ -1,6 +1,7 @@
 # Indiana Jones and the Infernal Machine: Apple Silicon Port Plan
 
-Revision 2, 2026-11-12. Replaces draft 1 of 2026-11-11 (still readable with `git show 8e9a940:PORT-PLAN.md`).
+Revision 2, 2026-11-12, updated the same day when phase 1 closed. Replaces draft 1 of 2026-11-11 (still readable with
+`git show 8e9a940:PORT-PLAN.md`).
 
 This revision records what has been built since draft 1, splits every phase into steps small enough to finish and
 verify one at a time, and turns the plan into a checklist. Section 5 is the checklist; the table below is its summary.
@@ -14,7 +15,7 @@ confused with section numbers.
 | Phase | Outcome | Steps done | State |
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
-| 1 | Headless boot, every level loads, 64-bit audit closed | 17 of 30 | In progress |
+| 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
 | 2 | Window, 2D back buffer and Metal renderer | 0 of 22 | Not started |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
@@ -22,7 +23,7 @@ confused with section numbers.
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **29 of 146** | |
+| **All** | | **42 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -31,20 +32,23 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 
 | Check | Result |
 | --- | --- |
-| `cmake --build` from clean, arm64, Apple clang | Builds and links, exit 0 |
-| `ctest` (with `-DJ3D_TEST_DATA`) | `levelload`, `cogcheck` and `boot` pass |
+| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8) |
+| `ctest` (with `-DJ3D_TEST_DATA`) | `levelload`, `cogcheck`, `saveload` and `boot` pass |
+| The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All four pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
 | `python3 tools/layout_audit.py` | `0 retail on-disk type(s) differ` |
 | `jones3d --data <data>` | Opens the three GOBs, loads the string tables, starts the engine, stops at `stdDisplay_Open` (no display backend) |
-| `jones3d --data <data> --headless --frames 600` | Loads `00_cyn`, writes the level-start autosave, runs 600 frames (20 s of game time) of the opening cutscene and shuts down cleanly, exit 0, in under a second. The log is identical from run to run |
-| Compiler warnings still to triage | 510 `-Wshorten-64-to-32`, 144 `RAND_MAX` float conversions, 58 `-Wformat`, 19 `-Wreturn-type`, 52 others |
+| `jones3d --data <data> --headless --frames 600` | Loads `00_cyn`, writes the level-start autosave, runs 600 frames (20 s of game time) of the opening cutscene and shuts down cleanly, exit 0, in under a second. Two runs print the same log and write byte-identical saves |
+| `saveload <data>` | After 300 frames, a save restored into a fresh world matches the world that was saved (236 things, positions bit for bit, COG globals, game time), and a save of the restored game matches the first; the game then runs 300 more frames |
+| Long paths | `boot` and `saveload` pass with a 257-character `Install Path`; `boot`, `levelload` and `cogcheck` with a 229-character data root |
 
-Nothing is on screen and nothing is audible yet, but the game loop itself now runs. Phase 1's remaining work is the
-savegame test, the sanitizer run and the warning backlog; phase 2 is where the first pixels appear.
+Nothing is on screen and nothing is audible yet, but the game loop runs, saves and restores, and the 64-bit audit is
+closed. Phase 2 is where the first pixels appear.
 
-Not everything above is committed. The last commit is `8e9a940`; the test programs, `gobtool.py`, the system-memory
-VBuffers, the loader fixes, the headless display and the fixes it uncovered are in the working tree only (step P1.15).
+Work up to P1.18 is committed on the branch `phase1-headless` (seven commits, `28e2120` to `b4b56e7`), which is not
+yet merged into `main` (still at `8e9a940`). P1.19 to P1.30 and the phase 1 audit are in the working tree, not yet
+committed.
 
 ## 1. Goal
 
@@ -77,14 +81,14 @@ Line counts were measured on the decomp tree for draft 1.
 
 | Module | Lines | Windows exposure | State in the port |
 | --- | --- | --- | --- |
-| `Libs/sith` (game logic, COG VM, AI, physics) | 104,110 | A handful of stray calls (registry, GDI thumbnail in savegame, console) | Compiles. Level loaders audited and fixed. 283 narrowing warnings open. |
-| `Libs/rdroid` (renderer front end, math) | 19,762 | `LPD3DTLVERTEX` in one struct, the SSE "Katmai" mesh path | Compiles. Katmai sources dropped; a 5-function stub (`rdModel3K_null.c`) remains. |
+| `Libs/sith` (game logic, COG VM, AI, physics) | 104,110 | A handful of stray calls (registry, GDI thumbnail in savegame, console) | Compiles with `-Werror`. Level loaders audited and fixed; narrowing triaged; sanitizer-clean on the tested paths. |
+| `Libs/rdroid` (renderer front end, math) | 19,762 | `LPD3DTLVERTEX` in one struct, the SSE "Katmai" mesh path | Compiles with `-Werror`. Katmai sources dropped; a 5-function stub (`rdModel3K_null.c`) remains. |
 | `Libs/std/General` | 5,781 | x87 inline asm, backslash paths | Done: x87 compiled out, both path separators accepted. |
 | `Libs/std/Win95` | 9,768 | `std3D` (Direct3D 6), `stdDisplay` (DirectDraw), `stdControl` (DirectInput), `stdComm` (DirectPlay), console, window store | Excluded from the build. Generated null backends stand in. `stdGob.c` kept. System-memory VBuffers are real. |
-| `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | `Driver.c` replaced by a null backend. The asm loop has a C translation that is not yet verified. |
-| `Libs/smush` (INSANE) | 10,267 | 6 MASM files (1,815 lines), `Dsnd.c`, `Timer.c`, `Stdfile.c`, `Stdio.c` | OS modules register nothing; the 14 asm entry points abort if reached. No movies. |
+| `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | `Driver.c` replaced by a null backend. The asm loop has a C translation that is not yet verified. Save and restore run (with no device). |
+| `Libs/smush` (INSANE) | 10,267 | 6 MASM files (1,815 lines), `Dsnd.c`, `Timer.c`, `Stdfile.c`, `Stdio.c` | OS modules register nothing; the 14 asm entry points abort if reached. No movies. File handles and Blocky16 frame offsets made 64-bit clean in phase 1. |
 | `Libs/wkernel`, `Libs/w32util` | 692 | 100% | `wkernel` is a hand-written null (message queue, quit). `wuRegistry` is done (`settings.ini`). |
-| `Jones3D/` (game shell) | 23,318 | `jonesConfig.c` (9,955 lines of dialog procedures), `JonesDialog.c`, `JonesDevDialog.c`, `Indy3D.rc` (26 dialog templates) | Compiles against the shim headers. Every dialog call returns failure. |
+| `Jones3D/` (game shell) | 23,318 | `jonesConfig.c` (9,955 lines of dialog procedures), `JonesDialog.c`, `JonesDevDialog.c`, `Indy3D.rc` (26 dialog templates) | Compiles against the shim headers. Every dialog call returns failure. `jonesConfig.c` keeps 58 narrowing warnings until P6.24. |
 | `Libs/zlib` | 7,512 | None | Vendored and built (it is modified to read through INSANE's file table). |
 
 Facts that shape the remaining design:
@@ -143,6 +147,14 @@ Decisions made while doing phases 0 and 1:
     the folder holding `RESOURCE/`; loose files there override GOB contents as they did for the retail exe.
 16. **Savegames use the port's native layout.** `NdsHeader` is 1,320 bytes on arm64 against 1,188 in retail. That is
     accepted (non-goal in section 1) and covered by a round-trip test instead of a fixed layout.
+17. **Every warning is an error.** Phase 1 closed the backlog; `-Werror` now applies to the whole tree, with two
+    named exceptions that later steps remove (P4.8, P6.24). A narrowing that retail computed in 32 bits is written as
+    an explicit cast marked `// Port: narrowing cast`; one that was wrong on 64-bit is fixed by type.
+18. **Undefined behaviour gets a defined value, chosen from the code's evident intent.** Where retail read an
+    uninitialised local or wrote past an array and only worked by accident, the port picks the value the surrounding
+    code implies (or OpenJones3D's, where it fixed the same thing), logs it in `docs/PORTING.md`, and leaves anything
+    that changes intended behaviour to the phase 8 fix series. Headless runs are deterministic, so a change in
+    behaviour shows up as a change in the `boot` log or the saves.
 
 ## 4. Target architecture
 
@@ -153,6 +165,8 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
         │              │                          │
    platform/                                      │
    ├─ common/crt_posix.c, host_path.h   MSVC CRT names, path conversion      exists
+   ├─ common/host_clock.h, host_dirs.c  virtual clock, user and log folders  exists
+   ├─ common/stdDisplay_headless.c      in-memory display for tests          exists
    ├─ common/wuRegistry_file.c          settings.ini                         exists
    ├─ common/stdDisplay_vbuffer.c       system-memory VBuffers               exists
    ├─ common/null/*_null.c              generated null backends              exists, shrinks every phase
@@ -197,11 +211,11 @@ All of it is in commit `2d8bbed` (import in `cd15970`).
 - [x] **P0.11** `platform/apple/main.c`: rebuild the command line and call the game's `WinMain`.
 - [x] **P0.12** Generate an Xcode project from the same CMake files (`build-xcode/`).
 
-### Phase 1: Headless boot and the 64-bit audit (in progress)
+### Phase 1: Headless boot and the 64-bit audit (complete)
 
-Exit test: `ctest` runs `levelload`, `cogcheck`, `boot` and `saveload` green; `layout_audit.py` reports 0; the same
-tests pass under AddressSanitizer and UBSan; the tree builds with `-Werror` for return-type, format and
-64-to-32 narrowing.
+Exit test, passing: `ctest` runs `levelload`, `cogcheck`, `boot` and `saveload` green; `layout_audit.py` reports 0;
+the same tests pass under AddressSanitizer and UBSan; the tree builds with `-Werror` for return-type, format and
+64-to-32 narrowing (all warnings are errors; `jonesConfig.c`'s narrowing waits for P6.24).
 
 #### 1A. Settings, paths, on-disk layouts (complete, committed)
 
@@ -219,7 +233,7 @@ tests pass under AddressSanitizer and UBSan; the tree builds with `-Werror` for 
 - [x] **P1.7** Text parsers: 24 `sscanf` conversions from `%d` to `%zd`; four memory-safety fixes found on the way.
       (`8e9a940`)
 
-#### 1B. Test harness and loaders (done in the working tree, not committed)
+#### 1B. Test harness and loaders (complete, committed)
 
 - [x] **P1.8** `tools/gobtool.py`: list and extract GOB contents.
 - [x] **P1.9** `stdDisplay_vbuffer.c`: system-memory VBuffers, and a null `std3D` that names a texture format, so
@@ -234,12 +248,12 @@ tests pass under AddressSanitizer and UBSan; the tree builds with `-Werror` for 
       overrides are the ones compiled. CMake target and `ctest` entry added. Passing: 1,132 scripts, 0 failed.
 - [x] **P1.14** `levelload.c` uses the shared `tests/harness.c` for engine startup and crash handlers; its output is
       unchanged. `CMakeLists.txt` builds every name in `J3D_TESTS` the same way, so a new test is one line.
-- [ ] **P1.15** (S) Commit 1B as reviewable commits (tools, VBuffers, loader fixes, tests, the plan's move to
-      `docs/`). `docs/PORTING.md` is already up to date for all of it (P1.8 to P1.14); only the commits remain.
+- [x] **P1.15** 1B and the headless work (P1.17, P1.18) are committed as seven reviewable commits on the branch
+      `phase1-headless`; each builds on its own.
 - [x] **P1.16** `docs/BUILDING.md` is the port's build guide: Ninja and Xcode configure lines, CMake options, the data
       root, environment variables, tests and tools. The decomp's guide is kept as `docs/DECOMP-BUILDING.md`.
 
-#### 1C. Run the game loop headless
+#### 1C. Run the game loop headless (complete)
 
 The game has no title screen: with `Start Mode` 0 it loads a level and enters the game loop. These steps make the
 loop itself testable before any renderer exists.
@@ -252,44 +266,74 @@ loop itself testable before any renderer exists.
       fell off its end without a return value, and the level-start autosave racing the opening script.
 - [x] **P1.18** `--frames <n>` (`J3D_FRAMES`) ends the run after n passes of the game loop through the normal
       shutdown. `ctest` runs `jones3d --headless --frames 600` as the `boot` test; it passes in about 0.3 s.
-- [ ] **P1.19** (S) Decide where the game writes. `JonesError.txt` and `SaveGames/` go under `Install Path`, which
-      defaults to the data root, so today they land in the player's game folder; `JonesLog.txt` goes to the current
-      directory. Move logs to `~/Library/Logs/J3DPort/` and saves to Application Support.
-- [ ] **P1.20** (M) `tests/saveload.c`: boot a level headless, run some frames, `sithGamesave_Save`, restore into a
-      fresh world, compare thing count, player position and COG globals. Start with `00_cyn`; all levels in P7.2.
-      Known going in: two identical headless runs produce autosaves that differ in some bytes, although their logs
-      match. Find out which bytes (stale stack or heap, pointers, clock values) before trusting a comparison.
-- [ ] **P1.21** (M) Sanitizer configuration (`-DJ3D_SANITIZE=ON`: ASan and UBSan). Run all four tests under it and fix
-      what it reports. This is the cheapest way to find the remaining 64-bit bugs before a renderer hides them.
-- [ ] **P1.30** (M) Path length. The engine's path buffers are 128 bytes (`SITH_PATHSIZE` and many `char[128]`
-      locals). With `Install Path` set to a 120-character folder the autosave was silently written as `st`, was
-      no longer recognised as an autosave, and the level played out differently. Paths under
-      `~/Library/Application Support/` will hit this. Audit the buffers and widen them.
+- [x] **P1.19** The game no longer writes into the player's game folder. `Install Path`, under which the engine puts
+      `SaveGames/`, `ScreenShots/` and `KeySets/`, defaults to `~/Library/Application Support/J3DPort/` (beside
+      `settings.ini`); on first run the retail keysets are copied into its `KeySets/`. `JonesError.txt` and
+      `JonesLog.txt` go to `~/Library/Logs/J3DPort/` (`J3D_LOGS` overrides). The app entry point prepares the folders,
+      so the test programs never write under the user's Library; the `boot` test points both at the build tree.
+- [x] **P1.20** `tests/saveload.c`: runs the game headless, saves after 300 frames, restores into a fresh world and
+      compares things (index, type, guid, signature, flags, position bit for bit, sector, health), the COG globals,
+      game time and the player; saves the restored game and compares the files message by message; plays 300 more
+      frames. Registered with `ctest`. Two headless runs now write byte-identical saves: the differing bytes were stale
+      pointer bits in the COG-global copy, a heap pointer written into sprite records (a retail writer/reader mismatch
+      that also gave restored sprites a garbage alpha), and absolute times from a virtual clock that started at the
+      real uptime. Three differences between a save and the save of its restore are retail behaviour (AI block order,
+      animation IDs renumbered on restore, `Sound_Restore`'s pause time) and are allowed by name; see
+      `docs/PORTING.md`, "Savegame round trip". Other levels in P7.2.
+- [x] **P1.21** `-DJ3D_SANITIZE=ON` (ASan, UBSan; `docs/BUILDING.md`). All four tests pass under it. Fixed what it
+      reported: zone-allocator alignment, the debug allocators' guard words (INSANE's overran its block on 64-bit),
+      an out-of-bounds write in `sithEvent`, a read before `stdConffile_aLine`, a read past the face cache in
+      `rdCache`, the COG lexer indexing its class table with a negative `char`, NULL arithmetic in 30 sound loops, and
+      unaligned DSS message fields. Table in `docs/PORTING.md`, "Sanitizer findings".
+- [x] **P1.30** Path length. `J3D_PATHSIZE` (1024) for every buffer that holds a host path: the save, screenshot,
+      keyset, log and resource paths, the three path-size constants, the GOB and find-file structures, and the
+      `stdConffile` filename stack. Tested with a 257-character `Install Path` and a 229-character data root. The file
+      dialogs in `jonesConfig.c` keep 128 bytes until P6.17/P6.24.
 
-#### 1D. Close the warning backlog (can run in parallel with phase 2)
+#### 1D. Close the warning backlog (complete)
 
-Counts are from a clean build on 2026-11-12.
+Counts are from a clean build on 2026-11-12, before the work.
 
-- [ ] **P1.22** (M) 19 non-void functions that can fall off their end (`-Wreturn-type`: 10 in `sith`, 5 in
-      `Jones3D/Display`, 2 in `rdroid`, 1 in `JonesDialog.c`, 1 in INSANE's `Zfilio.c`). Retail callers received
-      whatever was in `eax`, so check each against the retail binary, then make it `-Werror=return-type`. These are
-      real failures, not style: the twentieth, `sithMessage_FileWrite`, made every savegame fail (fixed in P1.17).
-- [ ] **P1.23** (S) 58 `-Wformat` warnings: 36 `size_t` printed with `%d`, 10 `long`/`int`, 4 `%f` given an `int`, 8
-      pointer-type mismatches. Fix, then `-Werror=format`.
-- [ ] **P1.24** (S) `rand()`: macOS returns 31 bits where MSVC returned 15. `SITH_RAND` scales by `RAND_MAX` and is
-      safe, but 8 raw `rand()` call sites need checking. Provide MSVC's generator in `crt_posix.c` so range and
-      sequence match retail; that also clears the 144 `RAND_MAX` conversion warnings.
-- [ ] **P1.25** (M) `-Wshorten-64-to-32` in `std` (18), `rdroid` (61) and `sound` (19).
-- [ ] **P1.26** (L) `-Wshorten-64-to-32` in `sith` (283). Most are `size_t` counts narrowed to `int`; the ones that
-      matter are indices and sizes that reach file I/O or pointer arithmetic.
-- [ ] **P1.27** (S) `-Wshorten-64-to-32` in `Jones3D/Main`, `Gui`, `Play` (22), `smush` (24) and `zlib` (3). The 80
-      in `Jones3D/Display` wait for phase 6 (P6.24), which rewrites the code around them.
-- [ ] **P1.28** (M) The remaining 52: 13 non-literal format strings, 11 include-path case mismatches, 8 constant
-      truncations (7 `int16_t` IDs in `sithWeapon.c`/`sithWhip.c`, 1 in `JonesDisplay.c`), 7 discarded qualifiers, 6
-      enum-pointer assignments in `sithCommand.c`, 2 unsequenced modifications (`sithCollision.c:877`;
-      `AudioLib.c:1703` is P4.8), 2 pointer-as-boolean tests, 2 wrong `abs` variants, and the pointer/integer
-      compare in `sithCogParse.c:260`.
-- [ ] **P1.29** (S) Turn on `J3D_WERROR_SHORTEN` by default once P1.25 to P1.27 are closed.
+- [x] **P1.22** 19 non-void functions that could fall off their end (`-Wreturn-type`: 10 in `sith`, 5 in
+      `Jones3D/Display`, 2 in `rdroid`, 1 in `JonesDialog.c`, 1 in INSANE's `Zfilio.c`). Each returns what its callers
+      need, judged from what retail's `eax` held (table in `docs/PORTING.md`, "Functions with no return value").
+      `-Werror=return-type` is on.
+- [x] **P1.23** 58 `-Wformat` warnings fixed (`%zu`/`%zd` for `size_t`, `%p` for pointers, a debug trace that printed
+      `int`s with `%g`, two `sscanf` targets). Covered by `-Werror`.
+- [x] **P1.24** MSVC's `rand()` (15-bit LCG, seed 1) in `crt_posix.c`, mapped by `j3d.h`, with `RAND_MAX` 0x7FFF: the
+      engine draws retail's sequence, and the 144 `RAND_MAX` conversion warnings are gone.
+- [x] **P1.25** `-Wshorten-64-to-32` in `std` (18), `rdroid` (61) and `sound` (19): explicit casts where retail's
+      32-bit value is exact; the face-sort comparator no longer narrows a pointer difference between two worlds.
+- [x] **P1.26** `-Wshorten-64-to-32` in `sith` (283): explicit casts (counts, indices, in-array pointer differences,
+      `lrintf`), the DSS length macro, and the flex scanner's macros. None was a truncated pointer.
+- [x] **P1.27** `Jones3D/Main`, `Gui`, `Play` (22), `smush` (24), `zlib` (3), and `JonesHud.c` (22, not deferred after
+      all). Real 64-bit bugs: INSANE kept its file handles in `int` (movies would have crashed in phase 5), Blocky16
+      frame offsets between separate allocations were `int` (now `ptrdiff_t`), and the HUD's millisecond timers were
+      `size_t` (now `uint32_t`, wrapping like `timeGetTime`). The 58 in `jonesConfig.c` wait for P6.24.
+- [x] **P1.28** The other 52: format strings that were messages, include-path case, constant truncations,
+      qualifiers, enum pointers, `p = p = next`, address-of-array tests, `abs` variants, a handle compared with
+      `NULL`. `AudioLib.c:1703` stays for P4.8. Details in `docs/PORTING.md`, "Compiler warnings".
+- [x] **P1.29** `J3D_WERROR_SHORTEN` is on by default, and every other warning is an error too (decision 17), with
+      `jonesConfig.c` exempt from the narrowing error and `-Wunsequenced` from the general one.
+## Complete Phase 1 Code Audit
+
+Done 2026-11-12; details in `docs/PORTING.md`, "Phase 1 code audit". The phase's code was rebuilt with the warnings
+the build does not enable (`-Wall -Wextra`, the uninitialised-use family, `-Wcast-align`,
+`-Wcast-function-type-mismatch`), and the code written in phase 1 that had not been reviewed was read through.
+
+- [x] Uninitialised reads reached by the game now have defined values (decision 18): the final push or pull of a
+      pushable item moved along an unset vector (now `direction3`; verify in P7.5), underwater sounds had unset
+      environment flags, torso fire rotated by an unset vector, the mine-car AI and a snake path test read unset
+      locals, push/pull scrape sounds had no mode on plain surfaces, raft boarding read an unset flag, and the
+      thumbnail error path deleted unset handles.
+- [x] The eight function-pointer casts with mismatched return types are safe on arm64 (result discarded or
+      narrowed at once). The 188 `-Wcast-align` casts are on paths phases 2, 4 and 5 bring to life; those phases run
+      under the sanitizer build.
+- [x] Behaviour check: the `boot` log is unchanged by the warning work; the audit's changes are on paths the
+      opening of `00_cyn` does not reach.
+- Left open, each with its phase: `jonesConfig.c` (P6.24); `moveRate` and `dlgResult` in `JonesHud.c` and
+  `bFinished` in `JonesMain.c` (unset on paths that need a display or input); INSANE's `rc` (phase 5); the retail
+  save/restore differences listed under P1.20 (phase 8 fix series, and P4.9 for the sound pause time).
 
 ### Phase 2: Display and renderer
 
@@ -348,7 +392,7 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       the path.
 - [ ] **P2.22** (M) Visual pass: script a first-frame screenshot of all 17 levels and review each for missing
       textures, wrong alpha, z-fighting and fog errors. Fix what it shows.
-
+## Complete Phase 2 Code Audit
 ### Phase 3: Input
 
 Exit test: `00_cyn` is playable start to finish with keyboard and mouse, and again with a controller, using the
@@ -371,7 +415,7 @@ retail keysets.
 - [ ] **P3.9** (S) Mac keyboard behaviour: Command-Q quits, Command-Tab and focus loss release the mouse, Option and
       Command map to the Alt and Windows DIK codes.
 - [ ] **P3.10** (M) Input recording and replay by frame, for the regression and A/B work in phase 7.
-
+## Complete Phase 3 Code Audit
 ### Phase 4: Audio
 
 Exit test: music, ambience, effects, 3D positioning and dialogue with subtitles work in the first three levels, and
@@ -393,9 +437,11 @@ survive a save and load.
       and fix the unsequenced write at line 1703.
 - [ ] **P4.9** (M) Listening pass on levels `00` to `02`: looping ambience, attenuation and panning, voice lines with
       subtitles and lip sync (lip-sync data is regenerated on load), pause on focus loss, handles after a restore.
+      `Sound_Restore` adds the saved pause time where `Sound_Save` subtracted it (found by P1.20): decide whether
+      it matters once sound is audible.
 - [ ] **P4.10** (S) Output device changes while running (headphones in and out).
 - [ ] **P4.11** (S) Delete the DirectSound part of `win32_shim_dx.h`.
-
+## Complete Phase 4 Code Audit
 ### Phase 5: Movies
 
 Exit test: the five intro movies and every cutscene movie in the GOBs play with audio in sync and can be skipped; a
@@ -409,6 +455,7 @@ headless decode test passes for all of them.
 - [ ] **P5.5** (M) `DecodeAsm.asm` to C (519 lines): the two LUT decoders and six 555/565/RGBA conversions.
 - [ ] **P5.6** (S) `MixerAsm.asm` to C (306 lines).
 - [ ] **P5.7** (L) `Bloc16Asm.asm` to C (797 lines): the Blocky16 block decoder, cross-checked against ScummVM's.
+      Its frame offsets are already `ptrdiff_t` (P1.27): the three frames are separate allocations.
 - [ ] **P5.8** (M) `tests/moviecheck.c`: decode every frame of every movie with no display and checksum the frames.
       Compare with checksums from the Windows build under DREAMM when those can be captured.
 - [ ] **P5.9** (M) `Dsnd.c`: a streaming source on the phase 4 audio device, fed by INSANE's mixer.
@@ -416,7 +463,7 @@ headless decode test passes for all of them.
       are not needed.
 - [ ] **P5.11** (S) Skip, volume (`SmushPlay_SetGlobalVolume`) and subtitle hooks.
 - [ ] **P5.12** (S) List every movie in the GOBs with `gobtool.py` and play each from its in-game trigger.
-
+## Complete Phase 5 Code Audit
 ### Phase 6: GUI dialogs
 
 Exit test: every dialog reachable in a playthrough works; the game can be configured, saved and loaded in-app.
@@ -463,11 +510,13 @@ The game is playable without dialogs from phase 3 on, so this phase can overlap 
 - [ ] **P6.22** (S) Confirm templates 104, 105 and 118 are unreferenced and leave them out.
 - [ ] **P6.23** (S) Restore retail's `Start Mode`, `Debug Mode` and `Verbosity` defaults, which were changed in
       phase 1 only because no GUI existed.
-- [ ] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling, its 4 fall-off-the-end
-      functions and the 80 narrowing warnings in `Jones3D/Display`.
+- [ ] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling (128-byte file-dialog
+      buffers), its 58 narrowing warnings (then drop its `-Wno-error=shorten-64-to-32` in `CMakeLists.txt`) and its
+      four uninitialised locals (`docs/PORTING.md`, "Known open items"). Its fall-off-the-end functions were fixed in
+      P1.22.
 - [ ] **P6.25** (M) Layout pass: every dialog compared with a reference screenshot from the Windows build, at 1× and
       2× scale.
-
+## Complete Phase 6 Code Audit
 ### Phase 7: Full-game verification and 64-bit closure
 
 Exit test: all 17 levels completed on the port with no assert, crash or blocker, and no Win32 type outside
@@ -479,7 +528,8 @@ Exit test: all 17 levels completed on the port with no assert, crash or blocker,
 - [ ] **P7.3** (M) Build with `J3D_DEBUG_ASSERTS=ON`, run the tests and a session per level, fix what asserts.
 - [ ] **P7.4** (L) Playthrough, recorded in the table below.
 - [ ] **P7.5** (M) A/B against the Windows build in DREAMM for the physics-sensitive places: long jumps, whip swings,
-      raft and jeep handling, the Marduk statue push that 1.2 fixed (risk 7.1).
+      raft and jeep handling, the Marduk statue push that 1.2 fixed (risk 7.1). Include the end of every item push
+      and pull: retail's final step used an unset direction, which the port sets to the push direction (audit).
 - [ ] **P7.6** (M) Delete `win32_shim_dx.h` (489 lines) once phases 2 to 5 have removed its last users.
 - [ ] **P7.7** (M) Delete `win32_shim_gui.h` (1,538 lines) and `win32_null.c` once phase 6 is complete.
 - [ ] **P7.8** (M) Delete `win32_shim.h` (490 lines): no `HWND`, `HDC` or `DWORD` left outside `platform/`.
@@ -507,7 +557,7 @@ Playthrough record for P7.4. "Loads" is the `levelload` test.
 | Aetherium | `15_aet` | ✅ | ⬜ | ⬜ |
 | Jeep Trek | `16_jep` | ✅ | ⬜ | ⬜ |
 | Return to Peru (bonus) | `17_pru` | ✅ | ⬜ | ⬜ |
-
+## Complete Phase 7 Code Audit
 ### Phase 8: Mac product polish
 
 Exit test: a notarized `.app` that a player with a retail copy can install and finish the game with, on a machine that
@@ -551,10 +601,11 @@ j3dport/
   Jones3D/              imported; Win32 calls resolved by the shim until phase 7
   Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
   platform/apple/       main.c, shim/            + std3D_metal.m (2), bundle and locator (8)
-  platform/common/      crt_posix.c, host_path.h, wuRegistry_file.c, stdDisplay_vbuffer.c, null/
+  platform/common/      crt_posix.c, host_path.h, host_clock.h, host_dirs.c, wuRegistry_file.c,
+                        stdDisplay_vbuffer.c, stdDisplay_headless.c, null/
                         + SDL backends (2, 3), SoundDriver_ma.c (4), insane_os/ (5), j3dgui/ (6)
   tools/                gen_null_platform.py, layout_audit.py, gobtool.py     + rc2table.py (6)
-  tests/                harness.c, levelload.c, cogcheck.c    + saveload.c (1), moviecheck.c (5)
+  tests/                harness.c, levelload.c, cogcheck.c, saveload.c          + moviecheck.c (5)
   third_party/          not yet created: miniaudio.h (4)
   docs/                 PORT-PLAN.md, PORTING.md, and the decomp's reference documents
 ```
@@ -575,9 +626,11 @@ family on arm64 Macs this way without gameplay regressions.
 ### 7.2 On-disk struct layouts on 64-bit
 
 Largely retired. The layout audit reports no differing on-disk type, every fixed record asserts its retail size, and
-all 17 levels load with plausible counts. What remains is run-time rather than load-time: narrowing conversions
-(P1.25 to P1.27), which the sanitizer run (P1.21) and the playthrough will exercise, and savegames, which only the
-port reads back and which get a round-trip test (P1.20, P7.2). Draft 1 expected `SithCogValue` to break level loading;
+all 17 levels load with plausible counts. The run-time side is closed too: every narrowing conversion was
+triaged and is now a compile error (P1.25 to P1.29; four were real 64-bit bugs), the sanitizer build is clean on the
+tested paths (P1.21), and savegames, which only the port reads back, round-trip (P1.20; all levels in P7.2). What is
+left is the code no test reaches yet (rendering, sound, movies, dialogs), which the later phases run under the
+sanitizer build. Draft 1 expected `SithCogValue` to break level loading;
 it does not, because `.cnd` files store cog symbol values as text.
 
 ### 7.3 Dialog system scope
@@ -607,7 +660,8 @@ New since draft 1. Phase 1 found retail code that depended on the 1999 compiler 
 in memory, a read one byte before a buffer, a material loader that only worked when textures stayed 16-bit, 20
 functions whose return value was whatever the register held. More will surface once the game loop runs. Mitigation:
 the sanitizer build (P1.21), the debug-assert build (P7.3), and logging each one in `docs/PORTING.md` so it is not
-mistaken for a port regression.
+mistaken for a port regression. The phase 1 audit found eleven more such reads of uninitialised locals (an item
+push's final direction among them) and gave each a defined value (decision 18).
 
 ## 8. Milestones
 
@@ -618,7 +672,7 @@ guide.
 | # | Milestone | Draft 1 estimate | State on 2026-11-12 |
 | --- | --- | --- | --- |
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
-| 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Levels load, scripts compile and the game loop runs headless under `ctest`; savegame test, sanitizer run and warning backlog open |
+| 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors (P1.19 onward not yet committed) |
 | 2 | Metal renderer, first level on screen | 3 to 4 weeks | Not started |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
 | 4 | Audio complete | 2 weeks | Not started |
@@ -632,12 +686,12 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. **P1.15:** commit the working tree. Roughly 850 lines of verified work, documented in `docs/PORTING.md`, are
-   uncommitted.
-2. **P1.22:** the remaining 19 fall-off-the-end functions. One of them already broke saving; the others sit in AI,
-   physics, player controls and weapons, which the headless loop now executes.
-3. **P1.20, P1.21:** the savegame round trip and the sanitizer run, while the code under test is still small.
-4. **P2.1, P2.2:** SDL3 in the build and a window on screen. The rest of P1D can proceed alongside.
+1. Commit P1.19 to P1.30 and the phase 1 audit on `phase1-headless` as reviewable commits, and merge the branch into
+   `main` once reviewed.
+2. **P2.1, P2.2:** SDL3 and Objective-C in the build, then a window that opens and closes cleanly.
+3. **P2.3 to P2.6:** the display device, the back buffer and the first present, so the level-load screen is visible.
+4. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
+   current tests do not reach.
 
 To reproduce the measurements at the top of this file:
 
@@ -646,6 +700,8 @@ cmake -S . -B build -G Ninja -DJ3D_TEST_DATA=<folder holding RESOURCE/>
 cmake --build build
 ctest --test-dir build --output-on-failure
 python3 tools/layout_audit.py
+cmake -S . -B build-asan -G Ninja -DJ3D_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DJ3D_TEST_DATA=<same folder>
+cmake --build build-asan && ctest --test-dir build-asan --output-on-failure
 ```
 
 When a step is finished, tick it here and update its row

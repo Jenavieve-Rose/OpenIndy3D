@@ -181,7 +181,8 @@ VBuffers and a texture format even when nothing is drawn.
   handlers that print a backtrace.
 - `tests/levelload.c` loads the static world and all 17 levels and prints each level's section counts.
   `tests/cogcheck.c` compiles every `.cog` in the three GOBs through the engine's lookup, so a loose override is the
-  file compiled. Both, and `boot` (see "Headless run"), are registered with `ctest` when the tree is configured with `-DJ3D_TEST_DATA=<data root>`.
+  file compiled. `tests/saveload.c` is the savegame round trip ("Savegame round trip"). All three, and `boot` (see
+  "Headless run"), are registered with `ctest` when the tree is configured with `-DJ3D_TEST_DATA=<data root>`.
   A new test is a file in `tests/` and its name in `J3D_TESTS` (`CMakeLists.txt`).
 - `tools/gobtool.py` lists and extracts GOB contents. Nothing in the build depends on it.
 - `docs/BUILDING.md` is the port's build guide. The decomp's file of that name is now `docs/DECOMP-BUILDING.md`, and
@@ -199,7 +200,8 @@ VBuffers and a texture format even when nothing is drawn.
   `J3D_HEADLESS` is set (`--headless`). `stdDisplay_VBufferCopy` and the GDI device-context functions remain null.
 - The null `std3D` starts and opens and reports one device; `std3D_GetValidDimensions` returns the size asked for.
 - `platform/common/host_clock.h`, in `crt_posix.c`: `timeGetTime`, `GetTickCount` and `Sleep` run on a virtual clock
-  once the headless display opens. It advances 33 ms for every `stdDisplay_Update` and by the requested time for every
+  once the headless display opens, starting at a fixed 10,000,000 ms (see "Savegame round trip"). It advances 33 ms
+  for every `stdDisplay_Update` and by the requested time for every
   `Sleep`, and never by itself. A headless run is therefore not tied to real time (600 frames take about 0.3 s) and
   its log is identical from run to run.
 - `wkernel_null.c`: `J3D_FRAMES=<n>` (`--frames <n>`) ends `wkernel_Run`'s loop after n passes through
@@ -224,16 +226,207 @@ Also seen, and left alone: `sithGamesave_SaveFile` returns early on a failed wri
 `sithMessage_outputstream`, after which every thing change is queued for a file that is closed
 ("Too many modified things in a single frame!"). It no longer triggers now that the write succeeds.
 
+### Where the port writes
+
+PORT-PLAN.md P1.19. Retail wrote under its install folder; the port never writes to the player's game data
+(`platform/common/host_dirs.h`).
+
+- `Install Path` is the setting the engine writes under: `SaveGames/` and `ScreenShots/` (`sithGetPath`) and
+  `KeySets/` (`jonesConfig_InitKeySetsPath`). Its default is now `~/Library/Application Support/J3DPort/`, the folder
+  of `settings.ini`, instead of the data root. `Source Dir` and `User Path`, which the engine reads game files from,
+  still default to the data root.
+- `J3DHost_PrepareUserDirs`, called by `platform/apple/main.c` before `WinMain`, creates the effective `Install Path`
+  and, when its `KeySets/` does not exist yet, copies the retail `*.kfg` files from the data root's `KEYSETS/` into
+  it. An existing `KeySets/` is never refilled, so deleted keysets stay deleted. The test programs do not call it, so
+  they write nothing under the user's Library.
+- `JonesMain_LogErrorToFile` writes `JonesError.txt` to `~/Library/Logs/J3DPort/` (or `J3D_LOGS`) instead of under
+  `Install Path`, and its path buffer is 1024 bytes instead of 128. `JonesLog.txt` (log-file output mode) goes to the
+  same folder instead of the current directory. The folder is created when the first log is written.
+
+### Functions with no return value
+
+PORT-PLAN.md P1.22. Twenty non-void functions could fall off their end. Retail callers received whatever `eax` held;
+clang returns an arbitrary value. `sithMessage_FileWrite` is in the table above. The other 19 each got an explicit
+return chosen from what their callers do with the result, with a `// Port:` comment giving the reasoning at the site.
+`-Werror=return-type` is now on for the whole tree, so a new case cannot get in.
+
+| Where | Callers read the result? | Returns |
+| --- | --- | --- |
+| `rdroid/Engine/rdClipFace.c` `rdClip_FaceToPlane` | Yes, every caller | 1: `eax` held the last output-vertex address, so a face that reached the end always counted as visible |
+| `rdroid/Primitives/rdModel3.c` `rdModel3_Validate` | Debug-only assert | 1 |
+| `sith/AI/sithAI.c` `sithAI_RegisterInstinct` | No | 1 |
+| `sith/AI/sithAIInstinct.c` `sithAIInstinct_RandomTurn` | `sithAI_InstinctUpdate` restarts its loop on non-zero | 0: the restart retail sometimes took did nothing, because the instinct had already set its next update time |
+| `sith/AI/sithAIInstinct.c` `sithAIInstinct_TurretFire` | Never registered | 0 |
+| `sith/Cog/sithCogFunctionThing.c` `sithCogFunctionThing_SetThingHeadOrientation` | Yes | `pThing && pLook`, what retail's `eax` amounted to on each path |
+| `sith/Engine/sithPhysics.c` `sithPhysics_UpdateJeepWheelContact` | No | 0 |
+| `sith/Gameplay/sithOverlayMap.c` `sithOverlayMap_ToggleMap` | No | 0 |
+| `sith/Gameplay/sithOverlayMap.c` `sithOverlayMap_GetCurrentHintThing` | Never called | `NULL` |
+| `sith/Gameplay/sithPlayerControls.c` `sithPlayerControls_ProcessPlayerDebugControls` | Yes | 0, the last key state `eax` held |
+| `sith/Gameplay/sithPlayerControls.c` `sithPlayerControls_TryBoardVehicle` | Yes: non-zero consumes the action key | 1 where a facing or distance check fails (the x87 status word retail left was non-zero), 0 when no vehicle was found |
+| `sith/World/sithWeapon.c` `sithWeapon_ProcessWeaponControls` | Yes: `sithControl_Update` skips the later control callbacks on non-zero | 1 after the chalk is used; otherwise `buffered key != -1 && bPlayerWeaponActivated` |
+| `Jones3D/Display/JonesDisplay.c` `JonesDisplay_ApplyBackBufferSize` | Never called | 0 |
+| `Jones3D/Display/jonesConfig.c` `jonesConfig_GameFileDialog_HandleWM_COMMAND` | No | `NULL` |
+| `Jones3D/Display/jonesConfig.c` `jonesConfig_ShowAdvanceDisplaySettings` | No | the dialog result it computed |
+| `Jones3D/Display/jonesConfig.c` `jonesConfig_StoreHandleDragEvent` | No | 1 |
+| `Jones3D/Display/jonesConfig.c` `jonesConfig_StoreInitItemIcons` | Yes: zero aborts the store dialog | 1: `eax` held the last non-zero image-list index |
+| `Jones3D/Gui/JonesDialog.c` `JonesDialog_DummyFlipGDI` | No | 0 |
+| `smush/insane/File/Zfilio/Zfilio.c` `zfilio_seek` | No | 0, `fseek`'s success value |
+
+### Compiler warnings (P1.23, P1.24, P1.28)
+
+Every warning class except narrowing is now closed and the build uses `-Werror` (`CMakeLists.txt`). The exceptions
+are listed in "Known open items".
+
+- **`rand` (P1.24).** `j3d.h` maps `rand()` and `srand()` to `J3DHost_rand` and `J3DHost_srand` in `crt_posix.c`, the
+  Visual C++ generator (`seed = seed * 214013 + 2531011`, 15-bit result, seed 1), and sets `RAND_MAX` to `0x7FFF`.
+  The engine never seeds it, so it draws retail's sequence. macOS `rand()` returned 31 bits, which changed every
+  `rand() % n` and made `SITH_RAND`'s `1.0f / RAND_MAX` inexact (the 144 constant-conversion warnings). The macros are
+  function-like, so struct members named `rand` are untouched.
+- **Formats (P1.23).** `size_t` values printed with `%d` now use `%zu`/`%zd`; the output is unchanged for values that
+  fit in 32 bits. INSANE's debug allocator printed `int`s with `%ld` and pointers with `%08lx` (`%d`, `%p` now).
+  `sithCog_SendMessageEx`'s debug trace printed its `int` params with `%g` (retail printed garbage; `%d` now). The
+  horizon and ceiling sky offsets were scanned with `%f` into the `rdVector2` itself (now `.x`; same address).
+- **Messages used as format strings (P1.28).** `JonesMain_LogErrorToFile`, the log-file writer, `std.c`'s file-name
+  prefix, the keyset writer in `jonesConfig.c` and the colour-depth strings of the display dialog passed text as the
+  format string. They now use `"%s"`. No string in `jonesstrings.uni` contains `%%`, so the output is the same.
+- **The rest of P1.28.** Include spellings now match the files on disk (11). The static resource indices passed to
+  `sithModel_GetModelByIndex` are cast to `int16_t` explicitly (the value retail passed). `rdSprite.c` tested
+  `fabs(lvec.z >= 0.9999f) != 0.0`, which is `lvec.z >= 0.9999f`, now written so. Two tests of an array's address,
+  which is never null, are now unconditional (`sithThing.c` explosion sprite name, `jonesConfig.c` keyset folder).
+  `sithCollision.c` had `p = p = next`. The rest are casts that state what retail did (`const` discarded, enum
+  pointers, `abs` of a `UINT`, the `WS_POPUP` style bits, a `tFileHandle` compared with `NULL`).
+
+### Sanitizer findings (P1.21)
+
+`-DJ3D_SANITIZE=ON` builds with ASan and UBSan (docs/BUILDING.md). All four tests pass under it, as does a 3,000 +
+3,000 frame `saveload` run. What it found:
+
+| Where | Problem | Change |
+| --- | --- | --- |
+| `std/General/stdMemory.c` zone allocator | Blocks rounded to 4 bytes: the 16-byte zone headers and the blocks after them were only 4-byte aligned on 64-bit | Blocks round to the pointer size; the zone size is a multiple of it. |
+| `std/General/stdMemory.c` debug allocator | The guard word after each block was stored and checked through a `DWORD*` at an arbitrary offset | `memcpy`. |
+| `sith/Gameplay/sithEvent.c` `sithEvent_ResetFreeBufferTable` | The loop ran to `i = 0` and wrote `-1` one element past the free-index table, into the next global | Stops at 1; the 256 entries are the same. |
+| `std/General/stdConffile.c` `stdConffile_ReadLine` | A one-character line (the last line of a file with no newline) read `stdConffile_aLine[-1]` | Length guard. |
+| `smush/insane/Lec/LecShare.c` | The backward registry walks formed `&entries[n - 1]` with `n = 0` | `entries + n - 1`; it was never dereferenced. |
+| `smush/insane/Memory/Memory.c` debug allocator | A 4-byte size header and a pointer-sized guard in `malloc(size + 8)`: on 64-bit the guard overran the block by 4 bytes, and blocks were 4-byte aligned. `realloc(NULL, n)` read through NULL | 16-byte header, guard copied with `memcpy`, `realloc(NULL)` allocates. |
+| `sound/Sound.c`, 30 loops | `while ( (p--, n-- != 0) )` decrements the pointer before the first pass, which with no sound device open was arithmetic on NULL | `while ( n-- != 0 ) { --p; ... }`: the pointer has the same value in every pass; no function reads it after its loop without reassigning it. |
+| `sith/Cog/sithCogFlex.c` | A 7-bit scanner indexed its 128-entry class table with a plain `char`: the "ë" in a comment of `10_SEA_Vol_Frets.cog` read 21 bytes before the table | Bytes of 0x80 and above take a letter's class, which keeps the comment a comment. |
+| `rdroid/Raster/rdCache.c` `rdCache_SendFaceListToHardware` | Read the face after the last one (past `rdCache_aProcFaces` when the cache was full) before the loop condition ended the loop | The read is skipped when `polyNum == numPolys`; the loop ends the same way. |
+| `sith/Dss/sithDSS.h` and message readers/writers | 16- and 32-bit message fields at odd offsets were stored and loaded through cast pointers | `SITHDSS_PUSH*`/`POP*` are inline `memcpy` helpers; `sithAIUtil_ProcessSyncWpnts`, the path-move reader and two writers that bypassed the macros use them too. |
+
+### Savegame round trip (P1.20)
+
+`tests/saveload.c` runs the game headless (as `jones3d --headless` does, through `JonesMain_Startup` and the game
+loop), saves with `sithGamesave_SaveFile`, records the world, restores with `sithGamesave_RestoreFile`, records it
+again and compares: thing count and, per thing, index, type, guid, signature, flags, position (bit for bit), sector
+and health; the 16 COG globals; game time; the player thing. It then saves the restored game and compares the two
+files message by message, and plays 300 more frames.
+
+Two headless runs used to write autosaves that differed in 74 bytes although their logs matched. The causes, all
+fixed:
+
+- **COG globals in the header.** `sithGamesave_SaveFile` copied each global symbol's whole value. On 64-bit the value
+  union is 16 bytes, and an `int` or `float` symbol keeps stale pointer bits above its 4 bytes. Only the member the
+  type names is copied now; pointer, symbol-id and string values are still reset, as retail did.
+- **Sprite things.** `sithDSSThing_FullDescription` writes a model index and the model's `insertOffset` for any thing
+  whose `renderData.data` (a union) is set. For a sprite that pointer is an `rdSprite3`, its model index is -1, and the
+  12 bytes written came from the sprite (on 64-bit, a heap pointer). `sithDSSThing_ProcessFullDescription` reads no
+  vector after a -1, so it took those bytes as the thing's alpha and the rest of the record: a restored sprite got a
+  garbage alpha. The writer now writes the vector only with a real model index. This is a retail bug fix, but retail's
+  behaviour (bytes from the sprite at a 32-bit `rdModel3` offset) cannot be reproduced on 64-bit anyway.
+- **Absolute times.** The sound section stores times taken from `timeGetTime`. The headless virtual clock started at
+  the real uptime, so they changed from run to run. The host clock now counts from process start (plus 1000 ms), and
+  the virtual clock starts at a fixed 10,000,000 ms.
+
+A save of the restored game is not byte-identical to the original save, in three ways that are retail behaviour and
+are left for the OpenJones3D fix series in Phase 8 (decision 11). The test allows exactly these:
+
+- AI status messages come out in a different order: AI control blocks are reallocated on restore.
+- An animation's ID is `(player + 1) << 16 | slot`, and restore reallocates slots from 0 with no holes, so IDs change.
+  A COG that kept an animation ID across a save would lose it. (`sithDSS_ProcessAnimStatus`, `sithAnimate_NewAnim`.)
+- `Sound_Save` writes `now - pauseStart`; `Sound_Restore` sets `pauseStart = saved + now`. Only the sound section's
+  fifth word differs. To be looked at with the rest of the sound restore in Phase 4.
+
+### Path length (P1.30)
+
+The engine kept file paths in 128-byte buffers (`SITH_PATHSIZE`, `STDCONFFILE_FILENAMESIZE`,
+`JONESCONFIG_GAMESAVE_FILEPATHSIZE` and many `char[128]` locals). With a long `Install Path` the autosave name was cut
+to `st`, the save was then not recognised as an autosave and the level played differently; with a long data root the
+GOBs were not found. `j3d.h` defines `J3D_PATHSIZE` (1024), and every buffer that holds a host path now uses it: the
+three constants above; the save, screenshot, keyset, log and resource paths in `sithMain.c`, `sithGamesave.c`,
+`sithRender.c`, `sithCogFunction.c`, `JonesMain.c`, `JonesFile.c`, `JonesHud.c` and `jonesConfig.c`'s keyset code; the
+resource and GOB path fields (`JonesResource.aPath`, `sGob.aFilePath`, `FindFileData.aSearchFilter`,
+`JonesState.aInstallPath`, `aCDPath`). `stdConffile_PushStack` asserted `< 128`. `JonesMain`'s error messages that
+include a path use `snprintf` into a wider buffer. None of these is an on-disk record (`layout_audit.py` still reports
+0). `boot`, `saveload`, `levelload` and `cogcheck` pass with a 257-character `Install Path` and a 229-character data
+root. The file dialogs in `jonesConfig.c` still use 128-byte buffers; Phase 6 replaces them (P6.17, P6.24).
+
+### 64-bit audit: narrowing conversions (P1.25 to P1.29)
+
+All 510 `-Wshorten-64-to-32` warnings outside `jonesConfig.c` were triaged, and `J3D_WERROR_SHORTEN` is now on by
+default. Each was classified by what the converted value can be:
+
+- **Bounded values** (about 440): counts and indices of engine arrays, string lengths, pointer differences within one
+  array, `ftell` of a game file, `lrintf` results, `time_t` file times (fit until 2106), Win32 message results. Retail
+  computed them in 32 bits, so an explicit cast is exactly retail's value. Each is written `(T)expr` and marked
+  `// Port: narrowing cast`. They were inserted with clang's own source ranges, so the cast covers exactly the
+  converted expression.
+- **Values that were wrong on 64-bit**, fixed by type instead:
+  - INSANE's `FilioHandle` (a host `FILE*`) was kept in `int` variables in `Cdstream.c` (`Stream.hFile` and two
+    locals) and `Zfilio.c`: the handle was truncated. Movies would have crashed on their first read in Phase 5.
+  - `D_bloc16.c` stored the distances from the current Blocky16 frame to the two previous ones, three separate
+    allocations, in `int`. They are `ptrdiff_t` now, as are `dbloc16_Codec2`'s parameters (P5.7 translates it).
+  - `rdCache_ProcFaceCompare` returned `pMat2 - pMat1`. Static-world and level materials are separate allocations, so
+    the difference can exceed 32 bits and flip sign, which breaks the face sort. It returns the sign of the comparison.
+  - The HUD's millisecond timers (`JonesHud_msecTime` and four more, and the update's `curTime`) were `size_t`. They
+    are `uint32_t`, retail's `DWORD`, so their arithmetic wraps at 2^32 like `timeGetTime`.
+  - `SITHDSS_ENDOUT` computes the message length from a pointer difference within the message buffer; the cast is in
+    the macro.
+- `jonesConfig.c`'s 58 are Win32 dialog message plumbing (`WPARAM`, `LRESULT`, list-view item data) that Phase 6
+  rewrites (P6.24). That one file is compiled with `-Wno-error=shorten-64-to-32`.
+
+Behaviour is unchanged: the `boot` log is identical before and after, and the four tests pass.
+
+### Phase 1 code audit
+
+A final pass over the phase, with the warnings the build does not enable (`-Wall -Wextra -Wuninitialized
+-Wsometimes-uninitialized -Wconditional-uninitialized -Wcast-align -Wcast-function-type-mismatch` and others) and a
+read-through of the code written this phase that had not been reviewed (`host_dirs.c`, the savegame and sanitizer
+changes). Reads of uninitialised locals are undefined in C, and clang may drop the code around them, so each one
+reached by the game now has a defined value. In retail they read whatever the stack held, which the decomp
+reproduces byte for byte.
+
+| Where | What retail read | Now |
+| --- | --- | --- |
+| `sith/Engine/sithAnimate.c` `sithAnimate_UpdatePushItemAnim`, `UpdatePullItemAnim` | The final push or pull of an item moved it along an unset vector, probably the direction the previous frame's call left in the same stack slot | `pAnim->direction3`, the direction the other path uses. OpenJones3D zeroes it (no final push); its comment says it should be `direction3`. Checked in the A/B pass (P7.5, risk 7.1). |
+| `sith/Devices/sithSoundMixer.c` `sithSoundMixer_PlaySoundPos` | ORed the underwater flag into unset environment flags | Starts from 0, as OpenJones3D does. |
+| `sith/World/sithWeapon.c` `sithWeapon_FireProjectile` | Torso fire rotated the muzzle by an unset vector | 0, as OpenJones3D does. |
+| `sith/AI/sithAIMove.c` `sithAIMove_UpdateMineCar` (a soldier riding a mine car) | `moveState` was never set | `sithAIMove_AIGetMoveState(pLocal)`, as the sibling `sithAIMove_UpdateTurn` sets it (a pure getter). |
+| `sith/AI/sithAIInstinct.c` snake path test | ORed flags into an unset `mask` | Starts from 0. |
+| `sith/Engine/sithPuppet.c` push/pull scrape sound | No scrape mode for a surface with none of the named flags | 0, the hard scrape. |
+| `sith/Gameplay/sithPlayerActions.c` raft boarding | `bExitedSector` (the decomp notes it) | 1: the code clears it when the raft starts in another sector, so it means "same sector". |
+| `sith/Dss/sithGamesave.c` `sithGamesave_CreateThumbnail` | The error path deleted unset DC and bitmap handles | NULL; only set handles are deleted. |
+| `sith/World/sithSurface.c` surface reader, `sith/Gameplay/sithFX.c` fairy dust, `sith/World/sithVoice.c` voice guid, `sith/Cog/sithCogFunction.c` holster model, `sith/World/sithWorld.c` writer placeholder | Unset on an error or empty path | NULL, -1 or 0. |
+
+Also checked and left alone: the eight function-pointer casts with mismatched return types (`int`/`void`,
+`UINT`/`LRESULT`) discard or immediately narrow the result, which is safe on arm64; the remaining
+`-Wsometimes-uninitialized` reports in `stdMath.c` and `sithPhysics.c` are `if`/`else if` chains over float compares
+that only miss NaN.
+
 ### Known open items
 
-- 19 non-void functions can fall off their end (`-Wreturn-type`). Retail callers received whatever was in `eax`; each
-  needs checking against the binary before choosing a return value (PORT-PLAN.md P1.22).
-- The engine's path buffers are 128 bytes. A long `Install Path` silently truncates the savegame path
-  (PORT-PLAN.md P1.30).
-- `SaveGames/` and `JonesError.txt` are written under `Install Path`, which defaults to the data root, so a normal run
-  writes into the player's game folder (PORT-PLAN.md P1.19). The `boot` test points `Install Path` at the build tree.
-- `AudioLib.c`: `*pCurOut++ = *pCurOut++ = 0` is unsequenced; verified with the rest of AudioLib in Phase 4.
-- The rest of the compiler-warning backlog is itemised in PORT-PLAN.md, steps P1.23 to P1.29.
+- `AudioLib.c`: `*pCurOut++ = *pCurOut++ = 0` is unsequenced; verified with the rest of AudioLib in Phase 4 (P4.8).
+  The build allows that one warning (`-Wno-error=unsequenced`).
+- `jonesConfig.c`: 58 narrowing conversions, 128-byte file-dialog paths, and four uninitialised locals
+  (`scrwidth`, `font`, `curFontScale`, `bResult`) wait for the Phase 6 rewrite (P6.24).
+- Not yet reachable headless, so left for the phase that first runs them: `JonesHud.c`'s `moveRate` (menu animation)
+  and `dlgResult` (save/load menu) and `JonesMain.c`'s `bFinished` (credits) can be read unset (Phases 2, 3 and 6);
+  INSANE's `rc` in `Pcplay.c` and `D_bloc16.c` (Phase 5).
+- `-Wcast-align` reports 188 casts from byte pointers to wider types, mostly in the renderer, sound and INSANE.
+  arm64 loads them unaligned without faulting, and UBSan found none on the paths the tests run; the phases that bring
+  those paths to life run under the sanitizer build too.
+- `sithCogFunctionSurface.c`: `GetSurfaceMat` and `SetSurfaceMat` push `pMaterial - sithWorld_pCurrentWorld->aMaterials`,
+  which is meaningless for a static-world material (retail pushed a garbage index too).
 - The tests print "Symbol … not defined. Assuming float=0.0" for many scripts (`INF_Introscene.cog` in the level
   test, about 230 lines from `cogcheck`). These are undeclared symbols in the retail scripts, which the retail parser
   reports the same way; they are not port failures.
