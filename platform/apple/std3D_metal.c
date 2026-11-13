@@ -15,6 +15,7 @@
  * textures and the texture cache (P2.12), render states and the mipmap filter (P2.13), fog (P2.14), the projection
  * (P2.15) and wireframe (P2.16). Each returns what the null backend returned.
  */
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -27,6 +28,14 @@
 #include <platform/apple/render_metal.h>
 
 #define STD3D_DEFAULT_MAX_VERTICES 512 // retail std3D.c: used when the device reports no limit
+
+// rdroid's vertices go to the renderer as they are: the two layouts must match.
+_Static_assert(sizeof(J3DRenderVertex) == sizeof(D3DTLVERTEX), "J3DRenderVertex is not D3DTLVERTEX");
+_Static_assert(offsetof(J3DRenderVertex, rhw) == offsetof(D3DTLVERTEX, rhw), "J3DRenderVertex.rhw");
+_Static_assert(offsetof(J3DRenderVertex, color) == offsetof(D3DTLVERTEX, color), "J3DRenderVertex.color");
+_Static_assert(offsetof(J3DRenderVertex, specular) == offsetof(D3DTLVERTEX, specular), "J3DRenderVertex.specular");
+_Static_assert(offsetof(J3DRenderVertex, tu) == offsetof(D3DTLVERTEX, tu), "J3DRenderVertex.tu");
+_Static_assert(offsetof(J3DRenderVertex, tv) == offsetof(D3DTLVERTEX, tv), "J3DRenderVertex.tv");
 
 float  std3D_fogDensity;
 size_t std3D_maxVertices;

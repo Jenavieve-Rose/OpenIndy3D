@@ -450,7 +450,7 @@ that only miss NaN.
   (`platform/apple/host_apple.h`), so no engine file includes an Objective-C header.
 - `platform/apple/host_apple.m`: `J3DApple_LogHostInfo`, called by `main.c` in the apple build only, prints the macOS
   version, the default Metal device and the SDL3 version before the engine starts.
-- Homebrew's SDL3 is built for the host's macOS version, so linking `jones3d` against it prints one linker warning (since P2.6 a second one, for the `present` test)
+- Homebrew's SDL3 is built for the host's macOS version, so linking `jones3d` against it prints one linker warning (one per program that links SDL3: since P2.10 also the `present` and `render` tests)
   (`building for macOS-13.0, but linking with dylib ... built for newer version`). It goes away when SDL3 is shipped
   inside the bundle, built for the deployment target (PORT-PLAN.md P8.3). Until then the binary runs only on macOS
   versions as new as the build machine's SDL3.
@@ -653,3 +653,32 @@ that only miss NaN.
   `Max vertices: 512`. The `present` test gained a scene step: a scene begins from a pattern in the back buffer, clears
   depth and ends, the back buffer is then painted grey on the CPU, and the presented frame must show the pattern; it
   fails when the scene picture is not handed to the presenter (tried). A windowed game run of 600 frames exits 0.
+
+### Shaders (P2.10)
+
+- `render_metal.m` compiles its shaders from source when the renderer opens and builds two pipelines (flat and
+  textured; the textured one is used from P2.12) and two depth states (writes on, and off for P2.13). They stand in for
+  Direct3D 6's fixed-function pipeline as retail's `std3D_InitRenderState` set it up:
+  - colour = texture × diffuse, alpha the same (`D3DTOP_MODULATE`); the diffuse colour alone when untextured.
+    Specular stays off, as retail set `SPECULARENABLE` false; its alpha carries the fog factor (P2.14)
+  - alpha test: a fragment passes when its alpha, as 8 bits, is greater than the reference (`D3DCMP_GREATER`,
+    reference 0; `0xA0` under `STD3D_RS_ALPHAREF_SET` from P2.13)
+  - blending source alpha over inverse source alpha, always on
+  - depth test less-or-equal (`D3DCMP_LESSEQUAL`) with writes; no culling (`D3DCULL_NONE`)
+- The vertex stage takes rdroid's pre-transformed vertices (`D3DTLVERTEX`) and returns them to clip space: x and y from
+  back-buffer pixels to normalised coordinates, shifted half a pixel (Direct3D 6 put pixel centres on whole
+  coordinates, Metal at +0.5), then every component times w = 1/rhw, so the divide by w restores the screen position
+  and depth while colours and texture coordinates interpolate perspective-correctly (retail turned
+  `TEXTUREPERSPECTIVE` on). A vertex with rhw <= 0 is drawn with w = 1. Colours are unpacked from 0xAARRGGBB.
+- Depth outside 0 to 1 is clamped, not clipped (`MTLDepthClipModeClamp`): Direct3D 6 did not clip pre-transformed
+  vertices on depth. Points are one pixel.
+- `J3DRender_Draw` draws indexed triangles, line strips or points into the open scene. Until the per-frame buffer
+  ring (P2.11) each draw allocates its own buffers, and nothing in `std3D` calls it yet: `DrawRenderList`,
+  `DrawLineStrip` and `DrawPointList` are wired in P2.11. `std3D_metal.c` checks at compile time that
+  `J3DRenderVertex` has `D3DTLVERTEX`'s layout, so rdroid's vertices can go to the GPU as they are.
+- A scene keeps the previous depth unless `std3D_ClearZBuffer` asked for a clear, as retail's did.
+- `tests/render.c` (apple, no game data, no window) draws into the scene texture and reads it back
+  (`J3DRender_ReadScene`). It checks pixel coverage at quad edges, the colour byte order, the depth test in both draw
+  orders and at equal depth, a depth clear inside a scene, the alpha test and blending, perspective-correct
+  interpolation against the exact formula, depth clamping, and lines and points. It fails without the half-pixel
+  shift (5 checks) and without the multiply by w (3 checks); both tried.

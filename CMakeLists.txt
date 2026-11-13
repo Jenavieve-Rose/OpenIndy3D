@@ -282,6 +282,7 @@ endforeach()
 # Tests that need no game data, registered in every configuration:
 #   display    the shared system-memory half of stdDisplay: back buffer, fills, blits, RGB565, SaveScreen (P2.4 to P2.7)
 #   present    (apple builds) the Metal present path, read back from a real window; skipped (77) with no window server
+#   render     (apple builds) the Metal renderer's shaders and fixed-function state, offscreen (P2.10)
 j3d_executable(display platform_null ${J3D_ROOT}/tests/display.c ${J3D_ROOT}/tests/harness.c)
 add_test(NAME display COMMAND display)
 set_tests_properties(display PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
@@ -290,6 +291,9 @@ if(J3D_PLATFORM STREQUAL "apple")
     add_test(NAME present COMMAND present)
     set_tests_properties(present PROPERTIES
         ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT" SKIP_RETURN_CODE 77)
+    j3d_executable(render platform_apple ${J3D_ROOT}/tests/render.c ${J3D_ROOT}/tests/harness.c)
+    add_test(NAME render COMMAND render)
+    set_tests_properties(render PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()
 
 # boot: the game itself (its null-backend build, J3D_HEADLESS_TARGET), headless (in-memory display, virtual clock), for

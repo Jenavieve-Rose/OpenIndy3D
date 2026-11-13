@@ -38,13 +38,13 @@ cmake --build build
 ```
 
 `-DJ3D_TEST_DATA` is optional. Without it everything still builds, and only the tests that need no game data
-(`display`, `present`) are registered with `ctest`.
+(`display`, `present`, `render`) are registered with `ctest`.
 
 | Output | What it is |
 | --- | --- |
 | `build/jones3d` | The game, with the backends `J3D_PLATFORM` selects. |
 | `build/jones3d-null` | The game with the null backends (apple builds only). The `boot` test runs it. |
-| `build/levelload`, `build/cogcheck`, `build/saveload`, `build/display`, `build/present` | The test programs (below). They use the null backends, apart from `present` (apple builds only). |
+| `build/levelload`, `build/cogcheck`, `build/saveload`, `build/display`, `build/present`, `build/render` | The test programs (below). They use the null backends, apart from `present` and `render` (apple builds only). |
 | `build/lib*.a` | The engine libraries: `zlib`, `std`, `rdroid`, `sound`, `smush`, `sith`, `jones3d_game`, and the platform: `platform_core`, `platform_null`, `platform_apple`. |
 
 ## Build with Xcode
@@ -73,7 +73,7 @@ Regenerate the project with the first command after adding or removing source fi
 
 Every compiler warning is an error (`-Werror`), apart from two known sets: the 58 narrowing conversions in
 `jonesConfig.c` and one unsequenced write in `Libs/sound/AudioLib.c` (PORT-PLAN.md P4.8). A clean build prints exactly
-those 59 warnings, and in an apple build one linker warning for each program that links SDL3 (`jones3d`, `present`): Homebrew's SDL3 is built for the current macOS, newer than
+those 59 warnings, and in an apple build one linker warning for each program that links SDL3 (`jones3d`, `present`, `render`): Homebrew's SDL3 is built for the current macOS, newer than
 the 13.0 deployment target, so a binary built this way runs only on a macOS as new as the build machine's until SDL3
 ships inside the app bundle (PORT-PLAN.md P8.3). The MSVC-dialect warnings the decomp would otherwise raise (missing braces, `sprintf` deprecation
 and so on) are switched off in `CMakeLists.txt`.
@@ -165,6 +165,7 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `boot` | Runs `jones3d --headless --frames 600` (`jones3d-null` in an apple build): level open, the level-start autosave and 20 s of game time in the first level. Must exit 0 with no assert. Its autosave goes to `build/boot/SaveGames/`, not the game folder. | under 1 s |
 | `display` | No game data needed. The back buffer, fills, every blit case (8, 16 and 32 bpp, clipped, colour-keyed) against a pixel-by-pixel reference, the RGB565 encoder and a `SaveScreen` BMP. | under 1 s |
 | `present` | Apple builds only, no game data needed. Presents a pattern through `stdDisplay` in a real window (it flashes up briefly), reads the screen image back from Metal and compares it, unscaled and scaled; then checks that a frame with a 3D scene presents the scene's picture. Skipped without a window server, for example over SSH. | under 1 s |
+| `render` | Apple builds only, no game data or window needed. Draws with the Metal renderer offscreen and reads the result back: pixel coverage, colour order, depth test and clears, alpha test and blending, perspective-correct interpolation, depth clamping, lines and points. | under 1 s |
 | `boot-sdl` | Apple builds only: the same run through `jones3d`, so the SDL event loop delivers the frames and the closing `WM_CLOSE` (SDL's `dummy` video driver, no window). Its autosave goes to `build/boot-sdl/SaveGames/`. | under 1 s |
 
 Each can be run directly, which shows its output:
