@@ -1,12 +1,15 @@
 #ifndef SOUND_TYPES_H
 #define SOUND_TYPES_H
 #include <j3dcore/types.h>
-#include <Mmreg.h>
-#include <dsound.h>
 #include <j3dcore/j3d.h>
 #include <rdroid/types.h>
 
 J3D_EXTERN_C_START
+
+// Port: the DirectSound device and buffer objects (LPDIRECTSOUND, LPDIRECTSOUNDBUFFER) are opaque handles owned by the
+// platform's SoundDriver (platform/common/SoundDriver_ma.c; PORT-PLAN.md P4.2). A SoundVoice is one playing buffer.
+typedef struct SoundDevice SoundDevice;
+typedef struct SoundVoice SoundVoice;
 
 typedef enum eSoundOpenFlags
 {
@@ -66,7 +69,7 @@ typedef struct sSoundSpatialInfo SoundSpatialInfo;
 
 typedef int (J3DAPI* SoundGetThingInfoCallback)(int thingID, SoundThingInfo* pInfo);
 typedef void (J3DAPI* SoundCalcListenerSoundMixFunc)(const SoundSpatialInfo*, float* volume, float* pan, float* pitch);
-typedef uint8_t* (J3DAPI* SoundDriverGetSoundBufferDataFunc)(LPDIRECTSOUNDBUFFER pDSBuf, size_t* pSoundDataSize, uint32_t* pbCompressed); // Port: size_t, as Sound_GetSoundBufferData defines it
+typedef uint8_t* (J3DAPI* SoundDriverGetSoundBufferDataFunc)(SoundVoice* pDSBuf, size_t* pSoundDataSize, uint32_t* pbCompressed); // Port: size_t, as Sound_GetSoundBufferData defines it
 
 
 typedef struct sSoundInfo
@@ -92,7 +95,7 @@ typedef struct sSoundChannel
     int priority;
     tSoundHandle hSnd;
     int thingId;
-    LPDIRECTSOUNDBUFFER pDSoundBuffer;
+    SoundVoice* pDSoundBuffer;
     rdVector3 playPos;
     float volume;
     float pitch;

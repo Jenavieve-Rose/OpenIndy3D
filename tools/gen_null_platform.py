@@ -22,7 +22,6 @@ MODULES = [
     ('Libs/std/Win95/stdDisplay.h',        'stdDisplay_null.c',  ['std/General/std.h'],      'Phase 2 (SDL3 display)'),
     ('Libs/std/Win95/stdControl.h',        'stdControl_null.c',  [],                         'Phase 3 (SDL3 input)'),
     ('Libs/std/Win95/stdComm.h',           'stdComm_null.c',     [],                         'never: the game has no multiplayer'),
-    ('Libs/sound/Driver.h',                'SoundDriver_null.c', ['std/General/stdPlatform.h'], 'Phase 4 (miniaudio)'),
 ]
 
 # Bodies that differ from "return 0". Keyed by function name.
@@ -162,11 +161,6 @@ OVERRIDES = {
     (void)pSettings;
     return E_NOTIMPL;''',
 
-    # --- SoundDriver: opening fails, so Sound runs silent; time still has to advance.
-    'SoundDriver_GetTimeMsec': '''
-    return timeGetTime();''',
-    'SoundDriver_Sleep': '''
-    Sleep(dwMilliseconds);''',
 }
 
 # Functions with a real implementation elsewhere in platform/; the generator leaves them out of the null file.

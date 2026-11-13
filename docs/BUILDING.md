@@ -11,6 +11,7 @@ The decomp's own build instructions (the byte-matching pipeline, which the port 
 - Xcode or the Command Line Tools, for Apple clang.
 - CMake 3.24 or later, and Ninja: `brew install cmake ninja`.
 - SDL3 3.2 or later, for the window and input: `brew install sdl3`. Not needed for a `-DJ3D_PLATFORM=null` build.
+- Nothing for sound: miniaudio, the output device, is vendored in `third_party/miniaudio/` and uses Core Audio.
 - Python 3, only for the scripts in `tools/`.
 - A retail copy of the game, version 1.2, for running and testing. Nothing from it is needed to compile.
 
@@ -138,6 +139,21 @@ Start inventory, d-pad left and right weapons, down health, up chalk. Every key 
 - The controls dialog, where retail chose and edited key sets, arrives with the other dialogs (PORT-PLAN.md Phase 6);
   until then edit `Configuration` or the `.kfg` files.
 
+### Sound
+
+Sound plays through the system's default output device and follows it when it changes (headphones in or out). Every
+sound is placed by the game's own mix, as on a retail PC without 3D sound hardware, so the sound settings dialog's
+"3D sound" box stays off (PORT-PLAN.md decision 19). `Sound Volume=f:<0 to 1>` is the master volume. While the window
+is in the background the game stops and its sounds are silent.
+
+`J3D_NO_AUDIO=1` opens no output device: the game runs and keeps its sound state exactly as with one, silently.
+`--headless` does the same. `J3D_AUDIO_DUMP=<file.wav>` writes everything the device is given to a 16-bit stereo WAV
+at 48 kHz and sends silence to the speakers, for checking the mix without listening:
+
+```sh
+J3D_REG_Start_Mode=0 J3D_AUDIO_DUMP=/tmp/level1.wav build/jones3d --data /path/to/data-root --frames 1500 1
+```
+
 A null build has no display: without `--headless` it opens the GOBs, loads its string tables, starts the engine and
 exits when it enumerates the displays. With `--headless` either build loads the first level and runs:
 
@@ -170,11 +186,13 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_FRAMES` | `<n>` is `--frames <n>`. |
 | `J3D_SCREENSHOT_AT`, `J3D_SCREENSHOT_FILE` | `--screenshot-at` and `--screenshot-file`. |
 | `J3D_RECORD`, `J3D_REPLAY`, `J3D_INPUT_SCRIPT` | `--record`, `--replay` and `--input-script`. |
+| `J3D_NO_AUDIO` | `1` opens no audio output device (sound runs silently). |
+| `J3D_AUDIO_DUMP` | `<file.wav>` writes the audio mix to a WAV file and silences the speakers. |
 
 ## Tests
 
 The tests are headless programs that start the engine without display, input, sound output or dialogs and run against
-your own game data. They never touch your settings file.
+your own game data. The sound module itself runs in them (with no output device), so its state is in every save. They never touch your settings file.
 
 ```sh
 ctest --test-dir build --output-on-failure        # Ninja tree
@@ -192,6 +210,7 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `render` | Apple builds only, no game data or window needed. Draws with the Metal renderer offscreen and reads the result back: pixel coverage, colour order, depth test and clears, alpha test and blending, perspective-correct interpolation, depth clamping, lines and points. | under 1 s |
 | `boot-sdl` | Apple builds only: the same run through `jones3d`, so the SDL event loop delivers the frames and the closing `WM_CLOSE` (SDL's `dummy` video driver, no window). Its autosave goes to `build/boot-sdl/SaveGames/`. | under 1 s |
 | `keys` | No game data needed. The DIK tables (HID usage to DirectInput key, key names), `GetKeyNameTextA` and `SearchPathA`. | under 1 s |
+| `sounddriver` | No game data needed. The sound driver on the virtual clock: one-shots, loops, stop and resume, frequency changes; retail's volume and pan tables; the mix's gains, 8- and 16-bit input, the background mute, rendered without a device; the game's WVSM codec, and the ADPCM block decoder (retail's assembly, translated) bit for bit against an independent decoder. | under 1 s |
 | `input` | Apple builds only (`tests/input.sh`). Scripted headless runs of level 2 that quicksave at frame 800: holding a key moves Indy; a recorded run replays to a byte-identical quicksave, and recording does not change the run; a scripted controller's A jumps exactly as the jump key does (the port's default key set); with the retail "Microsoft SideWinder game pad" key set its button 7 sidesteps exactly as A does; mouse motion turns Indy. Runs go to `build/input-out/`. | about 10 s |
 
 Each can be run directly, which shows its output:
@@ -204,7 +223,8 @@ J3D_REG_Install_Path=/tmp/j3d/ build/saveload /path/to/data-root 3000 3000   # f
 ```
 
 `saveload` needs `J3D_REG_Install_Path` set to a folder it may write to. The second save may differ from the first
-only in three ways that are retail behaviour, which the comparison allows and PORTING.md describes ("Savegame round
+only in ways that are retail behaviour (the order of AI status records, animation IDs, and the sound channel handles
+and flags retail's restore changes), which the comparison allows and PORTING.md describes ("Savegame round
 trip"); anything else fails the test.
 
 The exit status is the number of failures. Lines such as `Symbol … not defined. Assuming float=0.0` come from

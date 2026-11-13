@@ -275,8 +275,10 @@ static int saveload_BlockEqual(const SaveloadBlock* pA, const SaveloadBlock* pB,
 // differences that are retail behaviour, not port bugs (docs/PORTING.md, "Savegame round trip"):
 //   - AI status messages come out in a different order (the AI blocks are reallocated on restore): compared as a set;
 //   - an animation's ID is its slot number, and restore reallocates slots without holes: the ID is not compared;
-//   - Sound_Restore adds the saved pause time to the clock where Sound_Save subtracted it: the sound section's fifth
-//     word (after the ambient channel, magic, pause count and elapsed time) is not compared.
+//   - the ambient channel's handle, and every saved channel's handle, which retail's restore does not keep (below).
+// (Sound_Restore's pause time, the fifth word, compares since the port fixed its sign, PORT-PLAN.md P4.9.)
+#define SAVELOAD_SOUNDSKIPMAX 65536
+
 static int saveload_CompareFiles(const char* pPathA, const char* pPathB)
 {
     static SaveloadBlock aBlocksA[SAVELOAD_MAXBLOCKS], aBlocksB[SAVELOAD_MAXBLOCKS];
@@ -339,10 +341,53 @@ static int saveload_CompareFiles(const char* pPathA, const char* pPathB)
     }
     else
     {
-        const size_t pauseTimeOffset = 4 * sizeof(uint32_t);
-        for ( size_t k = 0; k < sizeA - tailA; ++k )
+        // Walk the sound section (sithSoundMixer_GameSave, Sound_Save) to find the words retail does not restore:
+        //   the ambient channel handle (word 0): sithSoundMixer_GameRestore stops the ambient channel, and the mixer
+        //   starts it again, under a new handle, on the next frame;
+        //   each saved channel's handle: Sound_Restore reads it into the handle entropy, and Sound_GenerateChannelHandle
+        //   adds SOUND_HANDLE_MIN (1234) to it again, so a restored channel's handle is 1234 higher (phase 8 fix series);
+        //   each saved channel's flags gain SOUND_CHANNEL_FAR (0x200000): Sound_Restore moves the listener 100,000 units
+        //   away before replaying the channels, so each starts far and the next Sound_Update brings it back.
+        const unsigned char* pSecA = pA + tailA;
+        const unsigned char* pSecB = pB + tailB;
+        size_t secSize = sizeA - tailA;
+        unsigned char aSkip[SAVELOAD_SOUNDSKIPMAX] = { 0 }; // 1 = byte not compared
+        size_t off = 5 * sizeof(uint32_t); // ambient, magic, pause count, elapsed time, pause time
+        uint32_t nameLen;
+        memset(aSkip, 1, sizeof(uint32_t));
+        while ( off + sizeof(uint32_t) <= secSize && (memcpy(&nameLen, pSecA + off, sizeof(nameLen)), nameLen != 0) )
         {
-            if ( pA[tailA + k] != pB[tailB + k] && (k < pauseTimeOffset || k >= pauseTimeOffset + sizeof(uint32_t)) )
+            size_t handleOff = off + sizeof(uint32_t) + nameLen + 3 * sizeof(uint32_t);
+            int32_t handleA, handleB;
+            if ( handleOff + sizeof(int32_t) > secSize || handleOff + sizeof(int32_t) > sizeof(aSkip) )
+            {
+                SAVELOAD_FILEDIFF("sound section: channel list runs past the section\n");
+                goto done;
+            }
+            memcpy(&handleA, pSecA + handleOff, sizeof(handleA));
+            memcpy(&handleB, pSecB + handleOff, sizeof(handleB));
+            if ( handleB != handleA + 1234 )
+            {
+                SAVELOAD_FILEDIFF("sound channel handle %d restored as %d, not %d\n", handleA, handleB, handleA + 1234);
+            }
+            memset(aSkip + handleOff, 1, sizeof(int32_t));
+            {
+                size_t flagsOff = handleOff + 9 * sizeof(uint32_t);
+                uint32_t flagsA, flagsB;
+                memcpy(&flagsA, pSecA + flagsOff, sizeof(flagsA));
+                memcpy(&flagsB, pSecB + flagsOff, sizeof(flagsB));
+                if ( flagsB != (flagsA | 0x200000u) )
+                {
+                    SAVELOAD_FILEDIFF("sound channel flags 0x%x restored as 0x%x\n", flagsA, flagsB);
+                }
+                memset(aSkip + flagsOff, 1, sizeof(uint32_t));
+            }
+            off += sizeof(uint32_t) + nameLen + 17 * sizeof(uint32_t);
+        }
+
+        for ( size_t k = 0; k < secSize; ++k )
+        {
+            if ( pSecA[k] != pSecB[k] && !(k < sizeof(aSkip) && aSkip[k]) )
             {
                 SAVELOAD_FILEDIFF("sound and weapon sections differ at byte %zu\n", k);
                 break;

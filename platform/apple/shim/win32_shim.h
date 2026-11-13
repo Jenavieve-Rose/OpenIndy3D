@@ -12,7 +12,7 @@
  *   - Functions are declared here and implemented by the null platform (platform/common/null/win32_null.c), which
  *     returns failure or does nothing.
  *
- * The stand-in headers next to this file (Windows.h, ddraw.h, dsound.h, ...) all just include it.
+ * The stand-in headers next to this file (Windows.h, ddraw.h, dinput.h, ...) all just include it.
  */
 #include <stddef.h>
 #include <stdint.h>

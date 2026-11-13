@@ -1,7 +1,8 @@
 #ifndef J3D_PLATFORM_WIN32_SHIM_DX_H
 #define J3D_PLATFORM_WIN32_SHIM_DX_H
 /*
- * DirectX 6 vocabulary (DirectDraw, Direct3D, DirectInput, DirectSound, DirectPlay) still named by engine headers.
+ * DirectX 6 vocabulary (DirectDraw, Direct3D, DirectInput, DirectPlay) still named by engine headers. (DirectSound
+ * left in P4.11: the sound module names its own opaque handles, sound/types.h.)
  * Part of win32_shim.h; see that file for the rules.
  *
  * COM interfaces are opaque: nothing outside the replaced platform files calls through them. The structs embedded by
@@ -36,10 +37,6 @@ typedef struct IDirect3DTexture2      IDirect3DTexture2,      *LPDIRECT3DTEXTURE
 typedef struct IDirectInputA          IDirectInputA,          *LPDIRECTINPUTA, *LPDIRECTINPUT;
 typedef struct IDirectInputDeviceA    IDirectInputDeviceA,    *LPDIRECTINPUTDEVICEA, *LPDIRECTINPUTDEVICE;
 typedef struct IDirectInputDevice2A   IDirectInputDevice2A,   *LPDIRECTINPUTDEVICE2A, *LPDIRECTINPUTDEVICE2;
-typedef struct IDirectSound           IDirectSound,           *LPDIRECTSOUND;
-typedef struct IDirectSoundBuffer     IDirectSoundBuffer,     *LPDIRECTSOUNDBUFFER;
-typedef struct IDirectSound3DBuffer   IDirectSound3DBuffer,   *LPDIRECTSOUND3DBUFFER;
-typedef struct IDirectSound3DListener IDirectSound3DListener, *LPDIRECTSOUND3DLISTENER;
 typedef struct IDirectPlay4           IDirectPlay4,           *LPDIRECTPLAY4, *LPDIRECTPLAY4A;
 typedef struct IDirectPlayLobby3      IDirectPlayLobby3,      *LPDIRECTPLAYLOBBY3, *LPDIRECTPLAYLOBBY3A;
 #undef J3D_DX_INTERFACE
@@ -428,40 +425,6 @@ typedef struct DIDEVICEOBJECTDATA
 #define DIK_RIGHTARROW      DIK_RIGHT
 #define DIK_DOWNARROW       DIK_DOWN
 #define DIK_PGDN            DIK_NEXT
-
-/* ----------------------------------------------------------------------------------------------------------------
- * DirectSound (dsound.h, mmreg.h)
- * -------------------------------------------------------------------------------------------------------------- */
-#define WAVE_FORMAT_PCM 1
-typedef struct tWAVEFORMATEX
-{
-    WORD  wFormatTag;
-    WORD  nChannels;
-    DWORD nSamplesPerSec;
-    DWORD nAvgBytesPerSec;
-    WORD  nBlockAlign;
-    WORD  wBitsPerSample;
-    WORD  cbSize;
-} WAVEFORMATEX, *PWAVEFORMATEX, *LPWAVEFORMATEX;
-typedef const WAVEFORMATEX* LPCWAVEFORMATEX;
-
-typedef struct _DSBUFFERDESC
-{
-    DWORD          dwSize;
-    DWORD          dwFlags;
-    DWORD          dwBufferBytes;
-    DWORD          dwReserved;
-    LPWAVEFORMATEX lpwfxFormat;
-} DSBUFFERDESC, *LPDSBUFFERDESC;
-
-#define DS_OK            S_OK
-#define DSBVOLUME_MIN    (-10000)
-#define DSBVOLUME_MAX    0
-#define DSBPAN_LEFT      (-10000)
-#define DSBPAN_CENTER    0
-#define DSBPAN_RIGHT     10000
-#define DSBFREQUENCY_MIN 100
-#define DSBFREQUENCY_MAX 100000
 
 /* ----------------------------------------------------------------------------------------------------------------
  * DirectPlay (dplay.h). The game has no multiplayer, but DPID is the player id type throughout sith's message layer.

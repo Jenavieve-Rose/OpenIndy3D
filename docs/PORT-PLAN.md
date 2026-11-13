@@ -1,6 +1,7 @@
 # Indiana Jones and the Infernal Machine: Apple Silicon Port Plan
 
-Revision 2, 2026-11-12, updated the same day when phase 1 closed. Replaces draft 1 of 2026-11-11 (still readable with
+Revision 2, 2026-11-12, updated the same day when phase 1 closed, and since as each phase closes (phase 4 on
+2026-11-13). Replaces draft 1 of 2026-11-11 (still readable with
 `git show 8e9a940:PORT-PLAN.md`).
 
 This revision records what has been built since draft 1, splits every phase into steps small enough to finish and
@@ -18,12 +19,12 @@ confused with section numbers.
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
 | 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Complete |
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
-| 4 | Audio | 0 of 11 | Not started |
+| 4 | Audio | 11 of 11 | Code audit next; exit test needs a listening pass by hand |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **74 of 146** | |
+| **All** | | **85 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -32,13 +33,13 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 
 | Check | Result |
 | --- | --- |
-| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 compiler warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
-| `ctest` | `display` and `keys` pass (no game data needed), and in the apple build `render` and `present` (`present` needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` and `input` in the apple build |
+| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 58 compiler warnings, all known: the narrowing conversions in `jonesConfig.c` (P6.24); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
+| `ctest` | `display`, `keys` and `sounddriver` pass (no game data needed), and in the apple build `render` and `present` (`present` needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` and `input` in the apple build |
 | The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
 | `python3 tools/layout_audit.py` | `0 retail on-disk type(s) differ` |
-| `jones3d --data <data>` | Apple build: opens the game window (fullscreen or windowed, at the mode the settings name) and runs the game in it, rendered through Metal at the display's refresh, played with keyboard, mouse and controllers. Null build: stops at the display enumeration (no display backend) |
+| `jones3d --data <data>` | Apple build: opens the game window (fullscreen or windowed, at the mode the settings name) and runs the game in it, rendered through Metal at the display's refresh, played with keyboard, mouse and controllers, with sound through the default output device. Null build: stops at the display enumeration (no display backend) |
 | `jones3d ... --input-script` / `--record` / `--replay` | Scripted keyboard, mouse and controller input reaches the game; a recorded run replays to a byte-identical quicksave (`input` test) |
 | `jones3d --data <data> --headless --frames 600` | Loads `00_cyn`, writes the level-start autosave, runs 600 frames (20 s of game time) of the opening cutscene and shuts down cleanly, exit 0, in under a second. Two runs print the same log and write byte-identical saves |
 | `saveload <data>` | After 300 frames, a save restored into a fresh world matches the world that was saved (236 things, positions bit for bit, COG globals, game time), and a save of the restored game matches the first; the game then runs 300 more frames |
@@ -46,8 +47,9 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 
 Every level renders in a window or fullscreen through Metal: textured, lit, fogged, with the HUD, at the display's
 refresh rate, pillarboxed to 4:3 by default, and plays with the keyboard, the mouse and controllers, using the retail
-key sets or the port's controller default (phase 3). Nothing is audible yet (phase 4), movies do not play (phase 5)
-and the menus and dialogs do not appear (phase 6); the in-game inventory menu works.
+key sets or the port's controller default (phase 3), with music, ambience, effects and voices placed by the game's
+own camera-relative mix (phase 4). Movies do not play (phase 5) and the menus and dialogs do not appear (phase 6);
+the in-game inventory menu works.
 `tools/level_shots.sh` screenshots every level by script.
 
 All of phase 1 is on `main` (at `3c3605a`): sixteen commits made on the branch `phase1-headless`, seven for P1.8 to
@@ -81,6 +83,7 @@ Paths are relative to `~/Developer/Indy3D_Mac`.
 | Retail game data | `Indy3D/` | `RESOURCE/` with `CD1.GOB`, `CD2.GOB`, `JONES3D.GOB`, five `.snm` intro movies, 51 patched `.cog` scripts in `Cog/`; `KEYSETS/*.kfg` | Complete v1.2 install (`INDY3D.EXE` = `55fb00c0…`). The test data root: `-DJ3D_TEST_DATA=…/Indy3D`. |
 | OpenAL Soft | `openal-soft-master/` | Source tree, not referenced by the build | Fallback audio backend only (decision 7). |
 | SDL3 | Homebrew, 3.4.20 | Installed on the development machine, not yet referenced by the build | Window, input, gamepads from phase 2. |
+| miniaudio 0.11.25 | `j3dport/third_party/miniaudio/` | Vendored single-file audio library (public domain or MIT-0) | The output device from phase 4 (decision 7). |
 
 Both source trees are AGPL v3. The port inherits that license. No game assets may be shipped; the app must locate the
 player's own data.
@@ -95,7 +98,7 @@ Line counts were measured on the decomp tree for draft 1.
 | `Libs/rdroid` (renderer front end, math) | 19,762 | `LPD3DTLVERTEX` in one struct, the SSE "Katmai" mesh path | Compiles with `-Werror`. Katmai sources dropped, and since P2.21 their null stub and call sites too. |
 | `Libs/std/General` | 5,781 | x87 inline asm, backslash paths | Done: x87 compiled out, both path separators accepted. |
 | `Libs/std/Win95` | 9,768 | `std3D` (Direct3D 6), `stdDisplay` (DirectDraw), `stdControl` (DirectInput), `stdComm` (DirectPlay), console, window store | Excluded from the build. Generated null backends stand in. `stdGob.c` kept. System-memory VBuffers are real. |
-| `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | `Driver.c` replaced by a null backend. The asm loop has a C translation that is not yet verified. Save and restore run (with no device). |
+| `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | Phase 4: `Driver.c` replaced by `platform/common/SoundDriver_mix.c` over a miniaudio device; the handles are opaque; the asm loop's C translation verified (P4.8). Save and restore run with sound open. |
 | `Libs/smush` (INSANE) | 10,267 | 6 MASM files (1,815 lines), `Dsnd.c`, `Timer.c`, `Stdfile.c`, `Stdio.c` | OS modules register nothing; the 14 asm entry points abort if reached. No movies. File handles and Blocky16 frame offsets made 64-bit clean in phase 1. |
 | `Libs/wkernel`, `Libs/w32util` | 692 | 100% | `wkernel` is a hand-written null (message queue, quit). `wuRegistry` is done (`settings.ini`). |
 | `Jones3D/` (game shell) | 23,318 | `jonesConfig.c` (9,955 lines of dialog procedures), `JonesDialog.c`, `JonesDevDialog.c`, `Indy3D.rc` (26 dialog templates) | Compiles against the shim headers. Every dialog call returns failure. `jonesConfig.c` keeps 58 narrowing warnings until P6.24. |
@@ -135,7 +138,8 @@ Decisions 1 to 11 are unchanged from draft 1. Their status is noted where work h
    Linux or Windows becomes a goal, so the Metal calls stay in one file.
 6. **Window, input, timing, gamepads: SDL3.**
 7. **Audio: miniaudio** (single-file C, Core Audio backend, built-in spatializer). OpenAL Soft is the alternative if
-   the spatialization sounds wrong; its source is already in the workspace.
+   the spatialization sounds wrong; its source is already in the workspace. In place (phase 4), for the output device
+   only: the mixing is the port's own, and no spatializer is needed (decision 19).
 8. **Movies: port INSANE, do not swap in ScummVM.** The six assembler files become C. ScummVM's `Blocky16` codec
    (GPLv2+) is the reference for the hardest one.
 9. **GUI: emulate the slice of the Win32 dialog API that `jonesConfig.c` uses**, backed by our own widgets drawn with
@@ -158,13 +162,18 @@ Decisions made while doing phases 0 and 1:
 16. **Savegames use the port's native layout.** `NdsHeader` is 1,320 bytes on arm64 against 1,188 in retail. That is
     accepted (non-goal in section 1) and covered by a round-trip test instead of a fixed layout.
 17. **Every warning is an error.** Phase 1 closed the backlog; `-Werror` now applies to the whole tree, with two
-    named exceptions that later steps remove (P4.8, P6.24). A narrowing that retail computed in 32 bits is written as
+    named exceptions that later steps remove (P4.8, done; P6.24). A narrowing that retail computed in 32 bits is written as
     an explicit cast marked `// Port: narrowing cast`; one that was wrong on 64-bit is fixed by type.
 18. **Undefined behaviour gets a defined value, chosen from the code's evident intent.** Where retail read an
     uninitialised local or wrote past an array and only worked by accident, the port picks the value the surrounding
     code implies (or OpenJones3D's, where it fixed the same thing), logs it in `docs/PORTING.md`, and leaves anything
     that changes intended behaviour to the phase 8 fix series. Headless runs are deterministic, so a change in
     behaviour shows up as a change in the `boot` log or the saves.
+19. **Sound is retail's software path, kept on the engine clock** (phase 4). The driver reports no 3D sound hardware,
+    as a retail machine without it did, so every sound is placed by the game's own camera-relative mix and the options
+    dialog greys the 3D check box; DirectSound 3D is not emulated (docs/PORTING.md, "The sound driver", for why).
+    Everything the sound module can observe of a voice is computed from the engine clock, never from the device, so
+    headless, recorded and replayed runs keep byte-identical saves and the null build runs the same driver silently.
 
 ## 4. Target architecture
 
@@ -186,9 +195,10 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    ├─ apple/wkernel_sdl.c               event loop, window proc messages     exists
    ├─ apple/stdDisplay_sdl.c            display device, modes                exists
    ├─ apple/display_metal.m             back-buffer present over Metal       exists
-   ├─ apple/std3D_metal.c, render_metal.m  Metal renderer                    skeleton exists (P2.9), drawing in phase 2
-   ├─ stdControl_sdl.c                  keyboard to DIK, mouse, gamepads     phase 3
-   ├─ SoundDriver_ma.c                  miniaudio voices, 3D listener        phase 4
+   ├─ apple/std3D_metal.c, render_metal.m  Metal renderer                    exists
+   ├─ apple/stdControl_sdl.c            keyboard to DIK, mouse, gamepads     exists
+   ├─ common/SoundDriver_mix.c          voices on the engine clock, mixer    exists
+   ├─ apple/audio_device_ma.c           miniaudio output device              exists
    ├─ insane_os/                        timer, file I/O, audio sink, asm→C   phase 5
    ├─ j3dgui/                           Win32 dialog emulation and widgets   phase 6
    └─ apple/ (bundle, data locator)                                          phase 8
@@ -529,26 +539,46 @@ input, and a read-through.
 Exit test: music, ambience, effects, 3D positioning and dialogue with subtitles work in the first three levels, and
 survive a save and load.
 
-- [ ] **P4.1** (S) Vendor `miniaudio.h` into `third_party/` and link it; open and close a device.
-- [ ] **P4.2** (S) Make the buffer handle opaque: `LPDIRECTSOUNDBUFFER` in `sound/types.h` becomes `SoundVoice*`.
-- [ ] **P4.3** (S) `SoundDriver_ma.c`, device level: `Open`, `Close`, `SetOuputFormat`, `SetMaxVolume`, the time and
+- [x] **P4.1** (S) Vendor `miniaudio.h` into `third_party/` and link it; open and close a device.
+      Done: 0.11.25, hashes in `third_party/miniaudio/README.port.md`; device only, Core Audio only, 48 kHz float;
+      `platform/apple/audio_device_ma.c` behind `host_audio.h`, none in the null build. Checked: windowed runs.
+- [x] **P4.2** (S) Make the buffer handle opaque: `LPDIRECTSOUNDBUFFER` in `sound/types.h` becomes `SoundVoice*`.
+      Done: and `LPDIRECTSOUND` becomes `SoundDevice*`.
+- [x] **P4.3** (S) `SoundDriver_ma.c`, device level: `Open`, `Close`, `SetOuputFormat`, `SetMaxVolume`, the time and
       sleep functions, and the DirectSound object accessors as no-ops.
-- [ ] **P4.4** (M) Voices: `CreateAndPlay`, `Play`, `Stop`, `Release`, `GetStatusAndCaps`, `GetCurrentPosition`,
+      Done: as `platform/common/SoundDriver_mix.c`, shared by every build; opens with or without a device.
+- [x] **P4.4** (M) Voices: `CreateAndPlay`, `Play`, `Stop`, `Release`, `GetStatusAndCaps`, `GetCurrentPosition`,
       looping, and the buffer-data callback that `Sound.c` uses to fill and refill buffers.
-- [ ] **P4.5** (S) Volume, pan and frequency. Port the four pure conversion functions (`GetDecibelVolume`,
+      Done: state on the engine clock, rendering on the device's (decision 19); PCM copied at creation, so the
+      refill callback (DirectSound's lost buffers) is never needed. Checked: `sounddriver` test.
+- [x] **P4.5** (S) Volume, pan and frequency. Port the four pure conversion functions (`GetDecibelVolume`,
       `GetIntPan`, `GetVolumeFromDecibels`, `GetPanFromTable`) from retail `Driver.c` unchanged.
-- [ ] **P4.6** (M) 3D: listener position and orientation, `SetPosAndVelocity`, `Update3DSound`, `SetGlobals`
+      Done: DirectSound's decibel volume and pan as gains, its frequency limits. Checked: `sounddriver` (retail's
+      values, the mix's gains).
+- [x] **P4.6** (M) 3D: listener position and orientation, `SetPosAndVelocity`, `Update3DSound`, `SetGlobals`
       (distance, rolloff, doppler), `ListenerCommitDeferred` applying a frame's changes together, `Has3DHW` true.
-- [ ] **P4.7** (S) Startup path: `Sound` opens without the `JONES_STR_SOUNDERROR` message and
+      Done differently: `Has3DHW` is false and sounds are placed by the game's own mix, retail's path without 3D
+      hardware (decision 19); `Update3DSound` is retail's software half, the 3D-buffer calls keep their values only.
+      Its uninitialised mix values fixed.
+- [x] **P4.7** (S) Startup path: `Sound` opens without the `JONES_STR_SOUNDERROR` message and
       `Sound_Set3DGlobals: module is not open` no longer appears in the log.
-- [ ] **P4.8** (M) `AudioLib.c`: verify the C translation of the asm sample loop against decoded reference output
+      Checked: `boot` log; `J3D_NO_AUDIO` and `--headless` open no device and change nothing else.
+- [x] **P4.8** (M) `AudioLib.c`: verify the C translation of the asm sample loop against decoded reference output
       and fix the unsequenced write at line 1703.
-- [ ] **P4.9** (M) Listening pass on levels `00` to `02`: looping ambience, attenuation and panning, voice lines with
+      Done: with no Windows build, the encoder is the oracle; twelve signals decode bit for bit against an independent
+      decoder and end in the encoder's state (`sounddriver`). The write fixed, `-Wno-error=unsequenced` removed;
+      38 unaligned accesses and the lip-sync overrun fixed (ASan, UBSan).
+- [x] **P4.9** (M) Listening pass on levels `00` to `02`: looping ambience, attenuation and panning, voice lines with
       subtitles and lip sync (lip-sync data is regenerated on load), pause on focus loss, handles after a restore.
       `Sound_Restore` adds the saved pause time where `Sound_Save` subtracted it (found by P1.20): decide whether
       it matters once sound is audible.
-- [ ] **P4.10** (S) Output device changes while running (headphones in and out).
-- [ ] **P4.11** (S) Delete the DirectSound part of `win32_shim_dx.h`.
+      Done by measurement: `J3D_AUDIO_DUMP` mixes of the three levels (sound throughout, panned, lip sync generated);
+      the pause time fixed (it broke the round trip, nothing audible); restored channel handles shift by 1234 in
+      retail, kept (phase 8). Not done: listening by a person.
+- [x] **P4.10** (S) Output device changes while running (headphones in and out).
+      Done: miniaudio follows the default device and keeps the stream's format. Not done: the check by hand.
+- [x] **P4.11** (S) Delete the DirectSound part of `win32_shim_dx.h`.
+      Done: and the `dsound.h` and `Mmreg.h` stand-ins.
 ## Complete Phase 4 Code Audit
 ### Phase 5: Movies
 
@@ -709,15 +739,16 @@ j3dport/
   Jones3D/              imported; Win32 calls resolved by the shim until phase 7
   Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
   platform/apple/       main.c, shim/, host_apple.m, wkernel_sdl.c, stdDisplay_sdl.c, display_metal.m,
-                        std3D_metal.c, render_metal.m      + bundle and locator (8)
+                        std3D_metal.c, render_metal.m, stdControl_sdl.c, audio_device_ma.c
+                        + bundle and locator (8)
   platform/common/      crt_posix.c, host_path.h, host_clock.h, host_dirs.c, wuRegistry_file.c,
                         stdDisplay_vbuffer.c, stdDisplay_common.c, host_screenshot.c,
                         null/ (with stdDisplay_headless.c)
-                        + SDL backends (2, 3), SoundDriver_ma.c (4), insane_os/ (5), j3dgui/ (6)
+                        SoundDriver_mix.c, host_audio.h     + insane_os/ (5), j3dgui/ (6)
   tools/                gen_null_platform.py, layout_audit.py, gobtool.py     + rc2table.py (6)
-  tests/                harness.c, levelload.c, cogcheck.c, saveload.c, display.c, present.c, render.c
-                        + moviecheck.c (5)
-  third_party/          not yet created: miniaudio.h (4)
+  tests/                harness.c, levelload.c, cogcheck.c, saveload.c, display.c, present.c, render.c,
+                        keys.c, input.sh, sounddriver.c     + moviecheck.c (5)
+  third_party/          miniaudio/ (4)
   docs/                 PORT-PLAN.md, PORTING.md, and the decomp's reference documents
 ```
 
@@ -785,8 +816,8 @@ guide.
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
 | 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
 | 2 | Metal renderer, first level on screen | 3 to 4 weeks | Complete: every level renders textured, lit and fogged in a window or fullscreen; the phase audit is done |
-| 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
-| 4 | Audio complete | 2 weeks | Not started |
+| 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Code complete and audited 2026-11-13; the playthrough by hand is open |
+| 4 | Audio complete | 2 weeks | Code complete and audited 2026-11-13; the listening pass by hand is open |
 | 5 | Movies complete | 2 to 3 weeks | Not started |
 | 6 | All dialogs, save and load in-app | 4 to 6 weeks | Not started |
 | 7 | Full playthrough verified | 2 to 3 weeks | Not started |
@@ -797,10 +828,12 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. **Phase 3, input:** the DIK tables (P3.1) and `stdControl_sdl.c` (P3.2), which replaces the temporary debug keys
-   of P2.18, then mouse, gamepads and scripted input, so the checks done by hand in phase 2 (keys, focus loss,
-   minimizing) become tests.
-2. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
+1. **By hand, before phase 7 relies on them:** the phase 3 playthrough of `00_cyn` (keyboard and mouse, then a
+   controller) and the phase 4 listening pass on the first three levels through a save and load, with headphones
+   plugged in and out once. `J3D_AUDIO_DUMP` (BUILDING.md) records what was heard, for comparing later builds.
+2. **Phase 5, movies:** INSANE's timer, file I/O and audio sink (the sink can feed the phase 4 mixer as one more
+   voice), then the six assembler files as C, `Blocky16` against ScummVM's.
+3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 
 To reproduce the measurements at the top of this file:

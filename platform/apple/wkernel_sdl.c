@@ -60,6 +60,7 @@
 
 #include <platform/apple/stdControl_sdl.h>
 #include <platform/apple/stdDisplay_sdl.h>
+#include <platform/common/host_audio.h>
 #include <platform/common/host_keys.h>
 #include <platform/common/host_record.h>
 #include <platform/common/host_screenshot.h>
@@ -474,6 +475,7 @@ static void wkernel_SetActive(int bActive)
 
     wkernel_bActive = bActive;
     J3DControl_SetWindowFocus(bActive); // the mouse is the game's only while the window has focus (P3.9)
+    J3DAudio_SetFocus(bActive);         // and only buffers made with global focus are heard in the background (P4.9)
     if ( bActive )
     {
         wkernel_Post(WM_ACTIVATEAPP, TRUE, 0);

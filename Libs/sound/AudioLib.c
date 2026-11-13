@@ -12,8 +12,16 @@
 #define AUDIOLIB_NOSWAP32(x) (x)
 
 // Writes one header field in the given byte order through a temporary and advances the pointer.
-#define AUDIOLIB_WRITE16(p, val, order) { uint16_t field = (uint16_t)(val); field = order(field); *(uint16_t*)(p) = field; (p) += 2; }
-#define AUDIOLIB_WRITE32(p, val, order) { uint32_t field = (val); field = order(field); *(uint32_t*)(p) = field; (p) += 4; }
+#define AUDIOLIB_WRITE16(p, val, order) { uint16_t field = (uint16_t)(val); field = order(field); AudioLib_Store16((p), field); (p) += 2; }
+#define AUDIOLIB_WRITE32(p, val, order) { uint32_t field = (val); field = order(field); AudioLib_Store32((p), field); (p) += 4; }
+
+// Port: the sound data is a byte stream, and its 16- and 32-bit fields are not aligned (a WAV chunk can start at an
+// odd offset; a compressed block's sample follows a 1-byte step index). Retail dereferenced them as uint16_t* and
+// uint32_t*, which x86 allowed; in C it is undefined behaviour (UBSan reports it). These read and write through memcpy.
+static inline uint16_t AudioLib_Load16(const void* p) { uint16_t v; memcpy(&v, p, sizeof(v)); return v; }
+static inline uint32_t AudioLib_Load32(const void* p) { uint32_t v; memcpy(&v, p, sizeof(v)); return v; }
+static inline void AudioLib_Store16(void* p, uint16_t v) { memcpy(p, &v, sizeof(v)); }
+static inline void AudioLib_Store32(void* p, uint32_t v) { memcpy(p, &v, sizeof(v)); }
 
 static const int8_t AudioLib_aIndex2Bit[4] = { -1, 4, -1, 4 };
 static const int8_t AudioLib_aIndex3Bit[8] = { -1, -1, 2, 6, -1, -1, 2, 6 };
@@ -108,9 +116,9 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
 
     if ( !memcmp(pData, "MCMP", 4) )
     {
-        count = AUDIOLIB_SWAP16(*(uint16_t*)(pData + 4));
+        count = AUDIOLIB_SWAP16(AudioLib_Load16((pData + 4)));
         pData += (9 * count) + 6;
-        count = AUDIOLIB_SWAP16(*(uint16_t*)pData);
+        count = AUDIOLIB_SWAP16(AudioLib_Load16(pData));
         pData += count + 2;
         bCompressed = 1;
     }
@@ -127,32 +135,32 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
 
         if ( pSampleRate )
         {
-            *pSampleRate = *(uint32_t*)(pData + 6);
+            *pSampleRate = AudioLib_Load32((pData + 6));
         }
 
         if ( pBitsPerSample )
         {
-            *pBitsPerSample = *(uint32_t*)(pData + 10);
+            *pBitsPerSample = AudioLib_Load32((pData + 10));
         }
 
         if ( pNumChannels )
         {
-            *pNumChannels = *(uint32_t*)(pData + 14);
+            *pNumChannels = AudioLib_Load32((pData + 14));
         }
 
         if ( pExtraInfo )
         {
-            *pExtraInfo = *(uint32_t*)(pData + 18);
+            *pExtraInfo = AudioLib_Load32((pData + 18));
         }
 
         if ( pSoundDataSize )
         {
-            *pSoundDataSize = *(uint32_t*)(pData + 18);
+            *pSoundDataSize = AudioLib_Load32((pData + 18));
         }
 
         if ( pExtraDataOffset && pSoundDataOffset )
         {
-            size = *(uint32_t*)(pData + 22);
+            size = AudioLib_Load32((pData + 22));
             *pSoundDataOffset = size;
             if ( *pSoundDataOffset )
             {
@@ -172,13 +180,13 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
         const uint8_t* pEnd;
         uint32_t size;
 
-        pEnd = pData + *(uint32_t*)(pData + 4) + 8;
+        pEnd = pData + AudioLib_Load32((pData + 4)) + 8;
         if ( memcmp(pData + 8, "WAVEfmt ", 8) )
         {
             return NULL;
         }
 
-        if ( *(int16_t*)(pData + 20) != 1 )
+        if ( (int16_t)AudioLib_Load16((pData + 20)) != 1 )
         {
             return NULL;
         }
@@ -196,20 +204,20 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
         }
 
         pData += 16;
-        size = *(uint32_t*)pData;
+        size = AudioLib_Load32(pData);
         if ( pSampleRate )
         {
-            *pSampleRate = *(uint32_t*)(pData + 8);
+            *pSampleRate = AudioLib_Load32((pData + 8));
         }
 
         if ( pBitsPerSample )
         {
-            *pBitsPerSample = *(int16_t*)(pData + 18);
+            *pBitsPerSample = (int16_t)AudioLib_Load16((pData + 18));
         }
 
         if ( pNumChannels )
         {
-            *pNumChannels = *(int16_t*)(pData + 6);
+            *pNumChannels = (int16_t)AudioLib_Load16((pData + 6));
         }
 
         if ( pExtraInfo )
@@ -220,7 +228,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
         do
         {
             pData += size + 8;
-            size = *(uint32_t*)pData;
+            size = AudioLib_Load32(pData);
             if ( !memcmp(pData - 4, "sync", 4) && pExtraDataOffset && pSoundDataOffset )
             {
                 *pExtraDataOffset = (uintptr_t)(pData + 4);
@@ -245,7 +253,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
     {
         uint32_t size;
 
-        size = AUDIOLIB_SWAP32(*(uint32_t*)(pData + 12));
+        size = AUDIOLIB_SWAP32(AudioLib_Load32((pData + 12)));
         if ( memcmp(pData + 16, "FRMT", 4) )
         {
             return NULL;
@@ -266,17 +274,17 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
         pData += 32;
         if ( pBitsPerSample )
         {
-            *pBitsPerSample = AUDIOLIB_SWAP32(*(uint32_t*)pData);
+            *pBitsPerSample = AUDIOLIB_SWAP32(AudioLib_Load32(pData));
         }
 
         if ( pSampleRate )
         {
-            *pSampleRate = AUDIOLIB_SWAP32(*(uint32_t*)(pData + 4));
+            *pSampleRate = AUDIOLIB_SWAP32(AudioLib_Load32((pData + 4)));
         }
 
         if ( pNumChannels )
         {
-            *pNumChannels = AUDIOLIB_SWAP32(*(uint32_t*)(pData + 8));
+            *pNumChannels = AUDIOLIB_SWAP32(AudioLib_Load32((pData + 8)));
         }
 
         if ( pExtraInfo )
@@ -286,7 +294,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
 
         if ( pSoundDataSize )
         {
-            *pSoundDataSize = AUDIOLIB_SWAP32(*(uint32_t*)&pData[size - 12]);
+            *pSoundDataSize = AUDIOLIB_SWAP32(AudioLib_Load32(&pData[size - 12]));
         }
 
         return pData + size - 8;
@@ -302,7 +310,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
         const uint8_t* pEnd;
         uint32_t size;
 
-        pEnd = pData + AUDIOLIB_SWAP32(*(uint32_t*)(pData + 4)) + 8;
+        pEnd = pData + AUDIOLIB_SWAP32(AudioLib_Load32((pData + 4))) + 8;
         if ( memcmp(pData + 8, "AIFFCOMM", 8) )
         {
             return NULL;
@@ -314,7 +322,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
         }
 
         pData += 16;
-        size = AUDIOLIB_SWAP32(*(uint32_t*)pData);
+        size = AUDIOLIB_SWAP32(AudioLib_Load32(pData));
         if ( pSampleRate )
         {
             *pSampleRate = pData[13] == 14 ? 44100 : pData[13] == 12 ? 11025 : 22050;
@@ -338,7 +346,7 @@ const uint8_t* J3DAPI AudioLib_ParseWaveFileHeader(const uint8_t* pData, int* pT
         do
         {
             pData += size + 8;
-            size = AUDIOLIB_SWAP32(*(uint32_t*)pData);
+            size = AUDIOLIB_SWAP32(AudioLib_Load32(pData));
         } while ( pData < pEnd && memcmp(pData - 4, "SSND", 4) );
 
         if ( pData < pEnd )
@@ -478,13 +486,13 @@ int J3DAPI AudioLib_Compress(tAudioCompressorState* pCompressorState, uint8_t* p
         numChannels -= 2;
 
         *pOutBuffer++ = numChannels > 1 ? ~pCompressorState->aStepIndex[0] : pCompressorState->aStepIndex[0];
-        *(int16_t*)pOutBuffer = AUDIOLIB_SWAP16(pCompressorState->aPrevSample[0]);
+        AudioLib_Store16(pOutBuffer, (uint16_t)(AUDIOLIB_SWAP16(pCompressorState->aPrevSample[0])));
         pOutBuffer += 2;
 
         if ( numChannels > 1 )
         {
             *pOutBuffer++ = pCompressorState->aStepIndex[1];
-            *(int16_t*)pOutBuffer = AUDIOLIB_SWAP16(pCompressorState->aPrevSample[1]);
+            AudioLib_Store16(pOutBuffer, (uint16_t)(AUDIOLIB_SWAP16(pCompressorState->aPrevSample[1])));
             pOutBuffer += 2;
         }
 
@@ -550,22 +558,22 @@ int J3DAPI AudioLib_CompressWave(uint8_t* pOutBuffer, const uint8_t* pWaveData)
     headerSize = pData - pWaveData;
     memcpy(pOutBuffer, "MCMP", 4);
     pOutBuffer += 4;
-    *(uint32_t*)pOutBuffer = AUDIOLIB_SWAP16(2);
+    AudioLib_Store32(pOutBuffer, (uint32_t)(AUDIOLIB_SWAP16(2)));
     pOutBuffer += 2;
 
     *pOutBuffer = 0;
     pOutBuffer += 1;
-    *(uint32_t*)pOutBuffer = AUDIOLIB_SWAP32(headerSize);
+    AudioLib_Store32(pOutBuffer, (uint32_t)(AUDIOLIB_SWAP32(headerSize)));
     pOutBuffer += 4;
-    *(uint32_t*)pOutBuffer = AUDIOLIB_SWAP32(headerSize);
+    AudioLib_Store32(pOutBuffer, (uint32_t)(AUDIOLIB_SWAP32(headerSize)));
     pOutBuffer += 4;
 
     *pOutBuffer = 1;
     pOutBuffer += 1;
-    *(uint32_t*)pOutBuffer = AUDIOLIB_SWAP32(sndDataSize);
+    AudioLib_Store32(pOutBuffer, (uint32_t)(AUDIOLIB_SWAP32(sndDataSize)));
     pOutBuffer += 8;
 
-    *(uint16_t*)pOutBuffer = AUDIOLIB_SWAP16(10);
+    AudioLib_Store16(pOutBuffer, (uint16_t)(AUDIOLIB_SWAP16(10)));
     pOutBuffer += 2;
     memcpy(pOutBuffer, "NONE", 5);
     pOutBuffer += 5;
@@ -577,7 +585,7 @@ int J3DAPI AudioLib_CompressWave(uint8_t* pOutBuffer, const uint8_t* pWaveData)
 
     AudioLib_ResetCompressor(&state);
     compressedSize = AudioLib_Compress(&state, pOutBuffer, pData, sndDataSize, numChannels);
-    *(uint32_t*)(pStart + 20) = AUDIOLIB_SWAP32(compressedSize);
+    AudioLib_Store32((pStart + 20), (uint32_t)(AUDIOLIB_SWAP32(compressedSize)));
     return pOutBuffer + compressedSize - pStart;
 }
 
@@ -588,12 +596,12 @@ int J3DAPI AudioLib_GetUncompressedSize(const uint8_t* pData)
 
     if ( !memcmp(pData, "MCMP", 4) )
     {
-        count = AUDIOLIB_SWAP16(*(uint16_t*)(pData + 4));
+        count = AUDIOLIB_SWAP16(AudioLib_Load16((pData + 4)));
         size = 0;
         pData += 7;
         while ( count-- )
         {
-            size += AUDIOLIB_SWAP32(*(uint32_t*)pData);
+            size += AUDIOLIB_SWAP32(AudioLib_Load32(pData));
             pData += 9;
         }
 
@@ -614,7 +622,7 @@ int J3DAPI AudioLib_UncompressWave(uint8_t* pOutData, const uint8_t* pData)
         return 1;
     }
 
-    headerSize = AUDIOLIB_SWAP32(*(uint32_t*)(pData + 7));
+    headerSize = AUDIOLIB_SWAP32(AudioLib_Load32((pData + 7)));
     memcpy(pOutData, pData + 36, headerSize);
     AudioLib_ParseWaveFileHeader(pOutData, NULL, NULL, NULL, NULL, NULL, &soundDataSize, NULL, NULL);
     AudioLib_ResetCompressor(&state);
@@ -642,13 +650,13 @@ void J3DAPI AudioLib_Uncompress(tAudioCompressorState* pCompressorState, uint8_t
         ++numChannels;
     }
 
-    pCompressorState->aPrevSample[0] = AUDIOLIB_SWAP16(*(uint16_t*)pCompressedData);
+    pCompressorState->aPrevSample[0] = AUDIOLIB_SWAP16(AudioLib_Load16(pCompressedData));
     pCompressedData += 2;
 
     if ( numChannels > 1 )
     {
         pCompressorState->aStepIndex[1] = *pCompressedData++;
-        pCompressorState->aPrevSample[1] = AUDIOLIB_SWAP16(*(uint16_t*)pCompressedData);
+        pCompressorState->aPrevSample[1] = AUDIOLIB_SWAP16(AudioLib_Load16(pCompressedData));
         pCompressedData += 2;
     }
 
@@ -909,8 +917,8 @@ int J3DAPI AudioLib_GenerateLipSynchBlock(uint8_t* pOutData, const uint8_t* pSnd
     int i;
     int j;
     uint32_t timeStep;
-    const int16_t* pPrev;
-    const int16_t* pCur;
+    const uint8_t* pPrev; // Port: byte pointers; the samples need not be 2-byte aligned (bSkipFirstByte), see AudioLib_Load16
+    const uint8_t* pCur;
     int16_t sample;
     int16_t prevSample;
     int amp;
@@ -945,7 +953,10 @@ int J3DAPI AudioLib_GenerateLipSynchBlock(uint8_t* pOutData, const uint8_t* pSnd
 
     if ( bSkipFirstByte )
     {
+        // Port: retail skipped the byte without counting it, and its last read went one byte past the sound data (ASan,
+        // PORT-PLAN.md P4.9). The data is one byte shorter from here; the samples it reads are unchanged.
         ++pSndData;
+        --sndDataSize;
     }
 
     strcpy((char*)pOutData, "SYNC");
@@ -973,12 +984,12 @@ int J3DAPI AudioLib_GenerateLipSynchBlock(uint8_t* pOutData, const uint8_t* pSnd
 
     timeStep = 0x3E8000 / framesPerSec;
 
-    pPrev = (const int16_t*)pSndData;
-    pCur = (const int16_t*)(pSndData + 2);
-    for ( i = 2; i < sndDataSize; i += 2 )
+    pPrev = pSndData;
+    pCur = pSndData + 2;
+    for ( i = 2; i + 1 < sndDataSize; i += 2, pCur += 2, pPrev += 2 ) // Port: + 1, the whole sample must be there
     {
-        sample = *pCur++;
-        prevSample = *pPrev++;
+        sample = (int16_t)AudioLib_Load16(pCur);
+        prevSample = (int16_t)AudioLib_Load16(pPrev);
         amp = abs(sample);
         if ( sample >= 0 && prevSample < 0 )
         {
@@ -1013,12 +1024,12 @@ int J3DAPI AudioLib_GenerateLipSynchBlock(uint8_t* pOutData, const uint8_t* pSnd
         int curAmp;
         int16_t lastSample;
 
-        pPrev = (const int16_t*)pSndData;
-        pCur = (const int16_t*)(pSndData + 2);
-        for ( j = 2; j < frameSize; j += 2 )
+        pPrev = pSndData;
+        pCur = pSndData + 2;
+        for ( j = 2; j < frameSize; j += 2, pCur += 2, pPrev += 2 )
         {
-            curSample = *pCur++;
-            lastSample = *pPrev++;
+            curSample = (int16_t)AudioLib_Load16(pCur);
+            lastSample = (int16_t)AudioLib_Load16(pPrev);
             curAmp = abs(curSample);
             if ( curSample >= 0 && lastSample < 0 )
             {
@@ -1167,7 +1178,7 @@ int J3DAPI AudioLib_CompressBlock(tAudioCompressorState* pCompressorState, uint8
             }
             else
             {
-                diff = AUDIOLIB_SWAP16(*(uint16_t*)pSample) - predSample;
+                diff = AUDIOLIB_SWAP16(AudioLib_Load16(pSample)) - predSample;
             }
 
             numBits = AudioLib_aStepBits[index];
@@ -1214,7 +1225,7 @@ int J3DAPI AudioLib_CompressBlock(tAudioCompressorState* pCompressorState, uint8
                 }
                 else
                 {
-                    sample = AUDIOLIB_SWAP16(*(uint16_t*)pSample);
+                    sample = AUDIOLIB_SWAP16(AudioLib_Load16(pSample));
                 }
 
                 predSample = sample;
@@ -1700,7 +1711,11 @@ int J3DAPI AudioLib_WVSMCompressBlock(uint8_t* pOutBuffer, const uint8_t* pInBuf
         fprintf(pFile, "%d escape slots used, %dL/%dR bits saved\n\n", 192 - sample, leftSaved, rightSaved);
     }
 
-    *pCurOut++ = *pCurOut++ = 0;
+    // Port: retail wrote "*pCurOut++ = *pCurOut++ = 0;", two increments of one pointer unsequenced (undefined in C);
+    // the intent is two zero bytes, and only their count matters: WVSMUncompressBlock reads them and discards them
+    // (PORT-PLAN.md P4.8).
+    *pCurOut++ = 0;
+    *pCurOut++ = 0;
     *pCurOut++ = (kLeft << 4) + kRight;
 
     leftError = rightError = 0;

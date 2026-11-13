@@ -114,7 +114,7 @@ static int Sound_bNoSound3D = 0;
 
 // Misc vars
 static HWND Sound_hwnd = NULL;
-static LPDIRECTSOUND Sound_pDirectSound = NULL;
+static SoundDevice* Sound_pDirectSound = NULL;
 
 // 3D sound vars
 static SoundCalcListenerSoundMixFunc Sound_pfCalcListenerSoundMix = NULL;
@@ -168,7 +168,7 @@ void J3DAPI Sound_IncreaseFreeCache(size_t bankNum, size_t nSize);
 size_t J3DAPI Sound_WriteSoundFilepathToBank(size_t bankNum, const char* pName, size_t len);
 uint32_t J3DAPI Sound_GetDeltaTime(void);
 
-uint8_t* J3DAPI Sound_GetSoundBufferData(LPDIRECTSOUNDBUFFER pDSBuf, size_t* pDataSize, uint32_t* pbCompressed);
+uint8_t* J3DAPI Sound_GetSoundBufferData(SoundVoice* pDSBuf, size_t* pDataSize, uint32_t* pbCompressed);
 int J3DAPI Sound_MemFileSeek(tFileHandle fh, int offset, int origin);
 size_t J3DAPI Sound_MemFileRead(tFileHandle fh, void* pOutData, size_t nRead);
 size_t J3DAPI Sound_MemFileWrite(tFileHandle fh, const void* pData, size_t size);
@@ -251,7 +251,7 @@ int J3DAPI Sound_Open(SoundOpenFlags flags, size_t maxSoundChannels, SoundGetThi
     Sound_bNoSound3D             = (flags & SOUNDOPEN_NO3DSOUND) != 0;
     Sound_bGlobalFocusBuf        = (flags & SOUNDOPEN_GLOBALFOCUS) != 0;
     Sound_hwnd                   = hwnd;
-    Sound_pDirectSound           = (flags & SOUNDOPEN_HWNDISDIRECTSOUND) != 0 ? (LPDIRECTSOUND)hwnd : 0;
+    Sound_pDirectSound           = (flags & SOUNDOPEN_HWNDISDIRECTSOUND) != 0 ? (SoundDevice*)hwnd : 0;
     Sound_pfCalcListenerSoundMix = pfCalcListenerSoundMix;
 
     // Open sound driver
@@ -512,7 +512,9 @@ int J3DAPI Sound_Restore(tFileHandle fh)
                 return 0;
             }
 
-            Sound_msecPauseStartTime += SoundDriver_GetTimeMsec();
+            // Port: Sound_Save wrote now - start; retail added the value back (start = value + now). Undo the subtraction
+            // instead, so a restored game saves the same value again (PORT-PLAN.md P4.9).
+            Sound_msecPauseStartTime = SoundDriver_GetTimeMsec() - Sound_msecPauseStartTime;
 
             // Read sound file name length
             if ( Sound_pHS->pFileRead(fh, &value, sizeof(value)) != sizeof(value) )
@@ -702,7 +704,9 @@ int J3DAPI Sound_Restore(tFileHandle fh)
                 return 0;
             }
 
-            Sound_msecPauseStartTime += SoundDriver_GetTimeMsec();
+            // Port: Sound_Save wrote now - start; retail added the value back (start = value + now). Undo the subtraction
+            // instead, so a restored game saves the same value again (PORT-PLAN.md P4.9).
+            Sound_msecPauseStartTime = SoundDriver_GetTimeMsec() - Sound_msecPauseStartTime;
 
             // Read sound file name length
             if ( Sound_pHS->pFileRead(fh, &value, sizeof(value)) != sizeof(value) )
@@ -1636,7 +1640,7 @@ tSoundChannelHandle J3DAPI Sound_Play(tSoundHandle hSnd, float volume, float pan
     tSoundChannel* pChannel;
     tSoundChannel* pLowPriChannel;
     tSoundChannel* pExistingSndChannel;
-    LPDIRECTSOUNDBUFFER pSBuffer = NULL;
+    SoundVoice* pSBuffer = NULL;
 
     if ( Sound_state != SOUNDSTATE_OPEN
         || Sound_pausedRefCount && (flags & (SOUND_CHANNEL_LOOP | SOUND_CHANNEL_PLAYING)) == (SOUND_CHANNEL_LOOP | SOUND_CHANNEL_PLAYING) )
@@ -3198,7 +3202,7 @@ tSoundChannel* J3DAPI Sound_GetChannelBySoundHandle(tSoundHandle hSnd)
     return NULL;
 }
 
-uint8_t* J3DAPI Sound_GetSoundBufferData(LPDIRECTSOUNDBUFFER pDSBuf, size_t* pDataSize, uint32_t* pbCompressed)
+uint8_t* J3DAPI Sound_GetSoundBufferData(SoundVoice* pDSBuf, size_t* pDataSize, uint32_t* pbCompressed)
 {
     size_t i = Sound_numChannels;
     tSoundChannel* pChannel = &Sound_apChannels[i];

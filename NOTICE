@@ -20,5 +20,8 @@ It is derived from, and credits:
 
   * zlib 1.0.9 by Jean-loup Gailly and Mark Adler, vendored as modified by LucasArts for INSANE. zlib license.
 
+  * miniaudio 0.11.25 by David Reid (https://github.com/mackron/miniaudio), vendored unmodified in
+    third_party/miniaudio/ for the audio output device. Public domain (Unlicense) or MIT No Attribution.
+
 "Indiana Jones" and "LucasArts" are trademarks of their respective owners. This project is not affiliated with or
 endorsed by Lucasfilm, LucasArts or The Walt Disney Company.

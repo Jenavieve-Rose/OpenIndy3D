@@ -27,9 +27,10 @@ Changed code is marked in the source with a `// Port:` comment where the reason 
 
 ### Win32 shim (debt)
 
-`platform/apple/shim/` provides `Windows.h`, `ddraw.h`, `d3d.h`, `dinput.h`, `dsound.h`, `dplay.h`, `commdlg.h`,
-`CommCtrl.h`, `io.h` and friends, which forward to `win32_shim.h`, `win32_shim_dx.h` and `win32_shim_gui.h`. They hold
-only the types, constants and prototypes that otherwise-portable code names. The goal (Phase 7) is to delete them.
+`platform/apple/shim/` provides `Windows.h`, `ddraw.h`, `d3d.h`, `dinput.h`, `dsound.h` (gone since P4.11), `dplay.h`,
+`commdlg.h`, `CommCtrl.h`, `io.h` and friends, which forward to `win32_shim.h`, `win32_shim_dx.h` and
+`win32_shim_gui.h`. They hold only the types, constants and prototypes that otherwise-portable code names. The goal
+(Phase 7) is to delete them.
 
 ### Excluded sources
 
@@ -1057,3 +1058,135 @@ through the same pump.
 Left open, with their phases: OpenJones3D's bound on a selected inventory item's spin angle, which after hours of
 rotation loses float precision and stops the item returning to rest (phase 8 fix series); the controls dialog (phase
 6); the by-hand checks above.
+
+## Phase 4: audio
+
+### miniaudio (P4.1)
+
+`third_party/miniaudio/`: miniaudio 0.11.25, unmodified, with its licence (public domain or MIT-0) and the source and
+SHA-256 of each file in `README.port.md`. It is compiled once (`miniaudio.c`) as its own target, without the
+project's warning flags, with only the playback device and the Core Audio backend; the switches are the target's
+public compile definitions, so every file that includes the header sees the same structures. Only the apple build
+links it: `platform/apple/audio_device_ma.c` is the output device. The null build has no device
+(`platform/common/null/audio_device_null.c`). Between them and the mixer is `platform/common/host_audio.h`.
+
+### Opaque handles (P4.2)
+
+`sound/types.h` declares `SoundDevice` and `SoundVoice`; `LPDIRECTSOUND` and `LPDIRECTSOUNDBUFFER` are gone from
+`Driver.h`, `Sound.h` and `Sound.c` (a rename, no behaviour), and so is `<dsound.h>`.
+
+### The sound driver (P4.3 to P4.6)
+
+`platform/common/SoundDriver_mix.c` implements `Libs/sound/Driver.h` (retail `Driver.c` stays excluded; the generated
+`SoundDriver_null.c` is gone). It is in `platform_core`, so the null build, the tests and the headless runs use the
+same driver as the game.
+
+**Which DirectSound it is.** Retail's driver had two paths. With 3D sound hardware and the "3D sound" option, mono
+buffers were DirectSound 3D buffers placed by the hardware; otherwise, and for every stereo buffer, the driver asked the
+game for a channel's volume and pan (`sithSoundMixer_CalcCameraRelativeSoundMix`) and set them on plain buffers. The
+port's driver is the second path: `SoundDriver_Has3DHW` and `SoundDriver_Use3DCaps` are 0, so the options dialog greys
+its 3D check box as on a retail machine without 3D hardware, and every sound is placed by the game's own mix. Reasons:
+that mix is complete and is what the game's designers tuned; there is no 3D sound hardware on a Mac to emulate; and
+the 3D path's listener is set up oddly in retail (`Sound_Update` negates both the front and the top vector, which
+leaves DirectSound's right vector, top × front, unchanged; with the game's axes that vector is -x, the camera's left).
+Not emulating it is decision 19 in PORT-PLAN.md. The listener, 3D buffer and global functions keep their values
+and do nothing else; `Update3DSound` is retail's software half.
+
+**Two clocks.** What the sound module can observe of a voice (playing or not, its play cursor for lip sync) is
+computed from `SoundDriver_GetTimeMsec`, the engine clock: the position moves by frequency × elapsed time while the
+voice plays, a one-shot stops at its end with its cursor back at 0, a loop wraps, `Stop` holds the position and `Play`
+resumes it, a frequency change applies from when it is made. The device renders from a cursor of its own, in real
+time, and is never asked. So a headless, recorded or replayed run sees exactly the same sound state every time (saves
+and recordings stay byte-identical, `boot` and `boot-sdl` write the same autosave as the null build), and the null
+build, with no device, runs the sound module unchanged. The two cursors can differ by a few milliseconds; a voice the
+game releases stops rendering then.
+
+**The mix.** Each voice's PCM is copied at creation (DirectSound copied it into the buffer too), converted to 16-bit
+(8-bit samples centred on 128), and decompressed first when it is one of the sound module's compressed sounds.
+Volume and pan are DirectSound's: hundredths of a decibel, the minimum silent, pan attenuating the far side. The
+renderer interpolates linearly between source frames at frequency / 48,000 and sums into float stereo; miniaudio
+clamps to ±1, as DirectSound's software mixer saturated. A lock guards the voice list against the device thread;
+the game thread holds it only for a few stores at a time. While the window is in the background a voice not made
+with global focus is silent but keeps moving, as DirectSound did (`J3DAudio_SetFocus` from `wkernel_sdl.c`). The
+game itself stops its loop on deactivation (`JonesMain_OnAppActivate`) but does not pause the sound module, so this
+mute is what silences sounds that are still playing. DirectSound's argument checks are kept where the game can reach them: a
+frequency outside 100 Hz to 100 kHz is refused (0 restores the buffer's own), formats other than 8- or 16-bit mono or
+stereo are refused. `DuplicateSoundBuffer` is emulated (shared PCM) though `Sound_Play` never asks for it.
+
+Retail code kept unchanged in the new file: the decibel table, `InitPanTable` and the four conversion functions
+(P4.5), `CalcListeneSoundMix`, `CalcDistToListener` and `Update3DSound`. Two changes, marked `// Port:`:
+
+| Where | What retail did | Now |
+| --- | --- | --- |
+| `SoundDriver_Update3DSound` | Left `newVolume`, `pan` and `newPitch` unset before calling the game's mix, which returns without writing them when there is no camera; the far-sound check then read stack garbage | They start as the unplaced values (the given volume, centre, 1). |
+| `SoundDriver_CalcListeneSoundMix` | Left `SoundSpatialInfo`'s three unknown fields unset | Zeroed. |
+
+Kept as retail and noted for the phase 8 fix series: `SoundDriver_GetIntPan(1.0)` indexes past the pan table and
+returns 0, so a sound exactly to the camera's right is centred; `SoundDriver_GetPan` returns 0 (retail's linker
+discarded it and its only caller).
+
+### Startup (P4.7)
+
+`SoundDriver_Open` succeeds with or without a device, so `Sound_Open` succeeds: no `JONES_STR_SOUNDERROR`, and
+`Sound_Set3DGlobals: module is not open` is gone from the log. A device that fails to open leaves the game silent and
+otherwise unchanged. `J3D_NO_AUDIO=1` and `--headless` open no device.
+
+### AudioLib (P4.8)
+
+`AudioLib_UncompressBlock`'s ADPCM decoder was hand-written x86 in retail, translated to C in phase 0. There is no
+Windows build to take reference output from, so the check uses the encoder as the oracle: retail's
+`AudioLib_CompressBlock` tracks the decoder's reconstruction sample by sample. `tests/sounddriver.c` compresses
+twelve signals (silence, quiet and full-scale tones, noise, full-scale steps that force escapes; mono and stereo),
+decodes them with the translated block, and compares with an independent decoder written from the encoder's
+arithmetic: bit for bit equal, and the decoder ends in the state the encoder ended in. Reading the assembly again
+against the C found no difference (the delta table is `uint16_t`, matching the `movzx` that reads it). This decoder
+serves only the >2-channel block format; the game itself compresses through WVSM (`AudioLib_Compress` with 1 or 2
+channels), which retail wrote in C, and which a boot exercises.
+
+| Where | What retail did | Now |
+| --- | --- | --- |
+| `AudioLib_WVSMCompressBlock` | `*pCurOut++ = *pCurOut++ = 0;`, two unsequenced increments (undefined; the one `-Wno-error` left from phase 1) | Two stores. Only the count matters: the decoder reads and discards both bytes. `-Wno-error=unsequenced` is removed from `CMakeLists.txt`. |
+| `AudioLib.c`, 30 reads and 8 writes | Dereferenced byte pointers as `uint16_t*`/`uint32_t*` at odd addresses (a compressed block's first sample follows a 1-byte index; WAV chunks), which x86 allowed; UBSan reported it once sound was open | `AudioLib_Load16/32`, `AudioLib_Store16/32` through `memcpy`. |
+| `AudioLib_GenerateLipSynchBlock` | Read 16-bit samples through `int16_t*` from an odd address (`Sound.c` always passes `bSkipFirstByte`), and with the skipped byte uncounted, read one byte past the sound data (ASan) | Byte pointers and `AudioLib_Load16`; the size drops by the skipped byte and the whole-file pass stops one sample earlier. The samples read are retail's, off by one byte as retail's were. |
+
+### Listening pass, save and restore (P4.9)
+
+`J3D_AUDIO_DUMP=<file.wav>` (BUILDING.md) writes the device's mix to a WAV and silences the speakers. Levels
+`00_cyn`, `01_bab` and `02_riv` were each run windowed for 1,500 frames (about 18 s) with it: every second after the
+first carries sound, the channels differ throughout (positioned sounds and stereo music), and 1 to 59 samples per run
+reach full scale where many voices coincide. Voice lines generate lip sync (`NOTE: Generating lip sync ...`) with no
+sanitizer report. Listening itself, subtitles and the feel of attenuation and panning, needs a person.
+
+With sound open, saves carry real channels, and `saveload` exposed three things about `Sound_Save`/`Sound_Restore`:
+
+| What | Now |
+| --- | --- |
+| `Sound_Save` writes now − pause start; `Sound_Restore` set pause start = value + now (found in P1.20). It matters: a save of a restored game differs | Fixed: now − value (`// Port:`, both branches). The value is used only while paused, and the restore clears the pause count, so nothing audible changes. |
+| `Sound_Restore` reads each saved channel handle into the handle entropy, then `Sound_GenerateChannelHandle` adds `SOUND_HANDLE_MIN` (1234) again: a restored channel's handle is 1234 higher, and a script still holding the old handle cannot stop that sound | Kept as retail (a behaviour change); OpenJones3D fixes it ("calculate correct entropy from channel handle"). Phase 8 fix series. |
+| `sithSoundMixer_GameRestore` stops the ambient channel and the restore places the listener 100,000 units away, so each positioned loop comes back marked far and the ambient sound restarts on the next frame under a new handle | Retail behaviour; the next `Sound_Update` restores them. |
+
+`tests/saveload.c` now walks the sound section and allows exactly those: the ambient handle, each channel handle
++1234, and each channel's `SOUND_CHANNEL_FAR`; the pause-time word is compared again.
+
+`tests/input.sh` no longer feeds the script's frame-800 F5 to the replay run: the recording already holds it, and
+the second quicksave, harmless while sound was closed, now plays a sound and takes a channel handle.
+
+### Device changes (P4.10)
+
+miniaudio's Core Audio backend follows the system default output: when headphones are plugged in or out, or the
+default changes in System Settings, it moves the stream and keeps the 48 kHz float format, converting if the new
+device's rate differs. The mixer sees nothing. Needs a check by hand.
+
+### Shim (P4.11)
+
+The DirectSound part of `win32_shim_dx.h` (interfaces, `WAVEFORMATEX`, `DSBUFFERDESC`, the `DSB*` limits) and the
+`dsound.h` and `Mmreg.h` stand-ins are deleted. The remaining users of those names, `Driver.c`, INSANE's `Dsnd.c`
+(phase 5) and `stdGuid.c`, are excluded from the build.
+
+### Checks
+
+- `sounddriver` (no data, every tree): the engine-clock voice model, retail's tables, the mix's gains and formats,
+  focus muting, WVSM and the ADPCM block against the encoder oracle.
+- `boot`, `boot-sdl`, `saveload`, `input` now run with sound open; their saves carry sound state and stay
+  reproducible.
+- By hand: listening in the first three levels, headphones in and out, the background mute.

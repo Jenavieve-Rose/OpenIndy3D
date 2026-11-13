@@ -76,11 +76,10 @@ target_compile_options(j3d_common INTERFACE
     # audit triaged all of them (docs/PORTING.md, "64-bit audit: narrowing conversions"); jonesConfig.c is exempt below.
     -Wshorten-64-to-32
     # Every other warning class was cleared in Phase 1 (PORT-PLAN.md P1.23, P1.24, P1.28) and is an error from then on.
-    # The exceptions: narrowing until J3D_WERROR_SHORTEN is on, and AudioLib.c's unsequenced write, which is verified
-    # with the rest of AudioLib in Phase 4 (P4.8).
+    # The exception: narrowing until J3D_WERROR_SHORTEN is on. (AudioLib.c.s unsequenced write, the other exception
+    # until then, was fixed in P4.8.)
     -Werror
     $<$<NOT:$<BOOL:${J3D_WERROR_SHORTEN}>>:-Wno-error=shorten-64-to-32>
-    -Wno-error=unsequenced
     # The decomp is written in the MSVC dialect; these fire on idioms that are correct there.
     -Wno-parentheses
     -Wno-dangling-else
@@ -198,6 +197,7 @@ if(J3D_PLATFORM STREQUAL "apple")
         stdDisplay_headless.c   # platform/apple/stdDisplay_sdl.c (P2.3)
         std3D_null.c            # platform/apple/std3D_metal.c and render_metal.m (P2.9)
         stdControl_null.c       # platform/apple/stdControl_sdl.c (Phase 3)
+        audio_device_null.c     # platform/apple/audio_device_ma.c (P4.1)
     )
     set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
     foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
@@ -208,9 +208,24 @@ if(J3D_PLATFORM STREQUAL "apple")
     file(GLOB J3D_PLATFORM_APPLE_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/apple/*.c ${J3D_ROOT}/platform/apple/*.m)
     list(REMOVE_ITEM J3D_PLATFORM_APPLE_SOURCES ${J3D_ROOT}/platform/apple/main.c)
 
+    # miniaudio (third_party/miniaudio, P4.1): the audio output device only. Its switches are public so that every file
+    # including miniaudio.h sees the structures the implementation was compiled with. Third-party code: no -Werror.
+    add_library(miniaudio STATIC ${J3D_ROOT}/third_party/miniaudio/miniaudio.c)
+    target_include_directories(miniaudio SYSTEM PUBLIC ${J3D_ROOT}/third_party/miniaudio)
+    target_compile_definitions(miniaudio PUBLIC
+        MA_NO_DECODING MA_NO_ENCODING MA_NO_GENERATION MA_NO_RESOURCE_MANAGER MA_NO_NODE_GRAPH MA_NO_ENGINE
+        MA_ENABLE_ONLY_SPECIFIC_BACKENDS MA_ENABLE_COREAUDIO MA_NO_RUNTIME_LINKING)
+    target_compile_options(miniaudio PRIVATE -w)
+    target_link_libraries(miniaudio PUBLIC
+        "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation")
+    if(J3D_SANITIZE)
+        target_compile_options(miniaudio PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -g)
+    endif()
+
     add_library(platform_apple STATIC ${J3D_PLATFORM_APPLE_SOURCES} ${J3D_APPLE_NULL_SOURCES})
     target_link_libraries(platform_apple PUBLIC
         platform_core
+        miniaudio
         SDL3::SDL3
         "-framework Cocoa"
         "-framework Metal"
@@ -285,12 +300,16 @@ endforeach()
 #   present    (apple builds) the Metal present path, read back from a real window; skipped (77) with no window server
 #   render     (apple builds) the Metal renderer's shaders and fixed-function state, offscreen (P2.10)
 #   keys       the DIK tables and GetKeyNameTextA and SearchPathA built on them (P3.1, P3.7)
+#   sounddriver the sound driver on the virtual clock, and its mix, rendered without a device (P4.3 to P4.6)
 j3d_executable(display platform_null ${J3D_ROOT}/tests/display.c ${J3D_ROOT}/tests/harness.c)
 add_test(NAME display COMMAND display)
 set_tests_properties(display PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
 j3d_executable(keys platform_null ${J3D_ROOT}/tests/keys.c)
 add_test(NAME keys COMMAND keys)
 set_tests_properties(keys PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
+j3d_executable(sounddriver platform_null ${J3D_ROOT}/tests/sounddriver.c)
+add_test(NAME sounddriver COMMAND sounddriver)
+set_tests_properties(sounddriver PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
 if(J3D_PLATFORM STREQUAL "apple")
     j3d_executable(present platform_apple ${J3D_ROOT}/tests/present.c ${J3D_ROOT}/tests/harness.c)
     add_test(NAME present COMMAND present)

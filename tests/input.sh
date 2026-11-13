@@ -29,14 +29,20 @@ rm -rf "$out"
 mkdir -p "$out"
 status=0
 
-# run <name> <script text> [extra arguments...]: one headless run; its quicksave is $out/<name>/SaveGames/QUICKSAVE.nds
+# run <name> <script text> [extra arguments...]: one headless run; its quicksave is $out/<name>/SaveGames/QUICKSAVE.nds.
+# The script gets the frame-800 F5 appended. A script of "replay" means no script at all: a replay takes its F5, like
+# every other input, from the recording, and a second F5 would save twice (each save plays a sound since phase 4, which
+# takes a channel handle, so the second save differs).
 run() {
     name=$1
     script=$2
     shift 2
-    printf '%s\n800 vkey F5\n' "$script" > "$out/$name.txt"
+    if [ "$script" != replay ]; then
+        printf '%s\n800 vkey F5\n' "$script" > "$out/$name.txt"
+        set -- --input-script "$out/$name.txt" "$@"
+    fi
     if ! env J3D_SETTINGS=/dev/null J3D_REG_Start_Mode=0 J3D_REG_Install_Path="$out/$name/" J3D_LOGS="$out/$name/logs/" \
-        "$game" --data "$data" --headless --input-script "$out/$name.txt" "$@" 2 > "$out/$name.log" 2>&1; then
+        "$game" --data "$data" --headless "$@" 2 > "$out/$name.log" 2>&1; then
         echo "FAIL $name: exit status (see $out/$name.log)"
         status=1
     elif grep -q ASSERT "$out/$name.log"; then
@@ -65,7 +71,7 @@ expect() {
 
 run idle   ''                                    --frames 850
 run walk   "$(printf '600 key UP down\n625 key UP up')"  --frames 850 --record "$out/walk.rec"
-run replay ''                                    --replay "$out/walk.rec"
+run replay replay                                --replay "$out/walk.rec"
 run plain  "$(printf '600 key UP down\n625 key UP up')"  --frames 850
 expect differ idle walk   "keyboard: holding forward moves Indy"
 expect same   walk replay "replay: the replayed run's quicksave is the recorded run's"
