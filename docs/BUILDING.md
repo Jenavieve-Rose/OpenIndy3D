@@ -38,13 +38,13 @@ cmake --build build
 ```
 
 `-DJ3D_TEST_DATA` is optional. Without it everything still builds, and only the tests that need no game data
-(`display`, `present`, `render`) are registered with `ctest`.
+(`display`, `present`, `render`, `keys`) are registered with `ctest`.
 
 | Output | What it is |
 | --- | --- |
 | `build/jones3d` | The game, with the backends `J3D_PLATFORM` selects. |
 | `build/jones3d-null` | The game with the null backends (apple builds only). The `boot` test runs it. |
-| `build/levelload`, `build/cogcheck`, `build/saveload`, `build/display`, `build/present`, `build/render` | The test programs (below). They use the null backends, apart from `present` and `render` (apple builds only). |
+| `build/levelload`, `build/cogcheck`, `build/saveload`, `build/display`, `build/present`, `build/render`, `build/keys` | The test programs (below). They use the null backends, apart from `present` and `render` (apple builds only). |
 | `build/lib*.a` | The engine libraries: `zlib`, `std`, `rdroid`, `sound`, `smush`, `sith`, `jones3d_game`, and the platform: `platform_core`, `platform_null`, `platform_apple`. |
 
 ## Build with Xcode
@@ -103,13 +103,15 @@ build/jones3d --data /path/to/data-root
 | `--frames <n>` | Quit after n passes of the game loop. Once a level is open a pass is one frame. |
 | `--screenshot-at <n>[,<n>...]` | Write the back buffer as a BMP after those passes of the game loop. Each file written is printed. |
 | `--screenshot-file <path>` | Where screenshots go; `{frame}` becomes the frame number. Default `jones3d-{frame}.bmp` in the current directory. |
+| `--record <file>` | Record the run's input and clock to `<file>` (apple builds; `platform/common/host_record.h`). |
+| `--replay <file>` | Play a recording back instead of reading the keyboard, mouse and controllers, then quit. Exits with failure if the run goes out of step with the recording (other data, settings or engine). With `--headless` it runs as fast as the host allows. |
+| `--input-script <file>` | Feed scripted input, for tests: lines `<frame> key UP down`, `<frame> mouse 40 0`, `<frame> pad 1 down`, `<frame> axis y -32767`, `<frame> hat left`, `<frame> vkey F5`. The format is at the top of `platform/common/host_record.h`. |
 
 Any other argument is passed to the engine's own command-line parser unchanged.
 
 In an apple build `jones3d` first prints a `Host:` line (macOS version, Metal device, SDL version), opens the game
-window and runs the game in it, fullscreen by default, presenting every frame through Metal. The game draws everything
-through its 3D renderer, which comes next (PORT-PLAN.md P2.9 on), so the frames are still black; close the window, or
-press Cmd-Q, to quit. To run in a window instead, at a size from the mode list:
+window and runs the game in it, fullscreen by default, rendered through Metal. Close the window, or press Cmd-Q, to
+quit. To run in a window instead, at a size from the mode list:
 
 ```sh
 J3D_REG_InWindow=1 J3D_REG_Width=800 J3D_REG_Height=600 build/jones3d --data /path/to/data-root
@@ -117,6 +119,24 @@ J3D_REG_InWindow=1 J3D_REG_Width=800 J3D_REG_Height=600 build/jones3d --data /pa
 
 A 4:3 mode on a wide screen is pillarboxed (black bars at the sides); `J3D_REG_Pillarbox=0`, or `Pillarbox=i:0` in the
 settings file, stretches it instead. Alt+Return or Cmd+Ctrl+F switches between fullscreen and a window.
+
+### Controls
+
+The keyboard, mouse and controllers work as in the retail game (PORT-PLAN.md Phase 3), through the key set named by the
+`Configuration` setting: a `.kfg` file in `KeySets/` (the retail ones are copied there on the first run), or one of the
+built-in defaults. With nothing configured the game picks the keyboard default, or, when a modern two-stick controller
+is connected, the port's "Dual-Stick Controller" set: left stick to move and turn, right stick to sidestep, A jump,
+B crawl, X activate, Y draw or holster, LB look, RB run, left stick click roll, right stick click lighter, Back map,
+Start inventory, d-pad left and right weapons, down health, up chalk. Every key set keeps the keyboard keys as well.
+
+- The Option keys are Alt and the Command keys are the Windows keys. Keys are read by position, as on a US keyboard.
+- In fullscreen, or with `Mouse Control=i:1`, the game takes the mouse (no cursor) while it has focus; Cmd-Tab or any
+  other loss of focus gives it back. Mouse movement only turns and looks with `Mouse Control=i:1`, as in retail.
+  `Mouse Scale=i:<percent>` (default 100) scales its motion.
+- `Joystick Control` is on by default in the port (retail: off until set in the controls dialog). Controllers can be
+  connected and disconnected while playing; up to eight. An analog stick walks at part deflection and runs at full.
+- The controls dialog, where retail chose and edited key sets, arrives with the other dialogs (PORT-PLAN.md Phase 6);
+  until then edit `Configuration` or the `.kfg` files.
 
 A null build has no display: without `--headless` it opens the GOBs, loads its string tables, starts the engine and
 exits when it enumerates the displays. With `--headless` either build loads the first level and runs:
@@ -149,6 +169,7 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_HEADLESS` | `1` is `--headless`. |
 | `J3D_FRAMES` | `<n>` is `--frames <n>`. |
 | `J3D_SCREENSHOT_AT`, `J3D_SCREENSHOT_FILE` | `--screenshot-at` and `--screenshot-file`. |
+| `J3D_RECORD`, `J3D_REPLAY`, `J3D_INPUT_SCRIPT` | `--record`, `--replay` and `--input-script`. |
 
 ## Tests
 
@@ -170,6 +191,8 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `present` | Apple builds only, no game data needed. Presents a pattern through `stdDisplay` in a real window (it flashes up briefly), reads the screen image back from Metal and compares it, unscaled and scaled; then checks that a frame with a 3D scene presents the scene's picture. Skipped without a window server, for example over SSH. | under 1 s |
 | `render` | Apple builds only, no game data or window needed. Draws with the Metal renderer offscreen and reads the result back: pixel coverage, colour order, depth test and clears, alpha test and blending, perspective-correct interpolation, depth clamping, lines and points. | under 1 s |
 | `boot-sdl` | Apple builds only: the same run through `jones3d`, so the SDL event loop delivers the frames and the closing `WM_CLOSE` (SDL's `dummy` video driver, no window). Its autosave goes to `build/boot-sdl/SaveGames/`. | under 1 s |
+| `keys` | No game data needed. The DIK tables (HID usage to DirectInput key, key names), `GetKeyNameTextA` and `SearchPathA`. | under 1 s |
+| `input` | Apple builds only (`tests/input.sh`). Scripted headless runs of level 2 that quicksave at frame 800: holding a key moves Indy; a recorded run replays to a byte-identical quicksave, and recording does not change the run; a scripted controller's A jumps exactly as the jump key does (the port's default key set); with the retail "Microsoft SideWinder game pad" key set its button 7 sidesteps exactly as A does; mouse motion turns Indy. Runs go to `build/input-out/`. | about 10 s |
 
 Each can be run directly, which shows its output:
 

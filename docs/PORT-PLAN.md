@@ -17,13 +17,13 @@ confused with section numbers.
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
 | 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Complete |
-| 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
+| 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **64 of 146** | |
+| **All** | | **74 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -33,19 +33,21 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 | Check | Result |
 | --- | --- |
 | `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 compiler warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
-| `ctest` | `display` passes (no game data needed), and in the apple build `render` and `present` (`present` needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` in the apple build |
-| The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All four pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
+| `ctest` | `display` and `keys` pass (no game data needed), and in the apple build `render` and `present` (`present` needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` and `input` in the apple build |
+| The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
 | `python3 tools/layout_audit.py` | `0 retail on-disk type(s) differ` |
-| `jones3d --data <data>` | Apple build: opens the game window (fullscreen or windowed, at the mode the settings name), runs the game in it and presents every frame through Metal at the display's refresh; the frames are black until the renderer draws (P2.9 on). Null build: stops at the display enumeration (no display backend) |
+| `jones3d --data <data>` | Apple build: opens the game window (fullscreen or windowed, at the mode the settings name) and runs the game in it, rendered through Metal at the display's refresh, played with keyboard, mouse and controllers. Null build: stops at the display enumeration (no display backend) |
+| `jones3d ... --input-script` / `--record` / `--replay` | Scripted keyboard, mouse and controller input reaches the game; a recorded run replays to a byte-identical quicksave (`input` test) |
 | `jones3d --data <data> --headless --frames 600` | Loads `00_cyn`, writes the level-start autosave, runs 600 frames (20 s of game time) of the opening cutscene and shuts down cleanly, exit 0, in under a second. Two runs print the same log and write byte-identical saves |
 | `saveload <data>` | After 300 frames, a save restored into a fresh world matches the world that was saved (236 things, positions bit for bit, COG globals, game time), and a save of the restored game matches the first; the game then runs 300 more frames |
 | Long paths | `boot` and `saveload` pass with a 257-character `Install Path`; `boot`, `levelload` and `cogcheck` with a 229-character data root |
 
 Every level renders in a window or fullscreen through Metal: textured, lit, fogged, with the HUD, at the display's
-refresh rate, pillarboxed to 4:3 by default. A level can be walked with the temporary debug keys (P2.18). Nothing is
-audible yet (phase 4), movies do not play (phase 5) and the menus and dialogs do not appear (phase 6).
+refresh rate, pillarboxed to 4:3 by default, and plays with the keyboard, the mouse and controllers, using the retail
+key sets or the port's controller default (phase 3). Nothing is audible yet (phase 4), movies do not play (phase 5)
+and the menus and dialogs do not appear (phase 6); the in-game inventory menu works.
 `tools/level_shots.sh` screenshots every level by script.
 
 All of phase 1 is on `main` (at `3c3605a`): sixteen commits made on the branch `phase1-headless`, seven for P1.8 to
@@ -465,24 +467,58 @@ phase's code.
 Exit test: `00_cyn` is playable start to finish with keyboard and mouse, and again with a controller, using the
 retail keysets.
 
-- [ ] **P3.1** (S) DIK tables in `platform/common/`: SDL scancode to `DIK_*`, and `DIK_*` to display name.
-- [ ] **P3.2** (M) `stdControl_sdl.c`, keyboard: `Startup`, `Open`, `Close`, `Reset`, `ReadControls`, `FinishRead`,
+- [x] **P3.1** (S) DIK tables in `platform/common/`: SDL scancode to `DIK_*`, and `DIK_*` to display name.
+      Done: `host_keys.c`, keyed by USB HID usage (SDL's scancodes) so it needs no SDL; Windows' US key names, which
+      also back `GetKeyNameTextA`. Checked: `keys` test.
+- [x] **P3.2** (M) `stdControl_sdl.c`, keyboard: `Startup`, `Open`, `Close`, `Reset`, `ReadControls`, `FinishRead`,
       `ReadKey` with retail's pressed-this-frame semantics, `ReadKeyAsAxis`, `ControlsActive`, `SetActivation`,
-      `ControlsIdle`.
-- [ ] **P3.3** (S) Key and character messages to the window proc for the console and typed input.
-- [ ] **P3.4** (M) Mouse: relative mode while controls are active, `ReadAxis`/`ReadAxisRaw`, buttons, `EnableMouse`,
-      `ToggleMouse`, `ShowMouseCursor`, `ResetMousePos`, sensitivity scaled to what DirectInput deltas were.
-- [ ] **P3.5** (S) Axis bookkeeping: `RegisterAxis`, `EnableAxis`, `SetAxisFlags`, `TestAxisFlag`, `ReadAxisAsKey`,
-      `ReadAxisAsKeyEx`.
-- [ ] **P3.6** (M) Gamepads through `SDL_Gamepad`, hot-plug included, mapped into the engine's slots (8 devices, 6
+      `ControlsIdle`. Done: the whole module, retail's file with DirectInput replaced; `stdControl_debug.c` (P2.18)
+      removed. Checked: `input` test (a held key moves Indy).
+- [x] **P3.3** (S) Key and character messages to the window proc for the console and typed input. Done: key messages
+      carry the scan code and extended flag; `WM_CHAR` was already there (P2.2). Checked: `input` test (F5 quicksave
+      through `WM_KEYDOWN`).
+- [x] **P3.4** (M) Mouse: relative mode while controls are active, `ReadAxis`/`ReadAxisRaw`, buttons, `EnableMouse`,
+      `ToggleMouse`, `ShowMouseCursor`, `ResetMousePos`, sensitivity scaled to what DirectInput deltas were. Done:
+      motion in points scaled by `Mouse Scale` (percent); buttons and wheel as buffered events. Checked: `input` test
+      (motion turns Indy); capture and release by hand.
+- [x] **P3.5** (S) Axis bookkeeping: `RegisterAxis`, `EnableAxis`, `SetAxisFlags`, `TestAxisFlag`, `ReadAxisAsKey`,
+      `ReadAxisAsKeyEx`. Done: retail's arithmetic; `ReadAxisAsKey`'s out-of-bounds index fixed. Checked: `input` test
+      (walk at half deflection, run at full).
+- [x] **P3.6** (M) Gamepads through `SDL_Gamepad`, hot-plug included, mapped into the engine's slots (8 devices, 6
       axes, 32 buttons, 4 POV hats); `GetNumJoysticks`, `GetMaxJoystickButtons`, `IsGamePad`, `DisableReadJoysticks`.
-- [ ] **P3.7** (S) Load the retail `KEYSETS/*.kfg` through the data root; key names come from our DIK name table
-      instead of `GetKeyNameTextA`.
-- [ ] **P3.8** (S) A default keyset for a standard dual-stick controller, written for the port.
-- [ ] **P3.9** (S) Mac keyboard behaviour: Command-Q quits, Command-Tab and focus loss release the mouse, Option and
-      Command map to the Alt and Windows DIK codes.
-- [ ] **P3.10** (M) Input recording and replay by frame, for the regression and A/B work in phase 7.
+      Done: Xbox-style DirectInput layout, right stick X also on Rz; slots keep their number; a new slot is rebound
+      (`stdControl_DevicesChanged`); `Joystick Control` on by default. Checked: `input` test (scripted controller);
+      a real controller and its hot-plug by hand.
+- [x] **P3.7** (S) Load the retail `KEYSETS/*.kfg` through the data root; key names come from our DIK name table
+      instead of `GetKeyNameTextA`. Done: `SearchPathA`; two retail faults the first load exposed fixed (an `int`
+      written as `size_t`, the scheme name overrunning its buffer). Eight of eleven load; three lack retail's enabled
+      flag. Checked: `input` test (SideWinder key set).
+- [x] **P3.8** (S) A default keyset for a standard dual-stick controller, written for the port. Done: "Dual-Stick
+      Controller" (BUILDING.md, "Controls"), chosen when nothing is configured and slot 0 holds one. Checked: `input`
+      test.
+- [x] **P3.9** (S) Mac keyboard behaviour: Command-Q quits, Command-Tab and focus loss release the mouse, Option and
+      Command map to the Alt and Windows DIK codes. Done: the DIK table; the window's focus releases the mouse at
+      once. Checked: `keys` test; Cmd-Q and Cmd-Tab by hand.
+- [x] **P3.10** (M) Input recording and replay by frame, for the regression and A/B work in phase 7. Done:
+      `host_record.c`, `--record`, `--replay`, `--input-script`; the frame clock makes a played run reproducible.
+      Checked: `input` test (byte-identical quicksave).
 ## Complete Phase 3 Code Audit
+
+Done 2026-11-13; details in `docs/PORTING.md`, "Phase 3 code audit". Extra warnings and the static analyzer on the
+phase's code, the newly reachable retail code (inventory menu, key sets, bindings) under ASan and UBSan with scripted
+input, and a read-through.
+
+- [x] Warnings and static analysis: nothing in the new code.
+- [x] Newly reachable retail code: the inventory menu read the inventory type table at index -1 for its category
+      entries (18 reads, fixed), and `JonesHud_MenuClose`'s unset `moveRate` (fixed); the key set parser's two faults
+      (P3.7).
+- [x] Read-through: snapshot initialisation, slot bookkeeping, mouse release on every path, replay isolation.
+- [x] Behaviour: `boot` and `boot-sdl` write the same autosave as at the phase 2 commit; every test passes in the
+      apple, null and sanitizer trees.
+- Not yet run: the exit test itself, `00_cyn` played through with keyboard and mouse and again with a controller,
+  which needs a person; scripted input covers the engine side of it.
+- Left open, each with its phase: by-hand checks with a real window and controller (relative mouse, Cmd-Tab, hot-plug);
+  the inventory item spin bound OpenJones3D adds (phase 8 fix series); the controls dialog (phase 6).
 ### Phase 4: Audio
 
 Exit test: music, ambience, effects, 3D positioning and dialogue with subtitles work in the first three levels, and

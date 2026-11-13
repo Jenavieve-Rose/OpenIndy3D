@@ -51,6 +51,15 @@
 #include <math.h>
 #include <stdio.h>
 
+#ifdef J3D_PORT
+// Port: the menu's category entries (weapons, items, options) have no inventory type: their inventoryID is -1. Retail
+// still read the type table's flags for them, one entry before the table, and whatever lay there decided whether the
+// entry counted as a registered, possibly disabled item (Phase 3 audit, found by UBSan). They count as unregistered.
+#define JONESHUD_INVTYPE_FLAGS(id) ((int)(id) >= 0 ? sithInventory_aTypes[(id)].flags : 0)
+#else
+#define JONESHUD_INVTYPE_FLAGS(id) (sithInventory_aTypes[(id)].flags)
+#endif
+
 // HUD tables used only by this TU: retail has one copy of each, in JonesHud.c's own
 // .rdata/.data (jonesConfig.c includes JonesHudConstants.h only for the store table).
 // Color constants
@@ -1708,6 +1717,9 @@ void J3DAPI JonesHud_MenuClose(void)
         else
         {
             JonesHud_pCloseMenuItem->endMovePos.x = JonesHud_apMenuItems[JonesHud_pCloseMenuItem->nextLeftItemId]->pos.x;
+            // Port: retail left moveRate unset when the item already had somewhere to move to, and divided by whatever
+            // the stack held. The menu's step (0.065), as the sibling branch and OpenJones3D use (Phase 3 audit).
+            moveRate = 0.065f;
             if ( JonesHud_pCloseMenuItem->endMovePos.x == JonesHud_pCloseMenuItem->startMovePos.x )
             {
                 if ( JonesHud_apMenuItems[JonesHud_pCloseMenuItem->nextLeftItemId] == JonesHud_pMenuItemLinkedList )
@@ -2856,7 +2868,7 @@ void J3DAPI JonesHud_UpdateItem(JonesHudMenuItem* pItem)
     if ( (pItem->flags & 1) != 0 ) // Update rotation anim
     {
         if ( pItem == JonesHud_pCurSelectedMenuItem
-            && !((sithInventory_aTypes[pItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0
+            && !((JONESHUD_INVTYPE_FLAGS(pItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0
                 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED
                 : 0) )
         {
@@ -3148,7 +3160,7 @@ void J3DAPI JonesHud_RenderMenuItem(JonesHudMenuItem* pItem)
             x = (int)itemPos.x;
             y = (int)itemPos.y - (int)(70.0f * JonesHud_screenHeightScalar);
 
-            if ( (sithInventory_aTypes[pItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0 )
+            if ( (JONESHUD_INVTYPE_FLAGS(pItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0 )
             {
                 pString = jonesString_GetString("JONES_STR_INV_NOUSE");
             }
@@ -3162,7 +3174,7 @@ void J3DAPI JonesHud_RenderMenuItem(JonesHudMenuItem* pItem)
                 char aItemText[256];
 
                 strcpy(aMenuName, pString);
-                amount = (int)((sithInventory_aTypes[pItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].amount : 0.0f);
+                amount = (int)((JONESHUD_INVTYPE_FLAGS(pItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].amount : 0.0f);
                 memset(aItemText, 0, sizeof(aItemText));
                 if ( pItem->inventoryID != -1 && pItem->id <= JONESHUD_MENU_INVITEM_BONUSMAP )
                 {
@@ -3193,7 +3205,7 @@ void J3DAPI JonesHud_RenderMenuItem(JonesHudMenuItem* pItem)
                             break;
 
                         default:
-                            if ( (unsigned int)(int)((sithInventory_aTypes[pItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].amount : 0.0f) > 1 )
+                            if ( (unsigned int)(int)((JONESHUD_INVTYPE_FLAGS(pItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].amount : 0.0f) > 1 )
                             {
                                 sprintf(aItemText, "%s  %i\n", aMenuName, amount);
                             }
@@ -3214,7 +3226,7 @@ void J3DAPI JonesHud_RenderMenuItem(JonesHudMenuItem* pItem)
         }
 
         // Highlight selected item by scaling it up a little bit
-        if ( !((sithInventory_aTypes[pItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0) )
+        if ( !((JONESHUD_INVTYPE_FLAGS(pItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0) )
         {
             rdMatrix_PostScale34(&orient, &JonesHud_vecSelectedMenuItemScale);
         }
@@ -3244,7 +3256,7 @@ void J3DAPI JonesHud_RenderMenuItem(JonesHudMenuItem* pItem)
     if ( (pItem->flags & 8) != 0
         || !((pItem->flags & 8) != 0 || (pItem->flags & 0x10) != 0 || (pItem->flags & 0x20) != 0 || (pItem->flags & 0x80) != 0 || (pItem->flags & 0x40) != 0) )
     {
-        if ( (sithInventory_aTypes[pItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0 )
+        if ( (JONESHUD_INVTYPE_FLAGS(pItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0 )
         {
             modelColor.alpha = 0.4f;
         }
@@ -3306,7 +3318,7 @@ void J3DAPI JonesHud_RenderMenuItem(JonesHudMenuItem* pItem)
             modelColor.alpha = (modelColor.alpha = (alphaFraction - 0.6666667f) * itemMaxAlpha / 0.33333334f) + 0.4f;
         }
 
-        if ( (sithInventory_aTypes[pItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0 )
+        if ( (JONESHUD_INVTYPE_FLAGS(pItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[pItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED : 0 )
         {
             modelColor.alpha = modelColor.alpha < 0.4f ? modelColor.alpha : 0.4f;
         }
@@ -3336,7 +3348,7 @@ void J3DAPI JonesHud_MenuActivateItem(void)
         return;
     }
 
-    if ( (sithInventory_aTypes[JonesHud_pCurSelectedMenuItem->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0
+    if ( (JONESHUD_INVTYPE_FLAGS(JonesHud_pCurSelectedMenuItem->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0
         ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_pCurSelectedMenuItem->inventoryID].status & SITHINVENTORY_ITEM_DISABLED
         : 0 )
     {
@@ -3700,12 +3712,12 @@ void J3DAPI JonesHud_ResetMenuItems(void)
             if ( curId != -1
                 && JonesHud_apMenuItems[curId]
                 && JonesHud_apMenuItems[curId]->inventoryID != -1
-                && ((unsigned int)((sithInventory_aTypes[JonesHud_apMenuItems[curId]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0
+                && ((unsigned int)((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[curId]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0
                         ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[curId]->inventoryID].amount
                         : 0.0f) > 0
                     || curId == JONESHUD_MENU_TREASURE_CHEST
                     || JonesHud_apMenuItems[curId]->id <= JONESHUD_MENU_WEAP_BAZOOKA
-                    && ((sithInventory_aTypes[JonesHud_apMenuItems[curId]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0
+                    && ((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[curId]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0
                         ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[curId]->inventoryID].status & SITHINVENTORY_ITEM_FOUND
                         : 0)) )
             {
@@ -3898,7 +3910,7 @@ void J3DAPI JonesHud_InventoryItemChanged(int typeId)
     {
         if ( itemID != -1 && JonesHud_apMenuItems[itemID] && JonesHud_apMenuItems[itemID]->inventoryID == typeId )
         {
-            if ( (sithInventory_aTypes[JonesHud_apMenuItems[itemID]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0
+            if ( (JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[itemID]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0
                 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[itemID]->inventoryID].status & SITHINVENTORY_ITEM_FOUND
                 : 0 )
             {
@@ -4179,12 +4191,12 @@ int J3DAPI JonesHud_ShowLevelCompleted(void)
         elapsedTime   = pStatistics->aLevelStatistic[pStatistics->curLevelNum - 1].elapsedTime;
         newIqPoints   = pStatistics->totalIQPoints - JonesHud_levelStartIQPoints;
         nFound        = pStatistics->aLevelStatistic[pStatistics->curLevelNum - 1].numFoundTreasures;
-        treasureValue = (int)((sithInventory_aTypes[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].amount : 0.0f);
+        treasureValue = (int)((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].amount : 0.0f);
         valueFound    = treasureValue - JonesHud_foundTreasureValue;
         sithGamesave_UnlockGameStatistics();
     }
 
-    balance = (int)((sithInventory_aTypes[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].amount : 0.0f);
+    balance = (int)((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].amount : 0.0f);
     for ( i = 0; i < 14; ++i )
     {
         if ( JonesHud_aStoreItems[i].menuID == JONESHUD_MENU_INVITEM_BONUSMAP
@@ -4194,7 +4206,7 @@ int J3DAPI JonesHud_ShowLevelCompleted(void)
             && JonesMain_GetCurrentLevelNum() != 15
             || JonesHud_aStoreItems[i].menuID >= JONESHUD_MENU_HEALTH_SMALL && JonesHud_aStoreItems[i].menuID <= JONESHUD_MENU_HEALTH_POISONKIT )
         {
-            aStoreState[i] = (JonesHud_aStoreItems[i].menuID << 16) | ((int)((sithInventory_aTypes[JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID].amount : 0.0f) << 4) | 1;
+            aStoreState[i] = (JonesHud_aStoreItems[i].menuID << 16) | ((int)((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID].amount : 0.0f) << 4) | 1;
         }
         else
         {
@@ -4203,7 +4215,7 @@ int J3DAPI JonesHud_ShowLevelCompleted(void)
 
             menuID = JonesHud_aStoreItems[i].menuID;
             bItemAvailable = JonesHud_apMenuItems[menuID]
-                && ((sithInventory_aTypes[JonesHud_apMenuItems[menuID]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0
+                && ((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[menuID]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0
                     ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[menuID]->inventoryID].status & SITHINVENTORY_ITEM_FOUND
                     : 0);
             if ( !bItemAvailable )
@@ -4212,7 +4224,7 @@ int J3DAPI JonesHud_ShowLevelCompleted(void)
             }
             else
             {
-                aStoreState[i] = (menuID << 16) | ((int)((sithInventory_aTypes[JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID].amount : 0.0f) << 4) | bItemAvailable;
+                aStoreState[i] = (menuID << 16) | ((int)((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JonesHud_aStoreItems[i].menuID]->inventoryID].amount : 0.0f) << 4) | bItemAvailable;
             }
         }
     }
@@ -4248,7 +4260,7 @@ int J3DAPI JonesHud_ShowLevelCompleted(void)
     pStatistics = sithGamesave_GetGameStatistics();
     if ( pStatistics && sithGamesave_LockGameStatistics() )
     {
-        pStatistics->foundTreasureValue = (int)((sithInventory_aTypes[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].amount : 0.0f);
+        pStatistics->foundTreasureValue = (int)((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0 ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].amount : 0.0f);
         pStatistics->numFoundTreasures  = 0;
         sithGamesave_UnlockGameStatistics();
     }
@@ -4843,7 +4855,7 @@ void J3DAPI JonesHud_InitializeGameStatistics(void)
     if ( !JonesHud_bRestoreGameStatistics )
     {
         JonesHud_numFoundTreasures  = 0;
-        JonesHud_foundTreasureValue = (int)((sithInventory_aTypes[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].flags & SITHINVENTORY_TYPE_REGISTERED) != 0
+        JonesHud_foundTreasureValue = (int)((JONESHUD_INVTYPE_FLAGS(JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID) & SITHINVENTORY_TYPE_REGISTERED) != 0
             ? sithPlayer_pLocalPlayerThing->thingInfo.actorInfo.pPlayer->inventory.aItems[JonesHud_apMenuItems[JONESHUD_MENU_TREASURE_CHEST]->inventoryID].amount
             : 0.0f);
 

@@ -929,3 +929,131 @@ A final pass over the phase, done 2026-11-13, in five parts.
 Left open, with their phases: the 128-sector limit and the 20 animation slots `15_AET` runs out of ("Out of animation
 slots", retail limits; phase 8 fix series); the intro movie's colour-format match (phase 5); keys and minimizing in a
 real window are checked by hand until phase 3's scripted input.
+
+## Phase 3: input
+
+### Key tables (P3.1)
+
+`platform/common/host_keys.c` maps USB HID keyboard usages (which are SDL's scancodes, so the table needs no SDL) to
+DirectInput key codes, by position on a US layout as DirectInput's keyboard device reported them, and gives each code
+the name Windows' `GetKeyNameText` gave it on a US English keyboard. The Mac's Option keys are `DIK_LMENU`/`DIK_RMENU`
+and the Command keys `DIK_LWIN`/`DIK_RWIN` (P3.9); the ISO key left of Return is `DIK_BACKSLASH`, as on a PC. It also
+backs two Win32 calls in `crt_posix.c`: `GetKeyNameTextA`, which decodes the scan code and extended bit of a key
+message's lParam (the controls dialog names letter keys with it), and `SearchPathA` (P3.7).
+
+### stdControl over SDL (P3.2, P3.4 to P3.6, P3.9)
+
+`platform/apple/stdControl_sdl.c` replaces retail `stdControl.c` and `stdControl_debug.c` (P2.18, removed). It is the
+retail file with the DirectInput calls replaced, and keeps its arithmetic: key ids, the pressed-this-frame count, the
+share of the frame a key was held, axis registration with centre, scale and dead zone, the mouse's averaging of fast
+frames and the axis-as-key thresholds. Each `stdControl_ReadControls` reads one fixed-size snapshot of the devices,
+which is also what a recording stores (P3.10):
+
+- **Keyboard**: SDL's keyboard state through the DIK table. Retail read the state too (`GetDeviceState`), so a tap
+  shorter than a frame was missed then as now.
+- **Mouse** (P3.4): SDL's relative mode while the controls are active, the mouse is read and the window has focus,
+  which is what DirectInput's exclusive foreground mouse did (no cursor, motion only). Motion is in points, scaled by
+  the new `Mouse Scale` setting (percent, default 100), with the fraction carried to the next read. Buttons and the
+  wheel arrive as events from the event loop and are applied in order, as retail applied DirectInput's buffered data,
+  so a click shorter than a frame still counts. A click that only focuses the window is not the game's.
+- **Controllers** (P3.6): SDL gamepads are laid out as DirectInput showed an Xbox-style pad (left stick X/Y, triggers
+  on Z with the left trigger positive, right stick Rx/Ry, buttons A B X Y LB RB Back Start LS RS Guide then the
+  extras, d-pad as hat 1). The right stick's X is copied to Rz, the "twist" axis, because the key sets can bind only X,
+  Y, Z and Rz. Other joysticks report their first six axes, 32 buttons and four hats as they are. Axes register as
+  -32768..32767 with retail's 0.2 dead zone.
+- **Hot-plug**: controllers take the lowest free of the 8 slots and keep it while away; a slot that empties releases
+  its buttons and centres its axes. `stdControl_GetNumJoysticks` is the number of slots ever used, since the game binds
+  per slot. A controller in a slot the game had not seen is announced by the new `stdControl_DevicesChanged`, and
+  `JonesMain_ProcessGame` then binds the active key set again (`jonesConfig_RebindControls`).
+- **`stdControl_IsGamePad` returns 0.** Retail meant a digital DirectInput gamepad; for one it bound "forward" only as
+  walk. An analog controller is treated like retail's joysticks, so its forward axis also binds run at full
+  deflection (`jonesConfig_BindJoystickControl`): walking at part deflection, running at full.
+- **Activation** (P3.9): the window's focus is passed in from the event loop; Cmd-Tab and any other loss of focus
+  release the mouse at once, besides the game's own `stdControl_SetActivation(0)`. Cmd-Q is SDL's quit (P2.2).
+
+Retail faults kept out of the port, each marked `// Port:`:
+
+| Where | What retail did | Now |
+| --- | --- | --- |
+| `stdControl_ReadControls` | `1.0f / readDeltaTime` with no guard: infinity for two reads in one millisecond | 1 for a zero delta. On the virtual clock (headless, replay) two reads in one frame are common. |
+| `stdControl_ReadAxisAsKey` | Indexed `stdControl_aAxes` with the axis id still carrying its flag bits, far past the array | The flags are masked off first. |
+
+Kept as retail: `memset` of 7 *bytes* of axis state when mouse sensitivity is on, and `ReadAxisAsKeyEx` never setting
+`*pbPressed`.
+
+### Window messages (P3.3)
+
+`WM_KEYDOWN`/`WM_KEYUP` now carry the scan code (bits 16-23) and extended flag (bit 24) from the DIK table. Typed text
+already arrived as `WM_CHAR` (P2.2); the console reads it.
+
+### Key sets (P3.7, P3.8)
+
+The retail `.kfg` files are copied into `<Install Path>/KeySets/` on the first run (P1.19) and loaded through
+`SearchPathA`, which was a null stub until now, so no key set file had ever been read by the port. Reading one
+exposed two retail faults, both fixed in `jonesConfig_LoadControlScheme`:
+
+| What retail did | Now |
+| --- | --- |
+| Passed `(size_t*)&argNum` for an `int argNum` to the argument parsers, which wrote 8 bytes into it: on arm64 the parse ran off the end of the argument list and crashed | `argNum` and `prevArgNum` are `size_t`. |
+| Copied the whole file path less `.kfg` into the scheme's 128-byte `aName`: it fit under a short Windows install folder, but a macOS user folder overruns the heap block | The file name alone, bounded. The controls dialog loads key sets by bare file name, so that is what it had there. |
+
+Three of the eleven retail key sets ("Gravis GamePad Pro", "MS SideWinder Precision Pro", "MS SideWinder game pad")
+lack the "1" (enabled) line that the parser requires, so the retail game rejected them too; the other eight load.
+
+P3.8, the port's default for a modern controller ("Dual-Stick Controller", `jonesConfig_aPortDualStick`): chosen when no
+key set is configured and slot 0 holds a two-stick controller, and by name afterwards. It is kept apart from the three
+retail defaults so the controls dialog's handling of those (Phase 6) is unchanged. The bindings are listed in
+BUILDING.md, "Controls". `Joystick Control` now defaults to on (`JonesControl_Startup`): retail's player turned it on
+in the controls dialog, which arrives in phase 6.
+
+### Recording and replay (P3.10)
+
+`platform/common/host_record.c`, `--record`, `--replay`, `--input-script` (BUILDING.md). A run is repeatable when
+everything it reads from outside is; the engine's random generator already is (P1.24), so a recording holds the clock
+at each present, each pass of the event pump, each window message that came from outside the game (keys, characters,
+mouse, activation, timers, close) and stdControl's snapshot at each read, in the order the game asked for them. A
+replay supplies the same values and checks the kind of each record; a mismatch stops it at that frame with a
+failure exit.
+
+The clock needs care. A played recording runs on the new frame clock (`host_clock.h`): virtual time that stands still
+within a frame, moves to the host's time at each present and also moves (and waits) in `Sleep`. Every value the game
+reads is then one the recording holds, and a replay sets them on the plain virtual clock. A headless recording keeps
+the headless fixed step. The display backends call `J3DRecord_Present` instead of moving the clock themselves.
+
+Limits: a recording belongs to the build, data and settings it was made with; window resizing and painting are not
+recorded (they do not change the game); the controls dialog's own input (Phase 6) will need its messages to go
+through the same pump.
+
+### Checks
+
+- `keys` (no data): the tables, `GetKeyNameTextA`, `SearchPathA`.
+- `input` (`tests/input.sh`, apple builds with data): scripted keyboard, controller and mouse input reach the game,
+  through the port's default key set and a retail one, and a recorded run replays to a byte-identical quicksave.
+- By hand, in a window: the keyboard, the mouse's capture and release (fullscreen, windowed with `Mouse Control`,
+  Cmd-Tab), a connected controller and its hot-plug. Scripted input covers everything below the SDL calls; the SDL
+  calls themselves (relative mode, the gamepad API) need a person and a controller.
+
+### Phase 3 code audit
+
+1. **Warnings** (`-Wall -Wextra`, the uninitialised-use family, `-Wcast-align`, `-Wshadow`, `-Wsign-compare` and
+   others) on every file written or changed this phase: none. **Static analysis** of `stdControl_sdl.c`,
+   `host_record.c`, `host_keys.c`, `wkernel_sdl.c` and `crt_posix.c`: no reports.
+2. **Newly reachable retail code.** Input makes the inventory menu, key set loading and the controller bindings run for
+   the first time. A scripted session that opens the inventory, moves through it, uses an item and closes it, under
+   ASan and UBSan, found one fault:
+
+| Where | What retail did | Now |
+| --- | --- | --- |
+| `Jones3D/Display/JonesHud.c` (18 reads) | Read `sithInventory_aTypes[inventoryID].flags` for the menu's category entries, whose `inventoryID` is -1: one entry before the table, so a neighbouring global decided whether the entry counted as a registered, possibly disabled item | `JONESHUD_INVTYPE_FLAGS`: no type, not registered. |
+| `JonesHud_MenuClose` | `moveRate` unset when the closing item already had a place to move to, then divided by (found in the phase 2 audit's warning pass, reachable now) | The menu's step, 0.065, as the sibling branch and OpenJones3D. |
+
+   The two key set faults above were found the same way, by the first run that loaded one.
+3. **Read-through** of the phase's code: snapshot bytes fully initialised (recordings compare them), slot bookkeeping
+   on connect and disconnect, mouse capture released on every path out (deactivation, focus loss, `Reset`,
+   `Shutdown`), replay ignoring live devices and SDL input events, and every record-format read bounded.
+4. **Behaviour.** `boot` and `boot-sdl` write the same autosave as before; every test passes in the apple, null and
+   sanitizer trees.
+
+Left open, with their phases: OpenJones3D's bound on a selected inventory item's spin angle, which after hours of
+rotation loses float precision and stops the item returning to rest (phase 8 fix series); the controls dialog (phase
+6); the by-hand checks above.
