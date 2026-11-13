@@ -40,6 +40,15 @@ int J3DDisplay_VideoModeCompare(const void* pMode1, const void* pMode2);
 // Called from every back-buffer lock, fill and blit.
 void J3DDisplay_SyncBackBuffer(int bOverwriteAll);
 
+// Called before every CPU read or write of the back buffer: marks it changed (stdDisplay_bBackBufferChanged) and takes
+// back a scene the renderer drew since (J3DDisplay_SyncBackBuffer).
+void J3DDisplay_BeforeCpuAccess(int bOverwriteAll);
+
+// Set when the CPU may have changed the back buffer since the renderer last took it (std3D_StartScene clears it): a new
+// back buffer, or any CPU access. A scene starts from the back buffer only then; otherwise it starts from the previous
+// scene's picture, as retail's back buffer still held the previous frame where nothing was drawn (P2.22).
+extern int stdDisplay_bBackBufferChanged;
+
 // Makes stdDisplay_backBuffer a system-memory VBuffer in pMode's format and stdDisplay_frontBuffer a description of
 // the same raster with no pixels. 0 on success, 1 when out of memory.
 int J3DDisplay_CreateBackBuffer(const StdVideoMode* pMode);

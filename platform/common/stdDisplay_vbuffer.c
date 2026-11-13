@@ -66,7 +66,7 @@ int J3DAPI stdDisplay_VBufferLock(tVBuffer* pVBuffer)
     STD_ASSERTREL(pVBuffer != NULL);
     if ( pVBuffer == &stdDisplay_backBuffer )
     {
-        J3DDisplay_SyncBackBuffer(0); // a reader of the back buffer sees what the renderer drew (P2.17)
+        J3DDisplay_BeforeCpuAccess(0); // a reader of the back buffer sees what the renderer drew (P2.17)
     }
     ++pVBuffer->lockSurfRefCount;
     return 1;

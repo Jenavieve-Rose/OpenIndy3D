@@ -30,6 +30,7 @@
 #include <std/Win95/stdDisplay.h>
 
 #include <platform/apple/render_metal.h>
+#include <platform/common/stdDisplay_common.h>
 
 #define STD3D_DEFAULT_MAX_VERTICES 512 // retail std3D.c: used when the device reports no limit
 
@@ -163,6 +164,7 @@ int J3DAPI std3D_Open(size_t deviceNum)
 
     Device3D* pDevice = &std3D_aDevices[deviceNum];
     std3D_pCurDevice  = pDevice;
+    stdDisplay_bBackBufferChanged = 1; // the new scene texture takes its first picture from the back buffer
     std3D_maxVertices = pDevice->caps.maxVertexCount ? pDevice->caps.maxVertexCount : STD3D_DEFAULT_MAX_VERTICES;
     stdPrintf(std_pHS->pStatusPrint, J3D_FILE, __LINE__, "Max vertices: %d.\n", (int)std3D_maxVertices, 0, 0, 0);
 
@@ -250,12 +252,18 @@ int J3DAPI std3D_StartScene(void)
 {
     ++std3D_frameCount;
 
+    // Retail drew into the back buffer, which still held the previous frame wherever the scene drew nothing (the game
+    // does not clear it unless "bClearBackBuffer" is set). The scene starts from the back buffer only when the CPU has
+    // touched it since; otherwise from the previous scene's picture, with no upload (P2.22).
+    const uint8_t* pBackBuffer = stdDisplay_bBackBufferChanged ? stdDisplay_backBuffer.pPixels : NULL;
+
     // Retail returned Direct3D's result: 0 (D3D_OK) when the scene began.
-    if ( !std3D_bOpen || J3DRender_BeginScene(stdDisplay_backBuffer.pPixels, stdDisplay_backBuffer.rasterInfo.rowSize) )
+    if ( !std3D_bOpen || J3DRender_BeginScene(pBackBuffer, stdDisplay_backBuffer.rasterInfo.rowSize) )
     {
         stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error beginning scene.\n", 0, 0, 0, 0);
         return 1;
     }
+    stdDisplay_bBackBufferChanged = 0;
     return 0;
 }
 

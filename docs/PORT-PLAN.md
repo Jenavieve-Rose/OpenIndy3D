@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 21 of 22 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Code audit |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **63 of 146** | |
+| **All** | | **64 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -440,8 +440,11 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
 - [x] **P2.21** (S) Remove `rdModel3K_null.c` and the `rdModel3K_*` references (11 sites) now that nothing can enable
       the path. Done: the null file and its generator entry removed; the three calling files keep retail behind
       `#ifndef J3D_PORT`.
-- [ ] **P2.22** (M) Visual pass: script a first-frame screenshot of all 17 levels and review each for missing
-      textures, wrong alpha, z-fighting and fog errors. Fix what it shows.
+- [x] **P2.22** (M) Visual pass: script a first-frame screenshot of all 17 levels and review each for missing
+      textures, wrong alpha, z-fighting and fog errors. Fix what it shows. Done: `tools/level_shots.sh`; all 17 levels
+      reviewed at frames 1, 300 and 900. Fixed: floors behind the camera (P2.15), fog density (P2.14), and scenes now
+      start from the previous frame unless the CPU touched the back buffer (stale areas, screenshots changing later
+      frames). Checked: `present` test, byte-identical screenshots.
 ## Complete Phase 2 Code Audit
 ### Phase 3: Input
 

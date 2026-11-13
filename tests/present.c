@@ -9,7 +9,8 @@
  *
  * Then the renderer and the frame order (P2.9, P2.17): std3D opens on the Metal device, a scene begins (taking the back
  * buffer's pattern), clears depth and ends; then one quadrant is filled grey on the CPU, as retail's CPU writes after a
- * scene landed on the scene's picture. The present must show the scene's picture with the grey quadrant on it. Also checks that the drawable covers the window in
+ * scene landed on the scene's picture. The present must show the scene's picture with the grey quadrant on it. A
+ * second, empty scene must start from that picture, not from back-buffer pixels nobody announced (P2.22). Also checks that the drawable covers the window in
  * pixels and that the memory queries report the Metal device. Needs no game data.
  *
  * It needs a window server: without one (an SSH session, for example) it is skipped (exit 77), as it is when the
@@ -226,6 +227,18 @@ int main(void)
         uint32_t sceneWidth = 0, sceneHeight = 0;
         res = present_CaptureAndCheck(pWindow, aQuadrants, aAfter, &sceneWidth, &sceneHeight, 1);
         CHECK(res == 0, "the scene frame was presented");
+
+        // P2.22: a scene starts from the previous scene's picture unless the CPU touched the back buffer through
+        // stdDisplay. Paint the back buffer directly (no stdDisplay call, so nothing marks it changed), run an empty
+        // scene: the picture must be unchanged.
+        CHECK(std3D_StartScene() == 0, "StartScene"); // takes the back buffer the fill above changed
+        std3D_EndScene();
+        CHECK(stdDisplay_Update() == 0, "Update");
+        memset(stdDisplay_backBuffer.pPixels, 0x40, stdDisplay_backBuffer.rasterInfo.size);
+        CHECK(std3D_StartScene() == 0, "StartScene");
+        std3D_EndScene();
+        res = present_CaptureAndCheck(pWindow, aQuadrants, aAfter, &sceneWidth, &sceneHeight, 1);
+        CHECK(res == 0, "the second scene frame was presented");
         std3D_Close();
         std3D_Shutdown();
     }

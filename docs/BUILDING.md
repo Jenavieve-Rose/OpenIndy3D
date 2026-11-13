@@ -199,6 +199,7 @@ Run these from the repository root.
 | `python3 tools/layout_audit.py` | Compares the layout of every on-disk record between the retail 32-bit ABI and arm64. Needs a configured `build/` tree. Must end with `0 retail on-disk type(s) differ`. `--all` lists every differing record, not only on-disk ones. |
 | `python3 tools/gobtool.py list <file.gob> [glob]` | Lists a GOB's entries, for example `'*.cnd'`. |
 | `python3 tools/gobtool.py extract <file.gob> <outdir> [glob]` | Extracts matching entries. Extracted files are game data: keep them out of the repository. |
+| `tools/level_shots.sh <data-root> <out-dir> [frames]` | Screenshots of all 17 levels, headless, at the given frames (default `1,300`). Needs an apple build in `build/`. |
 | `python3 tools/gen_null_platform.py` | Regenerates `platform/common/null/*_null.c` from the public headers of the replaced modules. Run it after changing the script's overrides or its `IMPLEMENTED_ELSEWHERE` set. |
 
 ## Before committing

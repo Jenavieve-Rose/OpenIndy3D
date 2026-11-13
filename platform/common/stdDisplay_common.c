@@ -24,6 +24,13 @@ size_t       stdDisplay_numDevices = 0;
 StdVideoMode stdDisplay_aVideoModes[STDDISPLAY_MAXVIDEOMODES];
 StdVideoMode stdDisplay_primaryVideoMode;
 int          stdDisplay_bFullscreen = 0;
+int          stdDisplay_bBackBufferChanged = 0;
+
+void J3DDisplay_BeforeCpuAccess(int bOverwriteAll)
+{
+    stdDisplay_bBackBufferChanged = 1;
+    J3DDisplay_SyncBackBuffer(bOverwriteAll);
+}
 
 int J3DDisplay_IsHeadless(void)
 {
@@ -93,6 +100,7 @@ int J3DDisplay_CreateBackBuffer(const StdVideoMode* pMode)
         return 1;
     }
     stdDisplay_backBuffer.lockSurfRefCount = 1;
+    stdDisplay_bBackBufferChanged          = 1;
 
     // There is no separate front buffer; it describes the same raster and owns no pixels.
     memset(&stdDisplay_frontBuffer, 0, sizeof(stdDisplay_frontBuffer));
@@ -257,7 +265,7 @@ int J3DAPI stdDisplay_VBufferFill(tVBuffer* pVBuffer, uint32_t dwFillColor, cons
 
     if ( pVBuffer == &stdDisplay_backBuffer )
     {
-        J3DDisplay_SyncBackBuffer(pRect == NULL); // a fill after a scene lands on it (P2.17)
+        J3DDisplay_BeforeCpuAccess(pRect == NULL); // a fill after a scene lands on it (P2.17)
     }
 
     const size_t bytesPerPixel = pVBuffer->rasterInfo.colorInfo.bpp / 8;
@@ -314,7 +322,7 @@ int J3DAPI stdDisplay_LockBackBuffer(void** ppSurface, uint32_t* pWidth, uint32_
 {
     if ( stdDisplay_bOpen && stdDisplay_bModeSet )
     {
-        J3DDisplay_SyncBackBuffer(0); // the CPU is about to read or write the frame on screen (P2.17)
+        J3DDisplay_BeforeCpuAccess(0); // the CPU is about to read or write the frame on screen (P2.17)
         *pWidth    = stdDisplay_backBuffer.rasterInfo.width;
         *pHeight   = stdDisplay_backBuffer.rasterInfo.height;
         *pPitch    = (int32_t)stdDisplay_backBuffer.rasterInfo.rowSize;
@@ -430,7 +438,7 @@ int J3DAPI stdDisplay_VBufferCopy(tVBuffer* pDst, tVBuffer* pSrc, unsigned int b
 
     if ( pDst == &stdDisplay_backBuffer || pSrc == &stdDisplay_backBuffer )
     {
-        J3DDisplay_SyncBackBuffer(0); // the back buffer as the frame on screen (P2.17)
+        J3DDisplay_BeforeCpuAccess(0); // the back buffer as the frame on screen (P2.17)
     }
 
     // Retail dispatched on the two buffers' kind to four Blit* helpers; with no DirectDraw surfaces only the

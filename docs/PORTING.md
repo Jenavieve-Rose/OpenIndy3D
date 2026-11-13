@@ -863,3 +863,27 @@ that only miss NaN.
     ignored.
   - `Jones3D/Display/JonesConsole.c`: the `katon` and `katoff` console commands do nothing.
 - The Katmai sources stay in the tree, outside the build, as the decomp's record.
+
+### Visual pass (P2.22)
+
+- `tools/level_shots.sh <data-root> <out-dir> [frames]` starts each of the 17 levels headless in its own run (`Start
+  Mode` 0 and the level number) and writes screenshots at the given frames (default 1 and 300) as
+  `<NN>_<level>_f<frame>.bmp`, with a log per level. A run of all 17 at three frames takes about 15 seconds.
+- Reviewed at frames 1, 300 and 900, every level: textures, lighting, alpha-tested foliage, ladders and signs,
+  translucency (water, parachute, the HUD), fog and haze (`02_RIV`, `11_PYR`), skies, lava, the Aetherium, the HUD's
+  health indicator. No missing texture, alpha fault, z-fighting or fog error is visible. The faults the pass found
+  earlier were fixed in their steps: the floors missing near the camera in three levels (homogeneous clipping, P2.15)
+  and the vertex fog density (P2.14).
+- A fault found by the pass, fixed here: at the first frames some levels showed large black or white regions, and a
+  screenshot taken at one frame changed what later frames showed. Screen areas no geometry covers kept whatever
+  `std3D_StartScene` uploaded from the CPU back buffer, which was stale: the mode's black fill, the load screen, or a
+  screenshot's read-back. Retail's back buffer still held the previous frame there (the game does not clear it unless
+  `bClearBackBuffer` is set). The scene now starts from the back buffer only when the CPU has touched it since the last
+  scene (`stdDisplay_bBackBufferChanged`, set by a new back buffer and by every CPU access through
+  `J3DDisplay_BeforeCpuAccess`), and otherwise from the previous scene's picture. This also removes a full upload of
+  the back buffer every frame (14 MB a frame at 2560×1440). The black and white areas at frame 1 that remain are opening
+  camera shots of areas the level does not draw, as in retail; by frame 300 every level fills the screen.
+- Checked: a frame-300 screenshot of `14_INF` is byte-identical with and without a screenshot at frame 1. The `present`
+  test paints the back buffer directly (no stdDisplay call) and expects the next scene to keep the previous picture;
+  it fails if every scene uploads the back buffer.
+- The `present` test still exercises the other rule: after a CPU fill, the next scene starts from the back buffer.
