@@ -13,7 +13,7 @@
 
 #include <sith/Devices/sithControl.h>
 #include <sith/Devices/sithSoundMixer.h>
-#include <sith/DSS/sithGamesave.h>
+#include <sith/Dss/sithGamesave.h>
 #include <sith/Engine/sithRender.h>
 #include <sith/Gameplay/sithOverlayMap.h>
 #include <sith/Gameplay/sithPlayer.h>
@@ -1318,7 +1318,7 @@ void J3DAPI jonesConfig_Shutdown(void)
         jonesConfig_apDlgIcons[i] = NULL;
     }
 
-    if ( jonesConfig_aKeySetDirectory ) // TODO: [BUG] tests the array address, which is always non-null
+    // Port: retail tested the array address here, which is always non-null, so the clear is unconditional
     {
         memset(jonesConfig_aKeySetDirectory, 0, sizeof(jonesConfig_aKeySetDirectory));
     }
@@ -1383,12 +1383,12 @@ static int J3DAPI jonesConfig_ControlOptions_WriteScheme(JonesControlsScheme* pS
     {
         char aEnabledLine[12];
 
-        fprintf(pFile, pJonesString);
+        fprintf(pFile, "%s", pJonesString); // Port: was the format string itself
         fprintf(pFile, "\n");
 
         // Write enabled line
         sprintf(aEnabledLine, "%s\n\n", "1");
-        fprintf(pFile, aEnabledLine);
+        fprintf(pFile, "%s", aEnabledLine); // Port: was the format string itself
     }
     else
     {
@@ -1414,7 +1414,7 @@ static int J3DAPI jonesConfig_ControlOptions_WriteScheme(JonesControlsScheme* pS
         {
             // Write column header line
             strcat(pTitleText, pJonesString);
-            fprintf(pFile, pTitleText);
+            fprintf(pFile, "%s", pTitleText); // Port: was the format string itself
             fprintf(pFile, "\n\n");
         }
         else
@@ -1442,13 +1442,13 @@ static int J3DAPI jonesConfig_ControlOptions_WriteScheme(JonesControlsScheme* pS
         {
             memset(aActionControlLine, 0, sizeof(aActionControlLine));
             _snprintf(aActionControlLine, STD_ARRAYLEN(aActionControlLine), "\"%s\"", pJonesString);
-            fprintf(pFile, aActionControlLine);
+            fprintf(pFile, "%s", aActionControlLine); // Port: was the format string itself
 
             // Write padding
             numPad = jonesConfig_maxActionPaddedStrLen - strlen(aActionControlLine);
             memset(pPadding, 0, max(jonesConfig_maxActionPaddedStrLen, jonesConfig_maxControlPaddedStrLen));
             memset(pPadding, ' ', numPad);
-            fprintf(pFile, pPadding);
+            fprintf(pFile, "%s", pPadding); // Port: was the format string itself
 
             // Now go over action's bindings and write them to file
             for ( j = 1; j <= JONESCONTROL_ACTION_GETNUMBINDS(*pBindings); ++j )
@@ -1459,13 +1459,13 @@ static int J3DAPI jonesConfig_ControlOptions_WriteScheme(JonesControlsScheme* pS
                 jonesConfig_ControlToString((*pBindings)[j], aControlText);
 
                 _snprintf(aActionControlLine, STD_ARRAYLEN(aActionControlLine), "\"%s\"", aControlText);
-                fprintf(pFile, aActionControlLine);
+                fprintf(pFile, "%s", aActionControlLine); // Port: was the format string itself
 
                 // Write padding
                 numPad = jonesConfig_maxControlPaddedStrLen - strlen(aControlText);
                 memset(pPadding, 0, max(jonesConfig_maxActionPaddedStrLen, jonesConfig_maxControlPaddedStrLen));
                 memset(pPadding, ' ', numPad);
-                fprintf(pFile, pPadding);
+                fprintf(pFile, "%s", pPadding); // Port: was the format string itself
             }
 
             fprintf(pFile, "\n");
@@ -2158,7 +2158,7 @@ int J3DAPI jonesConfig_SetTextControl(HWND hDlg, HWND hTextCtrl, const char* aTe
         for ( i = 0; i < lineLen; ++i )
         {
             const ABC* pCharMetric = &jonesConfig_aGlyphMetrics[(uint8_t)aLine[i] - jonesConfig_textMetric.tmFirstChar];
-            lineWidth += abs(pCharMetric->abcA) + abs(pCharMetric->abcB) + abs(pCharMetric->abcC);
+            lineWidth += abs(pCharMetric->abcA) + abs((int)pCharMetric->abcB) /* Port: UINT in the ABC struct; retail converted it to int for abs */ + abs(pCharMetric->abcC);
         }
 
         if ( !lineLen && pCurPos )
@@ -4195,7 +4195,7 @@ int J3DAPI jonesConfig_ShowOverwriteSaveGameDlg(HWND hWnd, const char* aFilePath
 
     memset(&data, 0, sizeof(data));
     data.dialogID     = 214;
-    data.pNdsFilePath = aFilePath;
+    data.pNdsFilePath = (char*)aFilePath; // Port: cast only; the dialog does not write through it
     result = JonesDialog_ShowDialog(MAKEINTRESOURCE(214), hWnd, jonesConfig_SaveGameMsgBoxProc, (LPARAM)&data);
     return result;
 }
@@ -6198,7 +6198,7 @@ void J3DAPI jonesConfig_EditControlScheme_SetListColumn(HWND hCtrl, const char* 
     keysWidth = (int32_t)(105.0 * (1.0 < gameHgt / 480.0 ? 1.0 : gameHgt / 480.0)); // TODO: maybe remove the clamp to also upscale
 
     pText = jonesString_GetString("JONES_STR_FCTN");
-    column.pszText    = pText;
+    column.pszText    = (LPSTR)pText; // Port: cast only; LVCOLUMN is read, not written
     column.iSubItem   = 0;
     column.cx         = width - keysWidth;
     ListView_InsertColumn(hCtrl, column.iSubItem, &column);
@@ -6206,7 +6206,7 @@ void J3DAPI jonesConfig_EditControlScheme_SetListColumn(HWND hCtrl, const char* 
     if ( pJSText )
     {
         pText = jonesString_GetString(pJSText);
-        column.pszText = pText;
+        column.pszText = (LPSTR)pText; // Port: cast only; LVCOLUMN is read, not written
     }
 
     column.iSubItem = 1;
@@ -7546,7 +7546,7 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
                         pFormat = jonesString_GetString("JONES_STR_16BBP");
                         if ( pFormat )
                         {
-                            sprintf(aResolutionText, pFormat);
+                            sprintf(aResolutionText, "%s", pFormat); // Port: was the format string; the colour-depth strings have no %
                         }
 
                         break;
@@ -7557,7 +7557,7 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
                         pFormat = jonesString_GetString("JONES_STR_24BBP");
                         if ( pFormat )
                         {
-                            sprintf(aResolutionText, pFormat);
+                            sprintf(aResolutionText, "%s", pFormat); // Port: was the format string; the colour-depth strings have no %
                         }
 
                         break;
@@ -7568,7 +7568,7 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
                         pFormat = jonesString_GetString("JONES_STR_32BBP");
                         if ( pFormat )
                         {
-                            sprintf(aResolutionText, pFormat);
+                            sprintf(aResolutionText, "%s", pFormat); // Port: was the format string; the colour-depth strings have no %
                         }
                         break;
                 }

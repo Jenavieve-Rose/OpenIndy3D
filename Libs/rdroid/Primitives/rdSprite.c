@@ -243,7 +243,7 @@ int J3DAPI rdSprite_Draw(rdThing* prdThing, const rdMatrix34* orient)
             rdVector3 prod;
             rdVector3 up;
 
-            if ( fabs(lvec.z >= 0.9999f) != 0.0 )
+            if ( lvec.z >= 0.9999f ) // Port: retail wrote fabs(lvec.z >= 0.9999f) != 0.0, which is this test
             {
                 rdVector_Cross3(&prod, &rdroid_xVector3, &lvec);
             }

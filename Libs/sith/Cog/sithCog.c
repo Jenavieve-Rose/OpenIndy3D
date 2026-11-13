@@ -451,7 +451,7 @@ int J3DAPI sithCog_SendMessageEx(SithCog* pCog, SithCogMsgType messageType, Sith
 
     if ( (pCog->flags & SITHCOG_DEBUG) != 0 )
     {
-        sprintf(std_genBuffer, "Cog %s: MessageEx %d delivered, senderType=%d, senderIndex=%d, sourceType=%d, sourceIndex=%d, linkId=%d, param0=%g, param1=%g, param2=%g, param3=%g.\n", pCog->aName, messageType, senderType, senderIdx, srcType, srcIdx, linkId, param0, param1, param2, param3);
+        sprintf(std_genBuffer, "Cog %s: MessageEx %d delivered, senderType=%d, senderIndex=%d, sourceType=%d, sourceIndex=%d, linkId=%d, param0=%d, param1=%d, param2=%d, param3=%d.\n" /* Port: retail printed the int params with %g */, pCog->aName, messageType, senderType, senderIdx, srcType, srcIdx, linkId, param0, param1, param2, param3);
         sithConsole_PrintString(std_genBuffer);
     }
 
@@ -799,7 +799,7 @@ void J3DAPI sithCog_GetSymbolRefInitializer(const SithWorld* pWorld, const SithC
             break;
 
         default:
-            sprintf(pOutString, "%d", objectIdx);
+            sprintf(pOutString, "%zd", objectIdx);
             break;
     }
 

@@ -58,11 +58,11 @@ static void memory_Unregister(void)
     memory_pServices->Unpublish("MEMORY=insane");
     memory_pServices->Unpublish("LECMODULE=insane_memory");
     if (memory_list.head.pNext != &memory_list.tail) {
-        printf("\nMaximum Usage = %ld\n", memory_maxTotal);
+        printf("\nMaximum Usage = %d\n", memory_maxTotal);
         printf("\nRequest Summary\n\n");
         while (memory_list.head.pNext != &memory_list.tail) {
             pRecord = (MemoryRecord*)memory_list.head.pNext;
-            printf("%-16s,\tline %4d:\t%8ld bytes, [%08lx]\tstatus = %s\n", pRecord->pFile, pRecord->line, pRecord->size, pRecord->pBlock,
+            printf("%-16s,\tline %4d:\t%8d bytes, [%p]\tstatus = %s\n", pRecord->pFile, pRecord->line, pRecord->size, pRecord->pBlock,
                 pRecord->refs > 0 ? "Unfreed" : pRecord->refs == 0 ? "Freed" : "Freed Twice");
             LecList_Remove(&pRecord->link);
             free(pRecord);
@@ -90,7 +90,7 @@ static int memory_Track(char* pRaw, int size, const char* pFile, int line, const
     if (memory_total > memory_maxTotal) {
         memory_maxTotal = memory_total;
     }
-    printf("%-16s,\tline %4d:\t%s %8ld [%08lx] (usage = %ld)\n", pFile, line, pOp, size, pRaw, memory_total);
+    printf("%-16s,\tline %4d:\t%s %8d [%p] (usage = %d)\n", pFile, line, pOp, size, pRaw, memory_total);
     for (pRecord = (MemoryRecord*)memory_list.head.pNext; &pRecord->link != &memory_list.tail; pRecord = (MemoryRecord*)pRecord->link.pNext) {
         if (pRaw == pRecord->pBlock) {
             pRecord->refs++;
@@ -127,16 +127,16 @@ static int memory_Check(char* pRaw, int size, const char* pFile, int line, const
     for (pRecord = (MemoryRecord*)memory_list.head.pNext; &pRecord->link != &memory_list.tail; pRecord = (MemoryRecord*)pRecord->link.pNext) {
         if (pRaw == pRecord->pBlock) {
             if (--pRecord->refs < 0) {
-                printf("%-16s,\tline %4d:\t%s  %8ld [%08lx] (usage = %ld)  %s FREE TWICE!!\n", pFile, line, pOp, size, pRaw, memory_total,
+                printf("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  %s FREE TWICE!!\n", pFile, line, pOp, size, pRaw, memory_total,
                     bad ? "OVERWRITTEN!!" : "");
                 return -1;
             }
-            printf("%-16s,\tline %4d:\t%s  %8ld [%08lx] (usage = %ld)  %s \n", pFile, line, pOp, size, pRaw, memory_total,
+            printf("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  %s \n", pFile, line, pOp, size, pRaw, memory_total,
                 bad ? "OVERWRITTEN!!" : "");
             return 0;
         }
     }
-    printf("%-16s,\tline %4d:\t%s  %8ld [%08lx] (usage = %ld)  FREEING INVALID CHUNK!\n", pFile, line, pOp, size, pRaw, memory_total);
+    printf("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  FREEING INVALID CHUNK!\n", pFile, line, pOp, size, pRaw, memory_total);
     return -2;
 }
 

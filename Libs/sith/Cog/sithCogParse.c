@@ -165,7 +165,7 @@ int J3DAPI sithCogParse_ParseSectionCode(SithCogScript* pScript)
 #line 258
     SITH_ASSERTREL(pCurrentRoot == NULL);
 
-    if ( (currentfh = stdConffile_GetFileHandle()) == NULL )
+    if ( (currentfh = stdConffile_GetFileHandle()) == 0 ) // Port: tFileHandle is an integer
     {
     }
     else

@@ -886,7 +886,7 @@ int J3DAPI sithWorld_ReadHeaderText(SithWorld* pWorld, int bSkip)
         goto syntax_error;
     }
 
-    if ( sscanf(stdConffile_aLine, "horizon sky offset %f %f", &pWorld->horizonSkyOffset, &pWorld->horizonSkyOffset.y) != 2 )
+    if ( sscanf(stdConffile_aLine, "horizon sky offset %f %f", &pWorld->horizonSkyOffset.x, &pWorld->horizonSkyOffset.y) != 2 )
     {
         goto syntax_error;
     }
@@ -896,7 +896,7 @@ int J3DAPI sithWorld_ReadHeaderText(SithWorld* pWorld, int bSkip)
         goto syntax_error;
     }
 
-    if ( sscanf(stdConffile_aLine, "ceiling sky offset %f %f", &pWorld->ceilingSkyOffset, &pWorld->ceilingSkyOffset.y) != 2 )
+    if ( sscanf(stdConffile_aLine, "ceiling sky offset %f %f", &pWorld->ceilingSkyOffset.x, &pWorld->ceilingSkyOffset.y) != 2 )
     {
         goto syntax_error;
     }

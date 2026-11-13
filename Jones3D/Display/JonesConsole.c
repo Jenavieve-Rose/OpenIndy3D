@@ -416,13 +416,13 @@ int J3DAPI JonesConsole_PrintFramerate(const SithConsoleCommand* pFunc, const ch
 
 int J3DAPI JonesConsole_PrintPolys(const SithConsoleCommand* pFunc, const char* pArg)
 {
-    sprintf(std_genBuffer, "Arch polys: %d", sithRender_numArchPolys);
+    sprintf(std_genBuffer, "Arch polys: %zu", sithRender_numArchPolys);
     sithConsole_PrintString(std_genBuffer);
-    sprintf(std_genBuffer, "Alpha Arch polys: %d", sithRender_numAlphaArchPolys);
+    sprintf(std_genBuffer, "Alpha Arch polys: %zu", sithRender_numAlphaArchPolys);
     sithConsole_PrintString(std_genBuffer);
-    sprintf(std_genBuffer, "Thing polys: %d", sithRender_numThingPolys);
+    sprintf(std_genBuffer, "Thing polys: %zu", sithRender_numThingPolys);
     sithConsole_PrintString(std_genBuffer);
-    sprintf(std_genBuffer, "Alpha Thing polys: %d", sithRender_numAlphaThingPoly);
+    sprintf(std_genBuffer, "Alpha Thing polys: %zu", sithRender_numAlphaThingPoly);
     sithConsole_PrintString(std_genBuffer);
     return 1;
 }

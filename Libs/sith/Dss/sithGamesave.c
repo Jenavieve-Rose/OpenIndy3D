@@ -549,7 +549,7 @@ int J3DAPI sithGamesave_RestoreFile(const char* pFilename, int bNotify)
     // Copy the state of COG global symbols from hdr
     for ( n = 0; n < STD_ARRAYLEN(hdr.aCogGlobalValues); ++n )
     {
-        sprintf(aText, "%s%d", "global", n);
+        sprintf(aText, "%s%zu", "global", n);
         pSymbol = sithCogParse_GetSymbol(sithCog_pSymbolTable, aText);
         if ( pSymbol )
         {
@@ -744,7 +744,7 @@ int J3DAPI sithGamesave_SaveFile(const char* pFilename)
     // Copy COG global symbols to header
     for ( n = 0; n < STD_ARRAYLEN(header.aCogGlobalValues); ++n )
     {
-        sprintf(aText, "%s%d", "global", n);
+        sprintf(aText, "%s%zu", "global", n);
 
         pSymbol = sithCogParse_GetSymbol(sithCog_pSymbolTable, aText);
         if ( !pSymbol )

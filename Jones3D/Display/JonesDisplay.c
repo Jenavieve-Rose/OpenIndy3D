@@ -77,7 +77,7 @@ int J3DAPI JonesDisplay_Startup(JonesDisplaySettings* pSettings)
         wkernel_SetWindowStyle(WS_VISIBLE | WS_OVERLAPPEDWINDOW); // 0x10CF0000
     }
     else {
-        wkernel_SetWindowStyle(WS_POPUP | WS_VISIBLE);
+        wkernel_SetWindowStyle((LONG)(WS_POPUP | WS_VISIBLE)); // Port: the style bits do not fit a signed LONG; same bits
     }
 
     stdDisplay_SetDefaultResolution(pSettings->width, pSettings->height);

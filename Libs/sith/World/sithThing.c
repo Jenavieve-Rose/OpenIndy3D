@@ -3469,7 +3469,7 @@ int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWor
                 pExplosion->maxLight       = pThing->thingInfo.explosionInfo.maxLight;
                 rdVector_Copy3(&pExplosion->spriteStart, &pThing->thingInfo.explosionInfo.spriteStart);
                 rdVector_Copy3(&pExplosion->spriteEnd, &pThing->thingInfo.explosionInfo.spriteEnd);
-                if ( pThing->thingInfo.explosionInfo.aSpriteTemplateName ) // Note, retail tests the array itself, which is never null
+                // Port: retail tested the array itself here, which is never null, so the copy is unconditional
                 {
                     strncpy(pExplosion->aSpriteTemplateName, pThing->thingInfo.explosionInfo.aSpriteTemplateName, STD_ARRAYLEN(pExplosion->aSpriteTemplateName) - 1);
                     pExplosion->aSpriteTemplateName[STD_ARRAYLEN(pExplosion->aSpriteTemplateName) - 1] = 0;

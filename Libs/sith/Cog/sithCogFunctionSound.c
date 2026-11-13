@@ -1,7 +1,7 @@
 #include "sithCogFunctionSound.h"
 
 #include <sith/Cog/sithCog.h>
-#include <sith/Cog/sithCogexec.h>
+#include <sith/Cog/sithCogExec.h>
 #include <sith/Devices/sithComm.h>
 #include <sith/Devices/sithSound.h>
 #include <sith/Devices/sithSoundMixer.h>

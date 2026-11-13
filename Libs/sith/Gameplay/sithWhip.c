@@ -580,7 +580,7 @@ void J3DAPI sithWhip_CreatePlayerWhip(SithThing* pThing)
     sithWhip_pWhipThing = sithThing_CreateThingAtPos(pTemplate, &pThing->pos, &pThing->orient, pThing->pInSector, 0);
     if ( sithWhip_pWhipThing )
     {
-        pWhipHandModel = sithModel_GetModelByIndex(SITHWORLD_STATICINDEX(31)); // whip hand - weap_whip.3do
+        pWhipHandModel = sithModel_GetModelByIndex((int16_t)SITHWORLD_STATICINDEX(31)); // whip hand - weap_whip.3do
         if ( pWhipHandModel )
         {
             pThing->thingInfo.actorInfo.weaponInfo.weaponSwapRefNum = sithThing_AddSwapEntry(pThing, handMeshIndex, pWhipHandModel, /*meshNumSrc=*/0);

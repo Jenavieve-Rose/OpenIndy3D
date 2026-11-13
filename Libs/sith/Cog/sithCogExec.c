@@ -813,7 +813,7 @@ void J3DAPI sithCogExec_RetOp(SithCog* pCog)
 {
     if ( (pCog->flags & SITHCOG_DEBUG) != 0 )
     {
-        sprintf(std_genBuffer, "Cog %s: Returned from depth %d.\n", pCog->aName, pCog->callDepth);
+        sprintf(std_genBuffer, "Cog %s: Returned from depth %zu.\n", pCog->aName, pCog->callDepth);
         sithConsole_PrintString(std_genBuffer);
     }
 

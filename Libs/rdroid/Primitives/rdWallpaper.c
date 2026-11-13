@@ -44,7 +44,7 @@ rdWallpaper* J3DAPI rdWallpaper_New(const char* pName)
 
     for ( i = 0; i < RDWALLPAPER_NUMMATS; ++i )
     {
-        sprintf(aMatName, "%s_%1d.mat", wallpaper->aName, i + 1);
+        sprintf(aMatName, "%s_%1zu.mat", wallpaper->aName, i + 1);
         if ( rdMaterial_LoadEntry(aMatName, &wallpaper->aMaterials[i]) )
         {
             goto error;
@@ -317,7 +317,7 @@ void J3DAPI rdWallpaper_Draw(const rdWallpaper* pWallpaper)
                 break;
         }
 
-        pPoly->pMaterial = &pWallpaper->aMaterials[matNum];
+        pPoly->pMaterial = (rdMaterial*)&pWallpaper->aMaterials[matNum]; // Port: cast only
         pPoly->matCelNum = pWallpaper->aMatCelNums[matNum];
         rdCache_AddProcFace(4u);
     }

@@ -521,7 +521,7 @@ void J3DAPI sithCollision_ApplyThingOrient(SithThing* pThing, rdMatrix34* pOrien
 
         rdMatrix_InvertOrtho34(&orient, &pThing->orient);
 
-        for ( pAttachedThing = pThing->pAttachedThing; pAttachedThing; pAttachedThing = pAttachedThing = pNextAttachedThing )
+        for ( pAttachedThing = pThing->pAttachedThing; pAttachedThing; pAttachedThing = pNextAttachedThing ) // Port: was pAttachedThing = pAttachedThing = pNextAttachedThing
         {
             pNextAttachedThing = pAttachedThing->pNextAttachedThing;
 

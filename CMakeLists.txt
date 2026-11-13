@@ -59,7 +59,12 @@ target_compile_options(j3d_common INTERFACE
     -Werror=return-type
     # Every 64-to-32 narrowing is reported. They are triaged in the Phase 1 64-bit audit; see docs/PORTING.md.
     -Wshorten-64-to-32
-    $<$<BOOL:${J3D_WERROR_SHORTEN}>:-Werror=shorten-64-to-32>
+    # Every other warning class was cleared in Phase 1 (PORT-PLAN.md P1.23, P1.24, P1.28) and is an error from then on.
+    # The exceptions: narrowing until J3D_WERROR_SHORTEN is on, and AudioLib.c's unsequenced write, which is verified
+    # with the rest of AudioLib in Phase 4 (P4.8).
+    -Werror
+    $<$<NOT:$<BOOL:${J3D_WERROR_SHORTEN}>>:-Wno-error=shorten-64-to-32>
+    -Wno-error=unsequenced
     # The decomp is written in the MSVC dialect; these fire on idioms that are correct there.
     -Wno-parentheses
     -Wno-dangling-else
@@ -69,6 +74,7 @@ target_compile_options(j3d_common INTERFACE
     -Wno-unused-value
     -Wno-comment
     -Wno-microsoft-anon-tag
+    -Wno-deprecated-declarations   # sprintf and friends, deprecated by the macOS SDK; reported once optimisation is on
 )
 
 # ---------------------------------------------------------------------------------------------------------------------

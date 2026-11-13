@@ -36,6 +36,18 @@
 #include <strings.h>
 #include <wchar.h>
 #include <win32_shim.h>
+
+// Port: the C runtime's rand() is MSVC's, 15 bits from a seed of 1 (platform/common/crt_posix.c). macOS rand() returns
+// 31 bits, which changes every `rand() % n` sequence and makes SITH_RAND's RAND_MAX constant inexact as a float.
+// Function-like, so struct members or locals named rand are untouched (PORT-PLAN.md P1.24).
+#include <stdlib.h>
+#undef  RAND_MAX
+#define RAND_MAX 0x7FFF
+int  J3DHost_rand(void);
+void J3DHost_srand(unsigned int seed);
+#define rand()      J3DHost_rand()
+#define srand(seed) J3DHost_srand(seed)
+
 #define strcmpi   strcasecmp
 #define strncmpi  strncasecmp
 #define wstrcmpi  wcscasecmp

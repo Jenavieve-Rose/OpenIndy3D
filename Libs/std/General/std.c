@@ -101,7 +101,7 @@ int J3DAPI stdPrintf(tPrintfFunc pfPrint, const char* pFilePath, unsigned int li
         // Format string: <filename>(linenum): format
         nTotalWritten = 0;
         remain = sizeof(std_printBuffer);
-        nWritten = _snprintf(&std_printBuffer[nTotalWritten], remain, &pFilePath[fnIdx]);
+        nWritten = _snprintf(&std_printBuffer[nTotalWritten], remain, "%s", &pFilePath[fnIdx]); // Port: the file name was the format string
         remain -= nWritten;
         nTotalWritten += nWritten;
         nWritten = _snprintf(&std_printBuffer[nTotalWritten], remain, "(%d): ", linenum);

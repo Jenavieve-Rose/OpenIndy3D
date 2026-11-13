@@ -1,7 +1,7 @@
 #include "sithDSSCog.h"
 
 #include <sith/Cog/sithCog.h>
-#include <sith/Dss/sithDss.h>
+#include <sith/Dss/sithDSS.h>
 #include <sith/Dss/sithMulti.h>
 #include <sith/World/sithThing.h>
 #include <sith/World/sithWorld.h>

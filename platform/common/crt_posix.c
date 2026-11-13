@@ -327,6 +327,24 @@ BOOL WINAPI SetCurrentDirectoryA(LPCSTR lpPathName)
 }
 
 /* ----------------------------------------------------------------------------------------------------------------
+ * rand: MSVC's generator (j3d.h maps rand() and srand() here, PORT-PLAN.md P1.24)
+ * -------------------------------------------------------------------------------------------------------------- */
+// The linear congruential generator of the Visual C++ runtime the game shipped with: 15-bit results (RAND_MAX 0x7FFF),
+// default seed 1. The engine never seeds it, so a run draws the same sequence retail did. One game thread calls it.
+static uint32_t crt_randSeed = 1;
+
+int J3DHost_rand(void)
+{
+    crt_randSeed = crt_randSeed * 214013u + 2531011u;
+    return (int)((crt_randSeed >> 16) & 0x7FFFu);
+}
+
+void J3DHost_srand(unsigned int seed)
+{
+    crt_randSeed = seed;
+}
+
+/* ----------------------------------------------------------------------------------------------------------------
  * Time
  * -------------------------------------------------------------------------------------------------------------- */
 static uint64_t crt_HostNowMsec(void)

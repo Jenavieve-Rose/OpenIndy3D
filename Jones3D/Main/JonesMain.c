@@ -33,8 +33,8 @@
 #include <sith/Devices/sithConsole.h>
 #include <sith/Devices/sithSound.h>
 #include <sith/Devices/sithSoundMixer.h>
-#include <sith/DSS/sithDSS.h>
-#include <sith/DSS/sithGamesave.h>
+#include <sith/Dss/sithDSS.h>
+#include <sith/Dss/sithGamesave.h>
 #include <sith/Engine/sithCamera.h>
 #include <sith/Engine/sithRender.h>
 #include <sith/Gameplay/sithOverlayMap.h>
@@ -1631,7 +1631,7 @@ void J3DAPI JonesMain_PrintFramerate(void)
             JonesMain_prevFrameTime  = JonesMain_frameTime;
             JonesMain_prevFrameCount = JonesMain_frameCount;
 
-            sprintf(std_genBuffer, "%02.2fHz A:%d S:%d P:%d Z:%d",
+            sprintf(std_genBuffer, "%02.2fHz A:%zu S:%zu P:%d Z:%zu",
                 JonesMain_frameRate, sithRender_numVisibleAdjoins, sithRender_numVisibleSectors, numPolys, sithRender_numDrawnThings);
 
             JonesConsole_PrintTextWithID(JONESCONSOLE_FRAMERATEID, std_genBuffer);
@@ -2200,7 +2200,7 @@ int J3DAPI JonesMain_FilePrintf(const char* pFormat, ...)
     _vsnprintf(std_genBuffer, STD_ARRAYLEN(std_genBuffer), pFormat, args);
     va_end(args);
 
-    fprintf(JonesMain_pLogFile, std_genBuffer); /* retail bug: the message is used as the format string */
+    fprintf(JonesMain_pLogFile, "%s", std_genBuffer); // Port: retail used the message as the format string
     fflush(JonesMain_pLogFile);
     return STD_ARRAYLEN(std_genBuffer); /* retail bug: the buffer size, not the length written */
 }
@@ -2925,7 +2925,7 @@ void J3DAPI JonesMain_LogErrorToFile(const char* pErrorText)
             return;
         }
 
-        fprintf(fp, pErrorText);
+        fprintf(fp, "%s", pErrorText); // Port: retail used the message as the format string
         fprintf(fp, "\n");
         fclose(fp);
     }

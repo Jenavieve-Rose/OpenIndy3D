@@ -362,7 +362,7 @@ int J3DAPI rdModel3_LoadEntry(const char* pFilename, rdModel3* pModel3)
                 goto eof_error;
             }
 
-            if ( sscanf(stdConffile_aLine, " mesh %d", std_genBuffer) != 1 )
+            if ( sscanf(stdConffile_aLine, " mesh %d", (int*)std_genBuffer) != 1 ) // Port: cast only; retail scans the mesh number into the scratch buffer and ignores it
             {
                 goto syntax_error;
             }
@@ -2066,7 +2066,7 @@ void J3DAPI rdModel3_DrawMesh(const rdModel3Mesh* pMesh, const rdMatrix34* orien
                 }
 
                 rdLight_CalcVertexIntensities(
-                    rdCamera_pCurCamera->aLights,
+                    (const rdLight**)rdCamera_pCurCamera->aLights, // Port: cast only
                     rdModel3_aLocalLightPos,
                     rdCamera_pCurCamera->numLights,
                     rdModel3_pCurMesh->aVertNormals,
@@ -2162,11 +2162,11 @@ void J3DAPI rdModel3_DrawFace(const rdFace* pFace, const rdVector3* aTransformed
             if ( bIsBackFace )
             {
                 rdVector_Neg3(&faceNormal, &pFace->normal);
-                rdLight_CalcFaceIntensity(rdCamera_pCurCamera->aLights, rdModel3_aLocalLightPos, rdCamera_pCurCamera->numLights, pFace, &faceNormal, rdModel3_pCurMesh->apVertices, rdCamera_pCurCamera->attenuationMin, &faceIntensity);
+                rdLight_CalcFaceIntensity((const rdLight**)rdCamera_pCurCamera->aLights, rdModel3_aLocalLightPos, rdCamera_pCurCamera->numLights, pFace, &faceNormal, rdModel3_pCurMesh->apVertices, rdCamera_pCurCamera->attenuationMin, &faceIntensity);
             }
             else
             {
-                rdLight_CalcFaceIntensity(rdCamera_pCurCamera->aLights, rdModel3_aLocalLightPos, rdCamera_pCurCamera->numLights, pFace, &pFace->normal, rdModel3_pCurMesh->apVertices, rdCamera_pCurCamera->attenuationMin, &faceIntensity);
+                rdLight_CalcFaceIntensity((const rdLight**)rdCamera_pCurCamera->aLights, rdModel3_aLocalLightPos, rdCamera_pCurCamera->numLights, pFace, &pFace->normal, rdModel3_pCurMesh->apVertices, rdCamera_pCurCamera->attenuationMin, &faceIntensity);
             }
 
             rdVector_Add4Acc(&pPoly->extraLight, &faceIntensity);

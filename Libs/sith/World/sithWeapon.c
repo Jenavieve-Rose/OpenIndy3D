@@ -2571,32 +2571,32 @@ void J3DAPI sithWeapon_CreateWeaponFireFx(SithThing* pThing, rdVector3* pos)
     switch ( curweaponId )
     {
         case SITHWEAPON_PISTOL:
-            pHandModel = sithModel_GetModelByIndex(SITHWORLD_STATICINDEX(83)); // weap_revolver_fire.3do
+            pHandModel = sithModel_GetModelByIndex((int16_t)SITHWORLD_STATICINDEX(83)); // weap_revolver_fire.3do
             break;
 
         case SITHWEAPON_TOKAREV:
         case SITHWEAPON_COMTOKAREV:
-            pHandModel = sithModel_GetModelByIndex(SITHWORLD_STATICINDEX(85)); // weap_tokarev_fire.3do
+            pHandModel = sithModel_GetModelByIndex((int16_t)SITHWORLD_STATICINDEX(85)); // weap_tokarev_fire.3do
             break;
 
         case SITHWEAPON_MAUSER:
         case SITHWEAPON_COMMAUSER:
-            pHandModel = sithModel_GetModelByIndex(SITHWORLD_STATICINDEX(81)); // weap_mauser_fire.3do
+            pHandModel = sithModel_GetModelByIndex((int16_t)SITHWORLD_STATICINDEX(81)); // weap_mauser_fire.3do
             break;
 
         case SITHWEAPON_SIMONOV:
         case SITHWEAPON_COMSIMONOV:
-            pHandModel = sithModel_GetModelByIndex(SITHWORLD_STATICINDEX(84)); // weap_simonov_fire.3do
+            pHandModel = sithModel_GetModelByIndex((int16_t)SITHWORLD_STATICINDEX(84)); // weap_simonov_fire.3do
             break;
 
         case SITHWEAPON_SUBMACHINE:
         case SITHWEAPON_COMSUBMACHINE:
-            pHandModel = sithModel_GetModelByIndex(SITHWORLD_STATICINDEX(82)); // weap_ppsh41_fire.3do
+            pHandModel = sithModel_GetModelByIndex((int16_t)SITHWORLD_STATICINDEX(82)); // weap_ppsh41_fire.3do
             break;
 
         case SITHWEAPON_SHOTGUN:
         case SITHWEAPON_COMSHOTGUN:
-            pHandModel = sithModel_GetModelByIndex(SITHWORLD_STATICINDEX(86)); // weap_toz34_fire.3do
+            pHandModel = sithModel_GetModelByIndex((int16_t)SITHWORLD_STATICINDEX(86)); // weap_toz34_fire.3do
             break;
 
         default:

@@ -166,22 +166,22 @@ int J3DAPI sithCommand_DebugMode(const SithConsoleCommand* pFunc, const char* pA
     switch ( pFunc->flags )
     {
         case 0:
-            pCurFlags = &sith_mode.debugModeFlags;
+            pCurFlags = (int*)&sith_mode.debugModeFlags; // Port: cast only; the enum is int-sized
             newFlags = SITHDEBUG_AIEVENTS_DISABLED;
             break;
 
         case 1:
-            pCurFlags = &sith_mode.debugModeFlags;
+            pCurFlags = (int*)&sith_mode.debugModeFlags; // Port: cast only; the enum is int-sized
             newFlags = SITHDEBUG_PUPPETSYSTEM_DISABLED;
             break;
 
         case 2:
-            pCurFlags = &sith_mode.debugModeFlags;
+            pCurFlags = (int*)&sith_mode.debugModeFlags; // Port: cast only; the enum is int-sized
             newFlags = SITHDEBUG_TRACKSHOTS;
             break;
 
         case 3:
-            pCurFlags = &sith_mode.debugModeFlags;
+            pCurFlags = (int*)&sith_mode.debugModeFlags; // Port: cast only; the enum is int-sized
             newFlags = SITHDEBUG_AIDISABLED;
             break;
 
@@ -196,12 +196,12 @@ int J3DAPI sithCommand_DebugMode(const SithConsoleCommand* pFunc, const char* pA
             break;
 
         case 5:
-            pCurFlags = &sith_mode.debugModeFlags;
+            pCurFlags = (int*)&sith_mode.debugModeFlags; // Port: cast only; the enum is int-sized
             newFlags = SITHDEBUG_AINOTARGET;
             break;
 
         case 6:
-            pCurFlags = &sith_mode.debugModeFlags;
+            pCurFlags = (int*)&sith_mode.debugModeFlags; // Port: cast only; the enum is int-sized
             newFlags = SITHDEBUG_SLOWMODE;
             break;
 
@@ -443,47 +443,47 @@ int J3DAPI sithCommand_Memory(const SithConsoleCommand* pFunc, const char* pArg)
 
     totalUsed = 0;
 
-    sprintf(std_genBuffer, "%5d Materials        %8d bytes.", paCnt[0], aMemUsed[0]);
+    sprintf(std_genBuffer, "%5zu Materials        %8zu bytes.", paCnt[0], aMemUsed[0]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[0];
 
-    sprintf(std_genBuffer, "%5d Models           %8d bytes.", paCnt[10], aMemUsed[10]);
+    sprintf(std_genBuffer, "%5zu Models           %8zu bytes.", paCnt[10], aMemUsed[10]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[10];
 
-    sprintf(std_genBuffer, "%5d Keyframes        %8d bytes.", paCnt[11], aMemUsed[11]);
+    sprintf(std_genBuffer, "%5zu Keyframes        %8zu bytes.", paCnt[11], aMemUsed[11]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[11];
 
-    sprintf(std_genBuffer, "%5d World Vertices   %8d bytes.", paCnt[1], aMemUsed[1]);
+    sprintf(std_genBuffer, "%5zu World Vertices   %8zu bytes.", paCnt[1], aMemUsed[1]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[1];
 
-    sprintf(std_genBuffer, "%5d World TexVerts   %8d bytes.", paCnt[2], aMemUsed[2]);
+    sprintf(std_genBuffer, "%5zu World TexVerts   %8zu bytes.", paCnt[2], aMemUsed[2]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[2];
 
-    sprintf(std_genBuffer, "%5d Surfaces         %8d bytes.", paCnt[3], aMemUsed[3]);
+    sprintf(std_genBuffer, "%5zu Surfaces         %8zu bytes.", paCnt[3], aMemUsed[3]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[3];
 
-    sprintf(std_genBuffer, "%5d Sectors          %8d bytes.", paCnt[5], aMemUsed[5]);
+    sprintf(std_genBuffer, "%5zu Sectors          %8zu bytes.", paCnt[5], aMemUsed[5]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[5];
 
-    sprintf(std_genBuffer, "%5d Cog Scripts\t\t%8d bytes.", paCnt[8], aMemUsed[8]);
+    sprintf(std_genBuffer, "%5zu Cog Scripts\t\t%8zu bytes.", paCnt[8], aMemUsed[8]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[8];
 
-    sprintf(std_genBuffer, "%5d Cogs             %8d bytes.", paCnt[7], aMemUsed[7]);
+    sprintf(std_genBuffer, "%5zu Cogs             %8zu bytes.", paCnt[7], aMemUsed[7]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[7];
 
-    sprintf(std_genBuffer, "%5d Adjoins          %8d bytes.", paCnt[4], aMemUsed[4]);
+    sprintf(std_genBuffer, "%5zu Adjoins          %8zu bytes.", paCnt[4], aMemUsed[4]);
     sithConsole_PrintString(std_genBuffer);
     totalUsed += aMemUsed[4];
 
-    sprintf(std_genBuffer, "Total Memory Used:   %8d bytes.", totalUsed);
+    sprintf(std_genBuffer, "Total Memory Used:   %8zu bytes.", totalUsed);
     sithConsole_PrintString(std_genBuffer);
     return 1;
 }
@@ -491,7 +491,7 @@ int J3DAPI sithCommand_Memory(const SithConsoleCommand* pFunc, const char* pArg)
 int J3DAPI sithCommand_DynamicMemory(const SithConsoleCommand* pFunc, const char* pArg)
 {
 
-    sprintf(std_genBuffer, "NumAllocs: %d TotalMemAlloc: %d bytes MaxMemAlloc: %d bytes", stdMemory_curState.totalAllocs, stdMemory_curState.totalBytes, stdMemory_curState.maxBytes);
+    sprintf(std_genBuffer, "NumAllocs: %zu TotalMemAlloc: %zu bytes MaxMemAlloc: %zu bytes", stdMemory_curState.totalAllocs, stdMemory_curState.totalBytes, stdMemory_curState.maxBytes);
     sithConsole_PrintString(std_genBuffer);
     return 1;
 }
