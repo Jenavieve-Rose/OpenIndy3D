@@ -9,6 +9,8 @@
  *   - depth outside 0 to 1 is clamped, not clipped
  *   - line strips and points land on the pixels named
  *   - a scene larger than the per-scene vertex arena (P2.11)
+ *   - textures (P2.12): texel placement, wrap, modulation by the vertex colour, RGB textures opaque whatever their
+ *     fourth byte, alpha-0 texels discarded, mip level selection with and without a mip filter
  * Needs no game data and no window. Exit status: the number of failed checks.
  */
 #include <math.h>
@@ -176,6 +178,95 @@ int main(void)
     CHECK(render_Pixel(50, 50) == 0x00FF00 && render_Pixel(52, 50) == 0x00FF00 && render_Pixel(51, 50) == 0,
         "points at (50,50) and (52,50): %06X %06X, between %06X", render_Pixel(50, 50), render_Pixel(52, 50),
         render_Pixel(51, 50));
+
+    // Textures (P2.12). A 2x2 texture: blue, green / red, white (texel bytes B, G, R, A), sampled nearest.
+    {
+        const uint8_t aTexels[2 * 2 * 4] = { 0xFF, 0, 0, 0xFF, 0, 0xFF, 0, 0xFF, /**/ 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+        J3DRenderTexture* pTex = J3DRender_CreateTexture(2, 2, 1, 1);
+        CHECK(pTex != NULL, "CreateTexture");
+        J3DRender_UploadTextureLevel(pTex, 0, aTexels, 8);
+
+        // RGB (no alpha): the same texels with alpha 0 must still draw, as opaque.
+        uint8_t aNoAlpha[sizeof(aTexels)];
+        memcpy(aNoAlpha, aTexels, sizeof(aTexels));
+        for ( int i = 3; i < (int)sizeof(aNoAlpha); i += 4 ) aNoAlpha[i] = 0;
+        J3DRenderTexture* pRGB = J3DRender_CreateTexture(2, 2, 1, 0);
+        J3DRender_UploadTextureLevel(pRGB, 0, aNoAlpha, 8);
+        // RGBA with those alpha-0 texels: nothing draws.
+        J3DRenderTexture* pClear = J3DRender_CreateTexture(2, 2, 1, 1);
+        J3DRender_UploadTextureLevel(pClear, 0, aNoAlpha, 8);
+
+        J3DRender_SetSampler(0, 0, 0, J3DRENDER_MIP_NONE);
+        render_Begin();
+        struct { J3DRenderTexture* pTex; int x0, y0; uint32_t color; float uv; } aDraws[] = {
+            { pTex, 0, 0, 0xFFFFFFFF, 1.0f },    // the texture once over 16x16
+            { pTex, 16, 0, 0xFF808080, 1.0f },   // modulated by grey: half
+            { pRGB, 32, 0, 0xFFFFFFFF, 1.0f },   // RGB: opaque
+            { pClear, 48, 0, 0xFFFFFFFF, 1.0f }, // alpha 0: discarded
+            { pTex, 0, 16, 0xFFFFFFFF, 2.0f },   // wrapped twice
+        };
+        for ( size_t i = 0; i < sizeof(aDraws) / sizeof(aDraws[0]); ++i )
+        {
+            J3DRender_SetTexture(aDraws[i].pTex);
+            float x0 = aDraws[i].x0 - 0.5f, y0 = aDraws[i].y0 - 0.5f, uv = aDraws[i].uv;
+            J3DRenderVertex aVerts[4] = {
+                { x0, y0, 0.5f, 1.0f, aDraws[i].color, 0xFF000000, 0.0f, 0.0f },
+                { x0 + 16, y0, 0.5f, 1.0f, aDraws[i].color, 0xFF000000, uv, 0.0f },
+                { x0 + 16, y0 + 16, 0.5f, 1.0f, aDraws[i].color, 0xFF000000, uv, uv },
+                { x0, y0 + 16, 0.5f, 1.0f, aDraws[i].color, 0xFF000000, 0.0f, uv },
+            };
+            static const uint16_t aIndices[6] = { 0, 1, 2, 0, 2, 3 };
+            CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aVerts, 4, aIndices, 6) == 0, "Draw textured");
+        }
+        J3DRender_SetTexture(NULL);
+        render_EndAndRead();
+
+        CHECK(render_Pixel(4, 4) == 0x0000FF && render_Pixel(12, 4) == 0x00FF00 && render_Pixel(4, 12) == 0xFF0000
+            && render_Pixel(12, 12) == 0xFFFFFF, "texels: %06X %06X %06X %06X", render_Pixel(4, 4), render_Pixel(12, 4),
+            render_Pixel(4, 12), render_Pixel(12, 12));
+        CHECK(render_Near(render_Pixel(28, 12), 0x808080, 1), "modulated white texel: %06X", render_Pixel(28, 12));
+        CHECK(render_Pixel(36, 4) == 0x0000FF && render_Pixel(44, 12) == 0xFFFFFF, "RGB texture opaque: %06X %06X",
+            render_Pixel(36, 4), render_Pixel(44, 12));
+        CHECK(render_Pixel(52, 4) == 0 && render_Pixel(60, 12) == 0, "alpha-0 texels discarded: %06X %06X",
+            render_Pixel(52, 4), render_Pixel(60, 12));
+        CHECK(render_Pixel(2, 18) == 0x0000FF && render_Pixel(6, 18) == 0x00FF00 && render_Pixel(10, 18) == 0x0000FF,
+            "wrapped: %06X %06X %06X", render_Pixel(2, 18), render_Pixel(6, 18), render_Pixel(10, 18));
+
+        J3DRender_ReleaseTexture(pTex);
+        J3DRender_ReleaseTexture(pRGB);
+        J3DRender_ReleaseTexture(pClear);
+    }
+
+    // Mip levels: an 8x8 texture, level 0 red and level 1 green, drawn over 4x4 pixels (two texels a pixel) picks
+    // level 1 with a mip filter and level 0 without.
+    {
+        uint8_t aLevel0[8 * 8 * 4], aLevel1[4 * 4 * 4];
+        for ( int i = 0; i < 8 * 8; ++i ) { aLevel0[i * 4] = 0; aLevel0[i * 4 + 1] = 0; aLevel0[i * 4 + 2] = 0xFF; aLevel0[i * 4 + 3] = 0xFF; }
+        for ( int i = 0; i < 4 * 4; ++i ) { aLevel1[i * 4] = 0; aLevel1[i * 4 + 1] = 0xFF; aLevel1[i * 4 + 2] = 0; aLevel1[i * 4 + 3] = 0xFF; }
+        J3DRenderTexture* pMip = J3DRender_CreateTexture(8, 8, 2, 1);
+        J3DRender_UploadTextureLevel(pMip, 0, aLevel0, 32);
+        J3DRender_UploadTextureLevel(pMip, 1, aLevel1, 16);
+
+        render_Begin();
+        J3DRender_SetTexture(pMip);
+        for ( int pass = 0; pass < 2; ++pass )
+        {
+            J3DRender_SetSampler(0, 1, 1, pass == 0 ? J3DRENDER_MIP_NEAREST : J3DRENDER_MIP_NONE);
+            float x0 = pass * 8 - 0.5f, y0 = 40 - 0.5f;
+            J3DRenderVertex aVerts[4] = {
+                { x0, y0, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 0.0f }, { x0 + 4, y0, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 0.0f },
+                { x0 + 4, y0 + 4, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 1.0f }, { x0, y0 + 4, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 1.0f },
+            };
+            static const uint16_t aIndices[6] = { 0, 1, 2, 0, 2, 3 };
+            CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aVerts, 4, aIndices, 6) == 0, "Draw mip");
+        }
+        J3DRender_SetTexture(NULL);
+        J3DRender_SetSampler(1, 0, 0, J3DRENDER_MIP_NEAREST);
+        render_EndAndRead();
+        J3DRender_ReleaseTexture(pMip);
+        CHECK(render_Pixel(1, 41) == 0x00FF00, "mip filter on: level 1 (green), got %06X", render_Pixel(1, 41));
+        CHECK(render_Pixel(9, 41) == 0xFF0000, "mip filter off: level 0 (red), got %06X", render_Pixel(9, 41));
+    }
 
     // A scene larger than the 4 MB vertex and index arena: 50,000 draws of about 140 bytes each, the last one white.
     // Every draw must land, and the scene after it must start over in the arena.

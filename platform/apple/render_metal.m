@@ -81,7 +81,7 @@ typedef struct RenderUniforms
 } RenderUniforms;
 
 static id<MTLRenderPipelineState> render_pipelineFlat;
-static id<MTLRenderPipelineState> render_pipelineTextured; // used from P2.12
+static id<MTLRenderPipelineState> render_pipelineTextured;
 static id<MTLDepthStencilState>   render_depthWrite;
 static id<MTLDepthStencilState>   render_depthNoWrite;     // STD3D_RS_ZWRITE_DISABLED, from P2.13
 static RenderUniforms             render_uniforms;
@@ -90,6 +90,10 @@ static RenderUniforms             render_uniforms;
 static id<MTLBuffer> render_arena;
 static size_t        render_arenaOffset;
 static int           render_bSceneNewer; // the scene texture holds a scene the back buffer has not been given
+
+static id<MTLTexture>      render_curTexture;   // J3DRender_SetTexture
+static id<MTLSamplerState> render_aSamplers[2 * 2 * 2 * 3]; // by J3DRender_SetSampler's arguments, made on first use
+static size_t              render_curSampler = 1 * 12 + 0 * 6 + 0 * 3 + J3DRENDER_MIP_NEAREST; // bilinear, wrap, nearest mip
 
 static id<MTLTexture>              render_sceneColor;
 static id<MTLTexture>              render_depth;
@@ -293,6 +297,97 @@ void J3DRender_GetDeviceName(char* pName, size_t size)
     pName[size - 1] = '\0';
 }
 
+static id<MTLSamplerState> render_GetSampler(size_t index)
+{
+    if ( !render_aSamplers[index] )
+    {
+        const int bBilinear = (int)(index / 12), bClampU = (int)(index / 6 % 2), bClampV = (int)(index / 3 % 2);
+        const J3DRenderMipFilter mip = (J3DRenderMipFilter)(index % 3);
+
+        MTLSamplerDescriptor* desc = [MTLSamplerDescriptor new];
+        desc.minFilter    = bBilinear ? MTLSamplerMinMagFilterLinear : MTLSamplerMinMagFilterNearest;
+        desc.magFilter    = desc.minFilter;
+        desc.mipFilter    = mip == J3DRENDER_MIP_NONE    ? MTLSamplerMipFilterNotMipmapped
+                          : mip == J3DRENDER_MIP_NEAREST ? MTLSamplerMipFilterNearest
+                                                         : MTLSamplerMipFilterLinear;
+        desc.sAddressMode = bClampU ? MTLSamplerAddressModeClampToEdge : MTLSamplerAddressModeRepeat;
+        desc.tAddressMode = bClampV ? MTLSamplerAddressModeClampToEdge : MTLSamplerAddressModeRepeat;
+        render_aSamplers[index] = [J3DMetal_Device() newSamplerStateWithDescriptor:desc];
+    }
+    return render_aSamplers[index];
+}
+
+J3DRenderTexture* J3DRender_CreateTexture(uint32_t width, uint32_t height, size_t numLevels, int bAlpha)
+{
+    id<MTLDevice> device = J3DMetal_Device();
+    if ( !device || !width || !height || !numLevels )
+    {
+        return NULL;
+    }
+
+    MTLTextureDescriptor* desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                    width:width
+                                                                                   height:height
+                                                                                mipmapped:numLevels > 1];
+    const size_t maxLevels = desc.mipmapLevelCount;
+    desc.mipmapLevelCount = numLevels < maxLevels ? numLevels : maxLevels;
+    desc.usage            = MTLTextureUsageShaderRead;
+    desc.storageMode      = MTLStorageModeShared; // one copy on unified memory: retail's system and video textures
+    if ( !bAlpha )
+    {
+        // X8R8G8B8: the fourth byte is not alpha.
+        desc.swizzle = MTLTextureSwizzleChannelsMake(MTLTextureSwizzleRed, MTLTextureSwizzleGreen, MTLTextureSwizzleBlue,
+            MTLTextureSwizzleOne);
+    }
+
+    id<MTLTexture> texture = [device newTextureWithDescriptor:desc];
+    return texture ? (J3DRenderTexture*)CFBridgingRetain(texture) : NULL;
+}
+
+void J3DRender_UploadTextureLevel(J3DRenderTexture* pTexture, size_t level, const uint8_t* pPixels, size_t rowSize)
+{
+    id<MTLTexture> texture = (__bridge id<MTLTexture>)(void*)pTexture;
+    if ( !texture || level >= texture.mipmapLevelCount || !pPixels )
+    {
+        return;
+    }
+
+    const NSUInteger width  = texture.width >> level ? texture.width >> level : 1;
+    const NSUInteger height = texture.height >> level ? texture.height >> level : 1;
+    [texture replaceRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:level withBytes:pPixels bytesPerRow:rowSize];
+}
+
+void J3DRender_RetainTexture(J3DRenderTexture* pTexture)
+{
+    if ( pTexture )
+    {
+        CFRetain((CFTypeRef)pTexture);
+    }
+}
+
+void J3DRender_ReleaseTexture(J3DRenderTexture* pTexture)
+{
+    if ( pTexture )
+    {
+        if ( (__bridge id<MTLTexture>)(void*)pTexture == render_curTexture )
+        {
+            render_curTexture = nil;
+        }
+        CFRelease((CFTypeRef)pTexture); // a command buffer still using it keeps its own reference
+    }
+}
+
+void J3DRender_SetTexture(J3DRenderTexture* pTexture)
+{
+    render_curTexture = (__bridge id<MTLTexture>)(void*)pTexture;
+}
+
+void J3DRender_SetSampler(int bBilinear, int bClampU, int bClampV, J3DRenderMipFilter mipFilter)
+{
+    render_curSampler = (size_t)(bBilinear ? 1 : 0) * 12 + (size_t)(bClampU ? 1 : 0) * 6 + (size_t)(bClampV ? 1 : 0) * 3
+        + (size_t)mipFilter % 3;
+}
+
 // Copies size bytes into the scene's arena, 16-byte aligned; returns the offset, and the buffer in *pBuffer.
 static size_t render_Append(const void* pData, size_t size, id<MTLBuffer>* pBuffer)
 {
@@ -329,7 +424,16 @@ int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, 
     id<MTLBuffer> vertexBuffer = nil;
     size_t vertexOffset = render_Append(aVerts, numVerts * sizeof(J3DRenderVertex), &vertexBuffer);
     [render_encoder setVertexBuffer:vertexBuffer offset:vertexOffset atIndex:0];
-    [render_encoder setRenderPipelineState:render_pipelineFlat];
+    if ( render_curTexture )
+    {
+        [render_encoder setRenderPipelineState:render_pipelineTextured];
+        [render_encoder setFragmentTexture:render_curTexture atIndex:0];
+        [render_encoder setFragmentSamplerState:render_GetSampler(render_curSampler) atIndex:0];
+    }
+    else
+    {
+        [render_encoder setRenderPipelineState:render_pipelineFlat];
+    }
 
     switch ( primitive )
     {

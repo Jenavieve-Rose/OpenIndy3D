@@ -52,11 +52,38 @@ typedef enum J3DRenderPrimitive
 } J3DRenderPrimitive;
 
 // Draws into the open scene with the fixed-function model of retail's Direct3D setup (std3D_InitRenderState):
-// colour = diffuse (texture x diffuse once textures exist, P2.12), alpha-tested (passes when alpha > the reference,
+// colour = texture x diffuse (the diffuse alone with no texture set), alpha-tested (passes when alpha > the reference,
 // 0 by default), blended source alpha over inverse source alpha, depth-tested less-or-equal and written, no culling.
 // Pre-transformed vertices are never clipped on depth; depth outside 0 to 1 is clamped. Returns 0 when drawn.
 int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, size_t numVerts,
     const uint16_t* aIndices, size_t numIndices);
+
+/* ---- Textures and samplers (P2.12) ------------------------------------------------------------------------------ */
+
+// A texture: an id<MTLTexture> held by reference count. The handle is stored in tSystemTexture's
+// LPDIRECT3DTEXTURE2 fields, as retail stored its Direct3D textures there.
+typedef struct J3DRenderTexture J3DRenderTexture;
+
+// A width x height BGRA texture with numLevels mip levels. bAlpha 0: the fourth byte is not alpha, and the texture
+// reads as opaque. Returns NULL on failure. The caller holds one reference.
+J3DRenderTexture* J3DRender_CreateTexture(uint32_t width, uint32_t height, size_t numLevels, int bAlpha);
+// Uploads mip level 'level' (32 bpp BGRA rows of rowSize bytes, at least the level's size).
+void J3DRender_UploadTextureLevel(J3DRenderTexture* pTexture, size_t level, const uint8_t* pPixels, size_t rowSize);
+void J3DRender_RetainTexture(J3DRenderTexture* pTexture);
+void J3DRender_ReleaseTexture(J3DRenderTexture* pTexture);
+
+// The texture the following draws use; NULL draws with the vertex colours alone.
+void J3DRender_SetTexture(J3DRenderTexture* pTexture);
+
+typedef enum J3DRenderMipFilter
+{
+    J3DRENDER_MIP_NONE,    // the top level only
+    J3DRENDER_MIP_NEAREST, // the nearest level (retail's "bilinear" mipmap filter, D3DTFP_POINT)
+    J3DRENDER_MIP_LINEAR,  // blended between levels (retail's "trilinear", D3DTFP_LINEAR)
+} J3DRenderMipFilter;
+
+// The sampler for the following draws: bilinear or nearest texel filtering, clamp or wrap per axis, and the mip filter.
+void J3DRender_SetSampler(int bBilinear, int bClampU, int bClampV, J3DRenderMipFilter mipFilter);
 
 // When the scene texture holds a scene drawn since the last BeginScene, waits for the GPU and copies it into the back
 // buffer (32 bpp, the scene's size), so the CPU side sees the frame the GPU drew. 0 when copied, 1 when there was

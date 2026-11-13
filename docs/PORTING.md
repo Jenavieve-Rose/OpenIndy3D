@@ -701,3 +701,33 @@ that only miss NaN.
   geometry, Gouraud-lit, untextured, with walls in front of each other correctly. The `render` test gained a scene of
   50,000 draws (past the arena's 4 MB) whose last draw must land, and a scene after it. `boot-sdl`, which now draws
   every frame, still writes the same autosave as `boot`.
+
+### Textures (P2.12)
+
+- Retail kept two copies of a texture: `std3D_AllocSystemTexture` made a system-memory DirectDraw texture with the
+  mip chain (`pD3DSrcTexture`), and `std3D_AddToTextureCache` loaded it into a video-memory one (`pD3DCachedTex`) on
+  first use, purging least recently used textures when video memory ran short. On Apple's unified memory one Metal
+  texture serves both: `AllocSystemTexture` makes it and uploads the levels, and the cache takes another reference
+  (`J3DRender_RetainTexture`). The handle is stored in the `LPDIRECT3DTEXTURE2` fields. The cache list, the
+  available-memory count, `PurgeTextureCache`, `ResetTextureCache` and `UpdateFrameCount` are the retail bodies, so the
+  game sees the same bookkeeping; with the Metal working set as the budget a purge does not happen in practice.
+- RGB textures (`STDCOLOR_FORMAT_RGB`, X8R8G8B8) read as opaque through a texture swizzle whatever their fourth byte
+  holds; RGBA textures use their alpha. Retail set a colour key on keyed formats; the port's formats have none (the
+  material loader turns transparency into alpha).
+- `AllocSystemTexture` keeps retail's skipping of top levels larger than the device allows (none, up to 16384) and its
+  single level when the mipmap filter is off. A level not in the renderer's 32 bpp format, or smaller than its mip size,
+  ends the chain; a top level of the wrong format is an error and leaves the texture empty, which draws as untextured.
+  Retail's rescale of an oversized top level by blit is not needed.
+- `std3D_GetMipMapCount` reports the count kept in the texture's surface description, which, as retail's, is 0 when
+  the mipmap filter is off.
+- `std3D_SetMipmapFilter` (from P2.13's list): none, "bilinear" (the nearest mip level, retail's `D3DTFP_POINT`) or
+  "trilinear" (blended levels). Retail fell back when the device lacked a mode; Metal has all three. `std3D_Open`
+  sets the bilinear filter and retail's initial render state, as `std3D_InitRenderState` did.
+- Samplers: the filter, the wrap or clamp per axis and the mip filter form one Metal sampler, made on first use
+  (`J3DRender_SetSampler`); `std3D_SetRenderState` drives the first two from P2.13.
+- `std3D_GetValidDimensions` is the retail body against the Metal device's limits; `std3D_FindClosestFormat`
+  returns 0 for formats without alpha and 1 with.
+- Checked: a headless screenshot of `00_cyn` at frame 300 shows the canyon textured: rock walls, sky, waterfall, and
+  the rope ladder's gaps cut out by the alpha test. Frames 10 to 30 are black and frame 45 shows the title logo: the
+  opening cutscene's fade, not a fault. The `render` test gained texel placement, wrap, modulation, RGB opacity,
+  discarded alpha-0 texels and mip selection.

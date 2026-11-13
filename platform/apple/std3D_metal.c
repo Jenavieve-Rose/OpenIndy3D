@@ -13,7 +13,9 @@
  *
  * P2.11: DrawRenderList, DrawLineStrip and DrawPointList.
  *
- * Not yet, and doing nothing until their step: textures and the texture cache (P2.12), render states and the mipmap filter (P2.13), fog (P2.14), the projection
+ * P2.12: textures and the texture cache, the mipmap filter.
+ *
+ * Not yet, and doing nothing until their step: render states (P2.13), fog (P2.14), the projection
  * (P2.15) and wireframe (P2.16). Each returns what the null backend returned.
  */
 #include <stddef.h>
@@ -21,6 +23,7 @@
 #include <string.h>
 
 #include <std/General/std.h>
+#include <std/General/stdMath.h>
 #include <std/General/stdMemory.h>
 #include <std/General/stdUtil.h>
 #include <std/Win95/std3D.h>
@@ -45,7 +48,21 @@ static int      std3D_bStartup = 0;
 static int      std3D_bOpen    = 0;
 static size_t   std3D_numDevices = 0;
 static Device3D std3D_aDevices[1];
-static size_t   std3D_frameCount = 0; // retail's frame counter for the texture cache (P2.12)
+static size_t   std3D_frameCount = 0; // retail's frame counter for the texture cache
+static Device3D* std3D_pCurDevice = NULL;
+
+// Render state, as retail kept it (std3D_InitRenderState, SetRenderState, SetMipmapFilter).
+static Std3DRenderState      std3D_renderState  = 0;
+static Std3DMipmapFilterType std3D_mipmapFilter = (Std3DMipmapFilterType)-1;
+
+// Retail's texture cache: a list of the textures loaded "into video memory", least recently used first.
+static tSystemTexture* std3D_pFirstTexCache    = NULL;
+static tSystemTexture* std3D_pLastTexCache     = NULL;
+static size_t          std3D_numCachedTextures = 0;
+
+static void std3D_AddTextureToCacheList(tSystemTexture* pTexture);
+static void std3D_RemoveTextureFromCacheList(tSystemTexture* pCacheTexture);
+static void std3D_UpdateSampler(void);
 
 /* ---- Devices -------------------------------------------------------------------------------------------------------- */
 
@@ -137,14 +154,25 @@ int J3DAPI std3D_Open(size_t deviceNum)
     }
 
     Device3D* pDevice = &std3D_aDevices[deviceNum];
+    std3D_pCurDevice  = pDevice;
     std3D_maxVertices = pDevice->caps.maxVertexCount ? pDevice->caps.maxVertexCount : STD3D_DEFAULT_MAX_VERTICES;
     stdPrintf(std_pHS->pStatusPrint, J3D_FILE, __LINE__, "Max vertices: %d.\n", (int)std3D_maxVertices, 0, 0, 0);
 
-    std3D_frameCount = 1;
+    std3D_frameCount        = 1;
+    std3D_numCachedTextures = 0;
+    std3D_pFirstTexCache    = NULL;
+    std3D_pLastTexCache     = NULL;
+
+    // retail std3D_InitRenderState: perspective, bilinear texel filter, subpixel correction, wrap, the bilinear mipmap
+    // filter. The rest of its setup is the fixed pipeline state of render_metal.m.
+    std3D_renderState  = STD3D_RS_UNKNOWN_1 | STD3D_RS_TEXFILTER_BILINEAR | STD3D_RS_SUBPIXEL_CORRECTION | STD3D_RS_UNKNOWN_2;
+    std3D_mipmapFilter = (Std3DMipmapFilterType)-1;
+    std3D_SetMipmapFilter(STD3D_MIPMAPFILTER_BILINEAR);
 
     if ( stdDisplay_GetTextureMemory(&pDevice->totalMemory, &pDevice->availableMemory) )
     {
         J3DRender_Close();
+        std3D_pCurDevice = NULL;
         return 0;
     }
 
@@ -156,7 +184,8 @@ void J3DAPI std3D_Close(void)
 {
     std3D_ResetTextureCache();
     J3DRender_Close();
-    std3D_bOpen = 0;
+    std3D_pCurDevice = NULL;
+    std3D_bOpen      = 0;
 }
 
 /* ---- Texture formats ------------------------------------------------------------------------------------------------ */
@@ -247,7 +276,7 @@ void J3DAPI std3D_DrawRenderList(LPDIRECT3DTEXTURE2 pTex, Std3DRenderState rdfla
     }
 
     std3D_SetRenderState(rdflags);
-    (void)pTex; // the texture: P2.12
+    J3DRender_SetTexture((J3DRenderTexture*)pTex); // a cached texture's handle (std3D_AddToTextureCache), or none
 
     if ( J3DRender_Draw(J3DRENDER_TRIANGLES, (const J3DRenderVertex*)aVerts, numVerts, aIndices, numIndices) )
     {
@@ -417,6 +446,321 @@ void J3DAPI std3D_FreeDisplayEnvironment(StdDisplayEnvironment* pEnv)
     stdMemory_Free(pEnv);
 }
 
+/* ---- Textures (P2.12) --------------------------------------------------------------------------------------------- */
+
+// The retail body, with the device's limits (1 to 16384): every size the game uses is valid as it is.
+void J3DAPI std3D_GetValidDimensions(uint32_t width, uint32_t height, uint32_t* pOutWidth, uint32_t* pOutHeight)
+{
+    const Device3DCaps* pCaps = std3D_pCurDevice ? &std3D_pCurDevice->caps : &std3D_aDevices[0].caps;
+    if ( !pCaps->maxTexWidth ) // no device started: no limits
+    {
+        *pOutWidth  = width;
+        *pOutHeight = height;
+        return;
+    }
+
+    uint32_t texWidth  = (uint32_t)STDMATH_CLAMP(width, pCaps->minTexWidth, pCaps->maxTexWidth);
+    uint32_t texHeight = (uint32_t)STDMATH_CLAMP(height, pCaps->minTexHeight, pCaps->maxTexHeight);
+    if ( pCaps->bSqareOnlyTexture && texWidth != texHeight )
+    {
+        *pOutHeight = *pOutWidth = J3DMAX(texWidth, texHeight);
+    }
+    else
+    {
+        *pOutWidth  = texWidth;
+        *pOutHeight = texHeight;
+    }
+}
+
+// Retail made a system-memory DirectDraw texture with the mip chain and kept it in pD3DSrcTexture; AddToTextureCache
+// later loaded it into video memory. On unified memory one Metal texture serves both: it is made and filled here, and
+// the cache takes another reference to it. textureSize is the top level's size, as retail computed it.
+void J3DAPI std3D_AllocSystemTexture(tSystemTexture* pTexture, tVBuffer** apVBuffers, size_t numMipLevels, StdColorFormatType formatType)
+{
+    memset(pTexture, 0, sizeof(tSystemTexture));
+    if ( !std3D_bOpen || !apVBuffers || !numMipLevels )
+    {
+        return;
+    }
+
+    // Skip top levels larger than the device allows (retail).
+    tVBuffer* pVBuffer = *apVBuffers;
+    uint32_t  texWidth = 0, texHeight = 0;
+    std3D_GetValidDimensions(pVBuffer->rasterInfo.width, pVBuffer->rasterInfo.height, &texWidth, &texHeight);
+    while ( numMipLevels > 1 && (pVBuffer->rasterInfo.width > texWidth || pVBuffer->rasterInfo.height > texHeight) )
+    {
+        --numMipLevels;
+        pVBuffer = *++apVBuffers;
+        std3D_GetValidDimensions(pVBuffer->rasterInfo.width, pVBuffer->rasterInfo.height, &texWidth, &texHeight);
+    }
+
+    const size_t texSize = (size_t)texWidth * texHeight * pVBuffer->rasterInfo.colorInfo.bpp / 8;
+    if ( std3D_mipmapFilter == STD3D_MIPMAPFILTER_NONE )
+    {
+        numMipLevels = 1;
+    }
+
+    // Keep the levels that are in the renderer's format and at least the size each mip level needs. Retail rescaled a
+    // top level larger than the valid size with a blit; with no size limit below 16384 that never happens.
+    size_t numLevels = 0;
+    for ( ; numLevels < numMipLevels; ++numLevels )
+    {
+        const tVBuffer* pLevel = apVBuffers[numLevels];
+        const uint32_t  levelWidth  = texWidth >> numLevels ? texWidth >> numLevels : 1;
+        const uint32_t  levelHeight = texHeight >> numLevels ? texHeight >> numLevels : 1;
+        if ( pLevel->rasterInfo.colorInfo.colorMode == STDCOLOR_PAL )
+        {
+            stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Can't use paletized textures.\n", 0, 0, 0, 0);
+            break;
+        }
+        if ( pLevel->rasterInfo.colorInfo.bpp != 32 || !pLevel->pPixels || pLevel->rasterInfo.width < levelWidth
+            || pLevel->rasterInfo.height < levelHeight )
+        {
+            break;
+        }
+    }
+    if ( !numLevels || texWidth != pVBuffer->rasterInfo.width || texHeight != pVBuffer->rasterInfo.height )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error: texture %dx%d, %d bpp, is not in the renderer's format.\n",
+            (int)pVBuffer->rasterInfo.width, (int)pVBuffer->rasterInfo.height, (int)pVBuffer->rasterInfo.colorInfo.bpp, 0);
+        return;
+    }
+
+    J3DRenderTexture* pTex = J3DRender_CreateTexture(texWidth, texHeight, numLevels, formatType != STDCOLOR_FORMAT_RGB);
+    if ( !pTex )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Done error exit from std3D_AllocSystemTexture.\n", 0, 0, 0, 0);
+        return;
+    }
+    for ( size_t mmNum = 0; mmNum < numLevels; ++mmNum )
+    {
+        stdDisplay_VBufferLock(apVBuffers[mmNum]);
+        J3DRender_UploadTextureLevel(pTex, mmNum, apVBuffers[mmNum]->pPixels, apVBuffers[mmNum]->rasterInfo.rowSize);
+        stdDisplay_VBufferUnlock(apVBuffers[mmNum]);
+    }
+
+    // What retail's surface description told GetMipMapCount: no mip count when the mipmap filter is off.
+    pTexture->ddsd.dwSize        = sizeof(DDSURFACEDESC2);
+    pTexture->ddsd.dwWidth       = texWidth;
+    pTexture->ddsd.dwHeight      = texHeight;
+    if ( std3D_mipmapFilter != STD3D_MIPMAPFILTER_NONE )
+    {
+        pTexture->ddsd.dwMipMapCount = (DWORD)numLevels; // Port: narrowing cast
+    }
+    pTexture->pD3DSrcTexture = (LPDIRECT3DTEXTURE2)pTex;
+    pTexture->textureSize    = texSize;
+}
+
+void J3DAPI std3D_ClearSystemTexture(tSystemTexture* pTex)
+{
+    if ( pTex->pD3DSrcTexture )
+    {
+        J3DRender_ReleaseTexture((J3DRenderTexture*)pTex->pD3DSrcTexture);
+    }
+
+    if ( pTex->pD3DCachedTex )
+    {
+        std3D_RemoveTextureFromCacheList(pTex);
+        J3DRender_ReleaseTexture((J3DRenderTexture*)pTex->pD3DCachedTex);
+    }
+
+    memset(pTex, 0, sizeof(tSystemTexture));
+}
+
+// Retail loaded the system texture into a new video-memory texture, purging least recently used ones to make room;
+// here the cache takes a reference to the one texture. The cache list and the memory count are kept as retail kept
+// them, so PurgeTextureCache and ResetTextureCache behave the same.
+void J3DAPI std3D_AddToTextureCache(tSystemTexture* pCacheTexture, StdColorFormatType format)
+{
+    (void)format; // retail set a colour key on the video texture for keyed formats; the port has none
+    STD_ASSERTREL(pCacheTexture);
+    if ( !pCacheTexture->pD3DSrcTexture || !std3D_pCurDevice )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "No Source texture.\n", 0, 0, 0, 0);
+        pCacheTexture->pD3DCachedTex = NULL;
+        pCacheTexture->frameNum      = 0;
+        return;
+    }
+
+    if ( pCacheTexture->textureSize > std3D_pCurDevice->availableMemory )
+    {
+        std3D_PurgeTextureCache(pCacheTexture->textureSize);
+    }
+
+    J3DRender_RetainTexture((J3DRenderTexture*)pCacheTexture->pD3DSrcTexture);
+    pCacheTexture->pD3DCachedTex = pCacheTexture->pD3DSrcTexture;
+    pCacheTexture->frameNum      = std3D_frameCount;
+    std3D_AddTextureToCacheList(pCacheTexture);
+}
+
+size_t J3DAPI std3D_GetMipMapCount(const tSystemTexture* pTexture)
+{
+    if ( !pTexture || !pTexture->pD3DSrcTexture )
+    {
+        return 0;
+    }
+    return pTexture->ddsd.dwMipMapCount; // retail read the source surface's description
+}
+
+void J3DAPI std3D_ResetTextureCache(void)
+{
+    tSystemTexture* pCurTex = std3D_pFirstTexCache;
+    while ( pCurTex )
+    {
+        if ( pCurTex->pD3DCachedTex )
+        {
+            J3DRender_ReleaseTexture((J3DRenderTexture*)pCurTex->pD3DCachedTex);
+            pCurTex->pD3DCachedTex = NULL;
+        }
+
+        tSystemTexture* pTex = pCurTex;
+        pCurTex = pCurTex->pNextCachedTexture;
+        pTex->frameNum           = 0;
+        pTex->pNextCachedTexture = NULL;
+        pTex->pPrevCachedTexture = NULL;
+    }
+
+    std3D_pFirstTexCache    = NULL;
+    std3D_pLastTexCache     = NULL;
+    std3D_numCachedTextures = 0;
+    if ( std3D_pCurDevice )
+    {
+        std3D_pCurDevice->availableMemory = std3D_pCurDevice->totalMemory;
+    }
+
+    J3DRender_SetTexture(NULL);
+    std3D_frameCount = 1;
+}
+
+void J3DAPI std3D_UpdateFrameCount(tSystemTexture* pTexture)
+{
+    pTexture->frameNum = std3D_frameCount;
+    std3D_RemoveTextureFromCacheList(pTexture);
+    std3D_AddTextureToCacheList(pTexture);
+}
+
+size_t J3DAPI std3D_FindClosestFormat(const ColorInfo* pMatch)
+{
+    // Retail searched the device's enumerated formats; the port has two: 0 without alpha, 1 with.
+    return pMatch->alphaBPP ? 1 : 0;
+}
+
+static void std3D_AddTextureToCacheList(tSystemTexture* pTexture)
+{
+    if ( !std3D_pFirstTexCache )
+    {
+        std3D_pFirstTexCache         = std3D_pLastTexCache = pTexture;
+        pTexture->pPrevCachedTexture = NULL;
+        pTexture->pNextCachedTexture = NULL;
+    }
+    else
+    {
+        std3D_pLastTexCache->pNextCachedTexture = pTexture;
+        pTexture->pPrevCachedTexture            = std3D_pLastTexCache;
+        pTexture->pNextCachedTexture            = NULL;
+        std3D_pLastTexCache                     = pTexture;
+    }
+
+    ++std3D_numCachedTextures;
+    std3D_pCurDevice->availableMemory -= pTexture->textureSize;
+}
+
+static void std3D_RemoveTextureFromCacheList(tSystemTexture* pCacheTexture)
+{
+    if ( pCacheTexture == std3D_pFirstTexCache )
+    {
+        std3D_pFirstTexCache = pCacheTexture->pNextCachedTexture;
+        if ( std3D_pFirstTexCache )
+        {
+            std3D_pFirstTexCache->pPrevCachedTexture = NULL;
+            if ( !std3D_pFirstTexCache->pNextCachedTexture )
+            {
+                std3D_pLastTexCache = std3D_pFirstTexCache;
+            }
+        }
+        else
+        {
+            std3D_pLastTexCache = NULL;
+        }
+    }
+    else if ( pCacheTexture == std3D_pLastTexCache )
+    {
+        std3D_pLastTexCache = pCacheTexture->pPrevCachedTexture;
+        std3D_pLastTexCache->pNextCachedTexture = NULL;
+    }
+    else
+    {
+        pCacheTexture->pPrevCachedTexture->pNextCachedTexture = pCacheTexture->pNextCachedTexture;
+        pCacheTexture->pNextCachedTexture->pPrevCachedTexture = pCacheTexture->pPrevCachedTexture;
+    }
+
+    --std3D_numCachedTextures;
+    if ( std3D_pCurDevice )
+    {
+        std3D_pCurDevice->availableMemory += pCacheTexture->textureSize;
+    }
+    pCacheTexture->pNextCachedTexture = NULL;
+    pCacheTexture->pPrevCachedTexture = NULL;
+    pCacheTexture->frameNum           = 0;
+}
+
+// The retail body: first a single unused texture of exactly the size needed, else unused textures from the least
+// recently used until enough is freed. Returns nonzero when anything was purged.
+int J3DAPI std3D_PurgeTextureCache(size_t size)
+{
+    tSystemTexture* pNextCachedTexture = NULL;
+    size_t          purgedBytes        = 0;
+
+    for ( tSystemTexture* pCacheTexture = std3D_pFirstTexCache; pCacheTexture && pCacheTexture->frameNum != std3D_frameCount;
+          pCacheTexture = pNextCachedTexture )
+    {
+        pNextCachedTexture = pCacheTexture->pNextCachedTexture;
+        if ( pCacheTexture->textureSize == size )
+        {
+            J3DRender_ReleaseTexture((J3DRenderTexture*)pCacheTexture->pD3DCachedTex);
+            pCacheTexture->pD3DCachedTex = NULL;
+            std3D_RemoveTextureFromCacheList(pCacheTexture);
+            return 1;
+        }
+    }
+
+    tSystemTexture* pCacheTexture = std3D_pFirstTexCache;
+    while ( pCacheTexture && purgedBytes < size )
+    {
+        pNextCachedTexture = pCacheTexture->pNextCachedTexture;
+        if ( pCacheTexture->frameNum != std3D_frameCount )
+        {
+            J3DRender_ReleaseTexture((J3DRenderTexture*)pCacheTexture->pD3DCachedTex);
+            pCacheTexture->pD3DCachedTex = NULL;
+            purgedBytes += pCacheTexture->textureSize;
+            std3D_RemoveTextureFromCacheList(pCacheTexture);
+        }
+        pCacheTexture = pNextCachedTexture;
+    }
+
+    return purgedBytes > 0;
+}
+
+/* ---- Samplers ------------------------------------------------------------------------------------------------------- */
+
+// The texture stage state retail set from the render state and the mipmap filter, as one Metal sampler.
+static void std3D_UpdateSampler(void)
+{
+    J3DRenderMipFilter mip = std3D_mipmapFilter == STD3D_MIPMAPFILTER_TRILINEAR ? J3DRENDER_MIP_LINEAR
+                           : std3D_mipmapFilter == STD3D_MIPMAPFILTER_BILINEAR  ? J3DRENDER_MIP_NEAREST
+                                                                                : J3DRENDER_MIP_NONE;
+    J3DRender_SetSampler((std3D_renderState & STD3D_RS_TEXFILTER_BILINEAR) != 0, (std3D_renderState & STD3D_RS_TEX_CPAMP_U) != 0,
+        (std3D_renderState & STD3D_RS_TEX_CPAMP_V) != 0, mip);
+}
+
+// Retail fell back from trilinear and bilinear when the device lacked them; Metal has both. 0 on success.
+int J3DAPI std3D_SetMipmapFilter(Std3DMipmapFilterType filter)
+{
+    std3D_mipmapFilter = filter;
+    std3D_UpdateSampler();
+    return 0;
+}
+
 /* ---- Not yet: each returns what the null backend returned until its step ---------------------------------------- */
 
 void J3DAPI std3D_SetRenderState(Std3DRenderState rdflags)
@@ -429,61 +773,11 @@ void J3DAPI std3D_SetWireframeRenderState(void)
     // P2.16
 }
 
-void J3DAPI std3D_AllocSystemTexture(tSystemTexture* pTexture, tVBuffer** apVBuffers, size_t numMipLevels, StdColorFormatType formatType)
-{
-    (void)pTexture; (void)apVBuffers; (void)numMipLevels; (void)formatType; // P2.12
-}
 
-void J3DAPI std3D_GetValidDimensions(uint32_t width, uint32_t height, uint32_t* pOutWidth, uint32_t* pOutHeight)
-{
-    // No texture size limits below the device's: the requested size is valid (P2.12 revisits).
-    *pOutWidth  = width;
-    *pOutHeight = height;
-}
 
-void J3DAPI std3D_ClearSystemTexture(tSystemTexture* pTex)
-{
-    (void)pTex; // P2.12
-}
 
-int J3DAPI std3D_PurgeTextureCache(size_t size)
-{
-    (void)size; // P2.12
-    return 0;
-}
 
-void J3DAPI std3D_AddToTextureCache(tSystemTexture* pCacheTexture, StdColorFormatType format)
-{
-    (void)pCacheTexture; (void)format; // P2.12
-}
 
-void J3DAPI std3D_ResetTextureCache(void)
-{
-    // P2.12
-}
-
-size_t J3DAPI std3D_GetMipMapCount(const tSystemTexture* pTexture)
-{
-    (void)pTexture; // P2.12
-    return 0;
-}
-
-void J3DAPI std3D_UpdateFrameCount(tSystemTexture* pTexture)
-{
-    (void)pTexture; // P2.12
-}
-
-size_t J3DAPI std3D_FindClosestFormat(const ColorInfo* pMatch)
-{
-    (void)pMatch; // P2.12
-    return 0;
-}
-
-int J3DAPI std3D_SetMipmapFilter(Std3DMipmapFilterType mode)
-{
-    (void)mode; // P2.13
-    return 0;
-}
 
 int J3DAPI std3D_SetProjection(float fov, float nearPlane, float farPlane)
 {
