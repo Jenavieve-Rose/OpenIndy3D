@@ -887,3 +887,45 @@ that only miss NaN.
   test paints the back buffer directly (no stdDisplay call) and expects the next scene to keep the previous picture;
   it fails if every scene uploads the back buffer.
 - The `present` test still exercises the other rule: after a CPU fill, the next scene starts from the back buffer.
+
+### Phase 2 code audit
+
+A final pass over the phase, done 2026-11-13, in five parts.
+
+1. **Warnings the build does not enable.** Everything was rebuilt with `-Wall -Wextra -Wuninitialized
+   -Wsometimes-uninitialized -Wconditional-uninitialized -Wcast-align -Wcast-function-type-mismatch -Wshadow
+   -Wfloat-conversion -Wimplicit-fallthrough`. The files written in phase 2 (`platform/apple/*`,
+   `platform/common/stdDisplay_*`, `host_screenshot.c`, the tests) produce none. In the imported files phase 2 touched:
+   `rdModel3.c`'s uninitialised-use reports are in `rdModel3_CalcVertexNormals` and `rdModel3_Write`, which nothing
+   calls, and in `rdModel3_LoadEntry`, where `bRGB` is set on every path that reaches its use; the function-type cast
+   in `JonesConsole.c` and the fall-throughs in `JonesDevDialog.c` are the retail console and dialog code phase 1's
+   audit already classed as safe. The four `-Wcast-align` reports are the blit's typed row access
+   (`stdDisplay_VBufferCopy`), aligned by construction: rows are `width × bytes-per-pixel` long from `malloc`.
+2. **Static analysis** (`clang --analyze`) of the new platform and renderer files: one report, a null dereference in
+   `std3D_RemoveTextureFromCacheList` (the retail body) for a texture not in the cache list. The cache keeps the
+   invariant that a texture has a cached handle exactly when it is in the list, and every caller tests the handle
+   first; not reachable.
+3. **Every level under the sanitizers.** All 17 levels ran 600 and then 900 frames headless in the ASan/UBSan build,
+   which now renders (offscreen) and so reaches rdroid's clipping, model and animation code for the first time. Two
+   retail faults showed up, both fixed:
+
+| Where | What retail did | Now |
+| --- | --- | --- |
+| `sith/Engine/sithRender.c` `sithRender_BuildVisibleSector` | With 128 sectors already visible ("Max visible sectors exceeded!"), it returned with the sector still pointing at the clip frustum its caller built in a block-scoped local (`sithRender_PVSBuildVisibleSectorList`); the PVS walk read it after the block ended, the draw after the function returned. `03_SHS` exceeds the limit in most frames. | The sector takes the camera's frustum: it is not drawn and nothing past it can be added, so any valid frustum serves. Raising the limit is the phase 8 fix series. |
+| `sith/Engine/sithAnimate.c` `sithAnimate_StartScrollSurfaceAnim` | Transformed a 3D vector into an `rdVector2`, writing a float past it (`17_PRU`, a sliding wall's cog) | An `rdVector3`; only x and y are read, as before. |
+
+4. **Read-through** of the code written this phase. One fault, fixed: `J3DRender_TakeScene` returned without a copy
+   when called inside a scene, but the save menu's thumbnail (`JonesHud_Process`, `sithGamesave_SetThumbnailImage`) is
+   taken between `std3D_StartScene` and `std3D_EndScene`, where retail's back buffer held the world drawn so far. A
+   take inside a scene now submits what was drawn, reads it back and reopens the pass on the same colour and depth;
+   the `render` test covers it. Also checked: reference counting of texture handles (created once, retained by the
+   cache, released by `ClearSystemTexture` and the purge and reset paths, kept alive by command buffers that use
+   them), the GPU waits before every CPU write to a texture the GPU may read, the presenter's in-flight semaphore on
+   close, the SDL video subsystem's init and quit balance across `stdDisplay_Startup` failures, and the screenshot
+   path builder's bounds.
+5. **Behaviour.** `boot` and `boot-sdl` still write the same autosave; all tests pass in the apple, null and sanitizer
+   trees; the level screenshots are unchanged.
+
+Left open, with their phases: the 128-sector limit and the 20 animation slots `15_AET` runs out of ("Out of animation
+slots", retail limits; phase 8 fix series); the intro movie's colour-format match (phase 5); keys and minimizing in a
+real window are checked by hand until phase 3's scripted input.

@@ -97,8 +97,9 @@ void J3DRender_SetFog(int bEnabled, float red, float green, float blue, float st
 
 // When the scene texture holds a scene drawn since the last BeginScene: waits for the GPU, copies it into the back
 // buffer (32 bpp, the scene's size; pPixels NULL: no copy, the caller overwrites it all) and hands the frame's picture
-// back to the back buffer, so the next present shows the back buffer. 0 when there was a scene to take, 1 otherwise.
-// stdDisplay calls it before the CPU touches the back buffer (P2.17).
+// back to the back buffer, so the next present shows the back buffer. Inside a scene it copies what the scene has
+// drawn so far and the scene goes on (EndScene still makes it the picture). 0 when there was a scene to take, 1
+// otherwise. stdDisplay calls it before the CPU touches the back buffer (P2.17).
 int J3DRender_TakeScene(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize);
 
 // Waits for the GPU and copies the scene texture (BGRA, the back buffer's size) into a malloc'd buffer the caller

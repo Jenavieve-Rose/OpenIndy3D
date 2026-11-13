@@ -324,7 +324,7 @@ SithAnimationSlot* J3DAPI sithAnimate_StartScrollSurfaceAnim(SithSurface* pSurf,
 {
     SithAnimationSlot* pAnim;
     rdMatrix34 orient;
-    rdVector2 curdest; // Note, only x and y are read back; the transform below writes a third float past it
+    rdVector3 curdest; // Port: retail declared an rdVector2 and the 3D transform below wrote a third float past it; only x and y are read
 
 #line 455
     SITH_ASSERTREL(pSurf);
@@ -349,7 +349,7 @@ SithAnimationSlot* J3DAPI sithAnimate_StartScrollSurfaceAnim(SithSurface* pSurf,
     sithAnimate_BuildScrollFaceRotate(&orient, &pSurf->face, pSurf->flags);
 
 
-    rdMatrix_TransformVector34((rdVector3*)&curdest, velocity, &orient);
+    rdMatrix_TransformVector34(&curdest, velocity, &orient);
 
     pAnim->direction2.x = -curdest.x;
     pAnim->direction2.y = -curdest.y;

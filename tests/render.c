@@ -322,6 +322,22 @@ int main(void)
         CHECK(render_Pixel(9, 41) == 0xFF0000, "mip filter off: level 0 (red), got %06X", render_Pixel(9, 41));
     }
 
+    // Taking the scene back inside a scene (the save menu's thumbnail, P2.17): the copy has what was drawn so far, and
+    // the scene goes on, depth included.
+    render_Begin();
+    render_Quad(0, 0, 8, 8, 0.2f, 0xFF00FF00);
+    {
+        uint8_t* pMid = (uint8_t*)calloc(SIZE * SIZE, 4);
+        CHECK(J3DRender_TakeScene(pMid, SIZE, SIZE, SIZE * 4) == 0, "TakeScene inside a scene");
+        CHECK(pMid && pMid[(4 * SIZE + 4) * 4 + 1] == 0xFF && pMid[(4 * SIZE + 20) * 4 + 1] == 0, "mid-scene copy");
+        free(pMid);
+    }
+    render_Quad(0, 0, 8, 8, 0.8f, 0xFFFF0000);   // behind the green: the depth survived
+    render_Quad(16, 0, 24, 8, 0.5f, 0xFF0000FF); // drawn after the take
+    render_EndAndRead();
+    CHECK(render_Pixel(4, 4) == 0x00FF00 && render_Pixel(20, 4) == 0x0000FF, "after the mid-scene take: %06X %06X",
+        render_Pixel(4, 4), render_Pixel(20, 4));
+
     // A scene larger than the 4 MB vertex and index arena: 50,000 draws of about 140 bytes each, the last one white.
     // Every draw must land, and the scene after it must start over in the arena.
     render_Begin();

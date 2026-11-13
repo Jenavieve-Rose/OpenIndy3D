@@ -530,8 +530,30 @@ int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, 
 
 int J3DRender_TakeScene(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize)
 {
-    if ( !render_bSceneNewer || render_encoder || !render_sceneColor || render_sceneColor.width != width
-        || render_sceneColor.height != height )
+    if ( !render_sceneColor || render_sceneColor.width != width || render_sceneColor.height != height )
+    {
+        return 1;
+    }
+
+    if ( render_encoder )
+    {
+        // Inside a scene (the save menu's thumbnail is taken from JonesHud_Process, between StartScene and EndScene):
+        // retail's back buffer held what the scene had drawn so far. Submit that much, read it back, and reopen the pass
+        // on the same colour and depth so the scene goes on; EndScene still makes the scene texture the picture.
+        [render_encoder endEncoding];
+        render_encoder = nil;
+        J3DMetal_Commit(render_commands);
+        if ( pPixels )
+        {
+            J3DMetal_WaitForGPU();
+            [render_sceneColor getBytes:pPixels bytesPerRow:rowSize fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
+        }
+        render_commands = [J3DMetal_Queue() commandBuffer];
+        render_OpenPass();
+        return 0;
+    }
+
+    if ( !render_bSceneNewer )
     {
         return 1;
     }

@@ -16,7 +16,7 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Code audit |
+| 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Complete |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
@@ -28,12 +28,12 @@ confused with section numbers.
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
 
-### What works today (measured 2026-11-12 on the working tree)
+### What works today (measured 2026-11-13 on the working tree)
 
 | Check | Result |
 | --- | --- |
 | `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 59 compiler warnings, all known: 58 narrowing conversions in `jonesConfig.c` (P6.24) and one unsequenced write in `AudioLib.c` (P4.8); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
-| `ctest` | `display` passes (no game data needed), and `present` in the apple build (needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` in the apple build |
+| `ctest` | `display` passes (no game data needed), and in the apple build `render` and `present` (`present` needs a window server). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload` and `boot` pass, and `boot-sdl` in the apple build |
 | The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All four pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
@@ -43,8 +43,10 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 | `saveload <data>` | After 300 frames, a save restored into a fresh world matches the world that was saved (236 things, positions bit for bit, COG globals, game time), and a save of the restored game matches the first; the game then runs 300 more frames |
 | Long paths | `boot` and `saveload` pass with a 257-character `Install Path`; `boot`, `levelload` and `cogcheck` with a 229-character data root |
 
-Nothing is on screen and nothing is audible yet, but the game loop runs, saves and restores, and the 64-bit audit is
-closed. Phase 2 is where the first pixels appear.
+Every level renders in a window or fullscreen through Metal: textured, lit, fogged, with the HUD, at the display's
+refresh rate, pillarboxed to 4:3 by default. A level can be walked with the temporary debug keys (P2.18). Nothing is
+audible yet (phase 4), movies do not play (phase 5) and the menus and dialogs do not appear (phase 6).
+`tools/level_shots.sh` screenshots every level by script.
 
 All of phase 1 is on `main` (at `3c3605a`): sixteen commits made on the branch `phase1-headless`, seven for P1.8 to
 P1.18 (`28e2120` to `b4b56e7`) and nine for P1.19 to P1.30, the audit and the docs (`f0d0935` to `3c3605a`), merged
@@ -446,6 +448,18 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       start from the previous frame unless the CPU touched the back buffer (stale areas, screenshots changing later
       frames). Checked: `present` test, byte-identical screenshots.
 ## Complete Phase 2 Code Audit
+
+Done 2026-11-13; details in `docs/PORTING.md`, "Phase 2 code audit". Extra warnings, the static analyzer, every
+level under ASan and UBSan (the renderer now reaches rdroid's clipping and model code), and a read-through of the
+phase's code.
+
+- [x] Warnings and static analysis: nothing in the new code; the reports in touched imported files are on paths the
+      game does not run.
+- [x] Sanitizers over all 17 levels found two retail faults, fixed: a dangling clip frustum once 128 sectors are
+      visible (`03_SHS`) and a vector written past a 2D local (`17_PRU`). 900 frames of every level are clean.
+- [x] Read-through: a scene taken back mid-scene (the save menu's thumbnail) now copies what was drawn so far.
+- Left open, each with its phase: the 128-sector and animation-slot limits (phase 8 fix series); the intro movie's
+  colour format (phase 5); keys and minimizing in a real window, by hand until phase 3.
 ### Phase 3: Input
 
 Exit test: `00_cyn` is playable start to finish with keyboard and mouse, and again with a controller, using the
@@ -729,7 +743,7 @@ guide.
 | --- | --- | --- | --- |
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
 | 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
-| 2 | Metal renderer, first level on screen | 3 to 4 weeks | 2A (window and 2D) complete (P2.1 to P2.8); 2B complete (P2.9 to P2.16): every level renders textured, lit and fogged |
+| 2 | Metal renderer, first level on screen | 3 to 4 weeks | Complete: every level renders textured, lit and fogged in a window or fullscreen; the phase audit is done |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
 | 4 | Audio complete | 2 weeks | Not started |
 | 5 | Movies complete | 2 to 3 weeks | Not started |
@@ -742,8 +756,9 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. **P2.17 to P2.22 (2C):** frame order, temporary debug input, window behaviour, the 4:3 option, `rdModel3K`
-   removal and the visual pass.
+1. **Phase 3, input:** the DIK tables (P3.1) and `stdControl_sdl.c` (P3.2), which replaces the temporary debug keys
+   of P2.18, then mouse, gamepads and scripted input, so the checks done by hand in phase 2 (keys, focus loss,
+   minimizing) become tests.
 2. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 
