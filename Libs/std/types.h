@@ -140,7 +140,7 @@ typedef struct sGobFileHandle
 
 struct sGob
 {
-    char aFilePath[128];
+    char aFilePath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     tFileHandle hGobFile;
     GobFileDirectory directory;
     tHashTable* pDirHash;
@@ -157,7 +157,7 @@ typedef struct sFindFileData
 {
     float unknown;
     int nFoundFiles;
-    char aSearchFilter[128];
+    char aSearchFilter[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     HANDLE handle;
 } FindFileData;
 

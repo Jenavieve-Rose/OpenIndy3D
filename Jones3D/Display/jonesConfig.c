@@ -158,7 +158,7 @@ typedef struct sJonesDialogFontScaleMetrics
 // symbol-hash order, then every zero-initialized definition in declaration order
 // the definitions below follow retail's addresses.
 static HBITMAP jonesConfig_apDlgIcons[6];
-static char jonesConfig_aKeySetDirectory[128];
+static char jonesConfig_aKeySetDirectory[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 static ABC jonesConfig_aGlyphMetrics[256];
 static TEXTMETRICA jonesConfig_textMetric;
 static JonesControlsConfig jonesConfig_controlOptions_curControlConfig;
@@ -1133,7 +1133,7 @@ int J3DAPI jonesConfig_Startup(void)
 
 int J3DAPI jonesConfig_InitKeySetsPath(void)
 {
-    char aCurInstallPath[128];
+    char aCurInstallPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     char* pKeySets;
     wchar_t* pPwKeySets = NULL;
     size_t len;
@@ -1332,8 +1332,8 @@ static int J3DAPI jonesConfig_ControlOptions_WriteScheme(JonesControlsScheme* pS
     FILE* pFile;
     const char* pJonesString;
     char* pTitleText;
-    char aCurDir[128];
-    char aKfgPath[128];
+    char aCurDir[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
+    char aKfgPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
     // Change cur dir to control config dir
     if ( !SetCurrentDirectory(jonesConfig_aKeySetDirectory) )
@@ -1503,7 +1503,7 @@ static int J3DAPI jonesConfig_ControlOptions_LoadAllControlSchemes(JonesControls
     int next;
     JonesControlsScheme* pScheme;
 
-    char aCurDir[128];
+    char aCurDir[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     memset(aCurDir, 0, sizeof(aCurDir));
 
     GetCurrentDirectory(STD_ARRAYLEN(aCurDir), aCurDir);

@@ -2462,7 +2462,7 @@ void J3DAPI sithCogFunction_IsServer(SithCog* pCog)
 
 void J3DAPI sithCogFunction_AutoSavegame(SithCog* pCog)
 {
-    char aSavePath[128];
+    char aSavePath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
 
     stdUtil_Format(aSavePath, STD_ARRAYLEN(aSavePath), "%s%s", sithGetAutoSaveFilePrefix(), sithGetCurrentWorldSaveName());

@@ -153,7 +153,7 @@ typedef int (*JonesDialogFlipPageFunc)(void);
 
 typedef struct sJonesResource
 {
-    char aPath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     size_t numGobFiles;
     Gob* aGobFiles[32];
 } JonesResource;
@@ -230,8 +230,8 @@ typedef struct sJonesState
     int logLevel;
     int performanceLevel;
     char aCurLevelFilename[128];
-    char aInstallPath[128];
-    char aCDPath[128];
+    char aInstallPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
+    char aCDPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     wchar_t waPlayerName[20];
     JonesSoundSettings soundSettings;
     JonesDisplaySettings displaySettings;

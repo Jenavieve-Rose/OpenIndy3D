@@ -4260,7 +4260,7 @@ HANDLE J3DAPI JonesHud_OpenHelp(HANDLE process)
 {
     HANDLE hProc;
     wchar_t* pwHelpFile;
-    char aPath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     const char* pFilename;
     SHELLEXECUTEINFOA sei;
 

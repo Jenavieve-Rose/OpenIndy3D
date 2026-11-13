@@ -41,11 +41,11 @@
 #define SITHSAVEGAME_ENDFILE      0x1000 
 
 static int sithGamesave_state = 0;
-static char sithGamesave_aLastFilename[128] = { 0 };
+static char sithGamesave_aLastFilename[J3D_PATHSIZE] = { 0 }; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 static int sithGamesave_aNdsSaveSectionSizes[15] = { 0 };
 static SithGameStatistics sithGamesave_gameStatistics = { 0 };
 static char sithGamesave_aPrevLevelFilename[64] = { 0 };
-static char sithGamesave_aCurFilename[128] = { 0 };
+static char sithGamesave_aCurFilename[J3D_PATHSIZE] = { 0 }; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 static int sithGamesave_bStatisticsLocked = 0;
 static tVBuffer* sithGamesave_pThumbnailImage = NULL;
 static int sithGamesave_bThumbnail = 0;

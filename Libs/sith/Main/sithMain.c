@@ -43,7 +43,7 @@
 
 #include <w32util/wuRegistry.h>
 
-#define SITH_PATHSIZE 128
+#define SITH_PATHSIZE J3D_PATHSIZE // Port: was 128 (PORT-PLAN.md P1.30)
 #define SITH_DEFAULTGAMEDIFFICULTY 5
 #define SITH_NUMLEVELS 17
 
@@ -245,7 +245,7 @@ int J3DAPI sithGetPerformanceLevel(void)
 
 int J3DAPI sithOpenStatic(const char* pFilename)
 {
-    char szPath[128];
+    char szPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     const char* pResourceDir = "\\Jones3D\\Resource\\Ndy";
 
     sithCloseStatic();
@@ -293,7 +293,7 @@ void J3DAPI sithCloseStatic(void)
 
 int J3DAPI sithOpenNormal(const char* pWorldName, const wchar_t* pwPlayerName)
 {
-    char aPath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
     sithWorld_pCurrentWorld = sithWorld_NewEntry();
     if ( !sithWorld_pCurrentWorld )
@@ -358,8 +358,8 @@ void J3DAPI sithOpenPostProcess(void)
     else if ( (sith_mode.debugModeFlags & SITHDEBUG_INEDITOR) == 0 )
     {
         // Make savegame at the start of the level
-        char aFilename[128];
-        char aFilepath[128];
+        char aFilename[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
+        char aFilepath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
         stdUtil_Format(aFilename, STD_ARRAYLEN(aFilename), "%s%s", sithGetAutoSaveFilePrefix(), sithGetCurrentWorldSaveName());
         stdFnames_ChangeExt(aFilename, "nds");
@@ -377,7 +377,7 @@ void J3DAPI sithOpenPostProcess(void)
    at 0x0044FD1F and 0x0044FD31), as in sithOpenNormal. */
 int J3DAPI sithOpenMulti(const char* pFilename, const wchar_t* pwPlayerName)
 {
-    char aPath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
     sithWorld_pCurrentWorld = sithWorld_NewEntry();
     if ( !sithWorld_pCurrentWorld )

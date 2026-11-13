@@ -48,6 +48,11 @@ void J3DHost_srand(unsigned int seed);
 #define rand()      J3DHost_rand()
 #define srand(seed) J3DHost_srand(seed)
 
+// Port: size of the buffers that hold a full host path: the data root, "Install Path" and everything built under it
+// (saves, screenshots, keysets, logs). Retail used 128 bytes, which a macOS home folder path can exceed; a truncated
+// save path silently wrote a file with the wrong name (PORT-PLAN.md P1.30).
+#define J3D_PATHSIZE 1024
+
 #define strcmpi   strcasecmp
 #define strncmpi  strncasecmp
 #define wstrcmpi  wcscasecmp

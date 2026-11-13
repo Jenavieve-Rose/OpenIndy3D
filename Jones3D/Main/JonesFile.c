@@ -12,7 +12,7 @@
 
 JonesResource JonesFile_aResources[3] = { 0 };
 tHostServices JonesFile_sysHS = { 0 };
-char JonesFile_aPathBuf[128] = { 0 };
+char JonesFile_aPathBuf[J3D_PATHSIZE] = { 0 }; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 JonesFileHandle JonesFile_aFileHandles[JF_MAX_HANDLES] = { 0 }; // Note: handles are 1-based, element fh - 1
 
 int JonesFile_bStartup = 0;
@@ -147,7 +147,7 @@ void J3DAPI JonesFile_Close(void)
 
 int J3DAPI JonesFile_GetCurrentCDNum(void)
 {
-    char aPath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     stdFnames_MakePath(aPath, sizeof(aPath), JonesFile_aResources[JF_RES_CD].aPath, "CD1.GOB");
     if ( std_pHS->pFileSize(aPath) )
     {
@@ -189,7 +189,7 @@ void J3DAPI JonesFile_SetCDPath(const char* pPath)
     JonesFile_CloseResource(&JonesFile_aResources[JF_RES_CD]);
     if ( *pPath )
     {
-        char aPath[128];
+        char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
         _snprintf(aPath, STD_ARRAYLEN(aPath), "%sresource", pPath);
         JonesFile_OpenResource(&JonesFile_aResources[JF_RES_CD], aPath);
     }

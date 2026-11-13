@@ -11,7 +11,7 @@ J3D_EXTERN_C_START
 // Required size of string that is passed to functions that assigns savegame nds file path to it 
 // i.e.: jonesConfig_GetSaveGameFilePath,jonesConfig_GetLoadGameFilePath, jonesConfig_ShowGameOverDialog, jonesConfig_ShowExitGameDialog
 // The length of passed string argument should be the same as this macro
-#define  JONESCONFIG_GAMESAVE_FILEPATHSIZE 128
+#define  JONESCONFIG_GAMESAVE_FILEPATHSIZE J3D_PATHSIZE // Port: was 128 (PORT-PLAN.md P1.30)
 
 int J3DAPI jonesConfig_Startup(void);
 void J3DAPI jonesConfig_Shutdown(void);

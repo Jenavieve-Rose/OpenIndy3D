@@ -215,8 +215,8 @@ endforeach()
 # boot: the game itself, headless (in-memory display, virtual clock), for 600 frames of the first level: 20 seconds of
 # game time, which covers level open, the level-start autosave and the start of the opening cutscene. It must exit 0.
 # The settings file is not touched, and "Install Path" (SaveGames/, ScreenShots/, KeySets/) and the log folder point
-# into the build tree, so the run writes nothing under the user's Library. The engine's path buffers are 128 bytes, so
-# a very deep build tree would truncate the save path (PORT-PLAN.md P1.30).
+# into the build tree, so the run writes nothing under the user's Library. Paths up to J3D_PATHSIZE (1024) bytes work
+# (PORT-PLAN.md P1.30).
 if(J3D_TEST_DATA)
     add_test(NAME boot COMMAND jones3d --data ${J3D_TEST_DATA} --headless --frames 600)
     set_tests_properties(boot PROPERTIES

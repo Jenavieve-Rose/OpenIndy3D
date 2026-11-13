@@ -540,8 +540,8 @@ static void J3DAPI JonesMain_HandleWMKeydown(HWND hWnd, WPARAM vk, int a3, int r
     {
         case VK_F5:// Quick save
         {
-            char aFilename[128];
-            char aPath[128];
+            char aFilename[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
+            char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
             tSoundHandle hSnd;
 
             if ( repreatCount > 1 || (exkeyflags & KF_REPEAT) != 0 )
@@ -573,8 +573,8 @@ static void J3DAPI JonesMain_HandleWMKeydown(HWND hWnd, WPARAM vk, int a3, int r
 
         case VK_F8: // Quick load
         {
-            char aFilename[128];
-            char aPath[128];
+            char aFilename[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
+            char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
             FILE* pFile;
             int result;
 
@@ -613,10 +613,10 @@ static void J3DAPI JonesMain_HandleWMKeydown(HWND hWnd, WPARAM vk, int a3, int r
                         const char* pErrorFormat = jonesString_GetString("JONES_STR_LOADERROR");
                         if ( pErrorFormat )
                         {
-                            char aErrorText[128];
+                            char aErrorText[J3D_PATHSIZE + 128]; // Port: holds a path, was 128 (PORT-PLAN.md P1.30)
 
                             memset(aErrorText, 0, sizeof(aErrorText));
-                            sprintf(aErrorText, pErrorFormat, aPath);
+                            snprintf(aErrorText, sizeof(aErrorText), pErrorFormat, aPath); // Port: snprintf, was sprintf
                             JonesMain_LogErrorToFile(aErrorText);
                             jonesCog_bEnableGamesave = 1;
                         }
@@ -637,10 +637,10 @@ static void J3DAPI JonesMain_HandleWMKeydown(HWND hWnd, WPARAM vk, int a3, int r
                     const char* pErrorFormat = jonesString_GetString("JONES_STR_LOADERROR");
                     if ( pErrorFormat )
                     {
-                        char aErrorText[128];
+                        char aErrorText[J3D_PATHSIZE + 128]; // Port: holds a path, was 128 (PORT-PLAN.md P1.30)
 
                         memset(aErrorText, 0, sizeof(aErrorText));
-                        sprintf(aErrorText, pErrorFormat, aPath);
+                        snprintf(aErrorText, sizeof(aErrorText), pErrorFormat, aPath); // Port: snprintf, was sprintf
                         JonesMain_LogErrorToFile(aErrorText);
                     }
 
@@ -1332,7 +1332,7 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
             char aErrorText[128];
 
             memset(aErrorText, 0, sizeof(aErrorText));
-            sprintf(aErrorText, pFormat, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName);
+            snprintf(aErrorText, sizeof(aErrorText), pFormat, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName); // Port: snprintf, was sprintf
             JonesMain_LogErrorToFile(aErrorText);
         }
 
@@ -1733,10 +1733,10 @@ int J3DAPI JonesMain_Open(void)
             const  char* pFormat = jonesString_GetString("JONES_STR_LOADERROR");
             if ( pFormat )
             {
-                char aErrorText[128];
+                char aErrorText[J3D_PATHSIZE + 128]; // Port: holds a path, was 128 (PORT-PLAN.md P1.30)
 
                 memset(aErrorText, 0, sizeof(aErrorText));
-                sprintf(aErrorText, pFormat, JonesMain_aNdsFilename);
+                snprintf(aErrorText, sizeof(aErrorText), pFormat, JonesMain_aNdsFilename); // Port: snprintf, was sprintf
                 JonesMain_LogErrorToFile(aErrorText);
             }
 
@@ -1772,7 +1772,7 @@ int J3DAPI JonesMain_Open(void)
                 char aErrorText[128];
 
                 memset(aErrorText, 0, sizeof(aErrorText));
-                sprintf(aErrorText, pFormat, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName);
+                snprintf(aErrorText, sizeof(aErrorText), pFormat, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName); // Port: snprintf, was sprintf
                 JonesMain_LogErrorToFile(aErrorText);
             }
 
@@ -1795,7 +1795,7 @@ int J3DAPI JonesMain_EnsureLevelFile(const char* pFilename)
 {
     size_t cdNum;
 
-    char aPath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     STD_MAKEPATH(aPath, "ndy", pFilename);
     if ( JonesFile_FileExists(aPath) )
     {
@@ -1847,7 +1847,7 @@ int J3DAPI JonesMain_Restore(const char* pNdsFilePath)
     const char* pNdsFilename = stdFnames_FindMedName(pNdsFilePath); // Port: was strrchr '\\', paths may also use '/'
 
     {
-    char aQSaveFilename[128];
+    char aQSaveFilename[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
     memset(aQSaveFilename, 0, sizeof(aQSaveFilename));
 
@@ -1910,10 +1910,10 @@ int J3DAPI JonesMain_ProcessGamesaveState(void)
                 const char* pFormat = jonesString_GetString("JONES_STR_SAVEERROR");
                 if ( pFormat )
                 {
-                    char aErrorText[128];
+                    char aErrorText[J3D_PATHSIZE + 128]; // Port: holds a path, was 128 (PORT-PLAN.md P1.30)
 
                     memset(aErrorText, 0, sizeof(aErrorText));
-                    sprintf(aErrorText, pFormat, pNdsFilename);
+                    snprintf(aErrorText, sizeof(aErrorText), pFormat, pNdsFilename); // Port: snprintf, was sprintf
                     JonesMain_LogErrorToFile(aErrorText);
                 }
             }
@@ -1950,10 +1950,10 @@ int J3DAPI JonesMain_ProcessGamesaveState(void)
 restore_error:
     if ( aLoadLerrorStr[0] )
     {
-        char aErrorText[128];
+        char aErrorText[J3D_PATHSIZE + 128]; // Port: holds a path, was 128 (PORT-PLAN.md P1.30)
 
         memset(aErrorText, 0, sizeof(aErrorText));
-        sprintf(aErrorText, aLoadLerrorStr, pNdsFilename);
+        snprintf(aErrorText, sizeof(aErrorText), aLoadLerrorStr, pNdsFilename); // Port: snprintf, was sprintf
         JonesMain_LogErrorToFile(aErrorText);
     }
 
@@ -2028,7 +2028,7 @@ int J3DAPI JonesMain_ProcessStartGame(void)
             char aErrorText[128];
 
             memset(aErrorText, 0, sizeof(aErrorText));
-            sprintf(aErrorText, pErrorStr, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName);
+            snprintf(aErrorText, sizeof(aErrorText), pErrorStr, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName); // Port: snprintf, was sprintf
             JonesMain_LogErrorToFile(aErrorText);
         }
 
@@ -2044,7 +2044,7 @@ int J3DAPI JonesMain_ProcessStartGame(void)
             char aErrorText[128];
 
             memset(aErrorText, 0, sizeof(aErrorText));
-            sprintf(aErrorText, pErrorStr, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName);
+            snprintf(aErrorText, sizeof(aErrorText), pErrorStr, JonesMain_aCndLevelLoadInfos[JonesMain_curLevelNum].pName); // Port: snprintf, was sprintf
             JonesMain_LogErrorToFile(aErrorText);
         }
 
@@ -2267,7 +2267,7 @@ int J3DAPI JonesMain_PlayIntroMovie(void)
 
     int result;
     StdVideoMode videoMode;
-    char aPath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
     char aFilename[256];
     int pixel;
 
@@ -2332,7 +2332,7 @@ int J3DAPI JonesMain_PlayIntroMovie(void)
     else
     {
         // Fallback to CD
-        char aResDir[128];
+        char aResDir[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
         wuRegistry_GetStr("Source Dir", aPath, STD_ARRAYLEN(aPath), "");
         _snprintf(aResDir, STD_ARRAYLEN(aResDir), "%sresource", aPath);
@@ -2885,7 +2885,7 @@ void J3DAPI JonesMain_LogErrorToFile(const char* pErrorText)
 #endif
     const char* pFilename = jonesString_GetString("JONES_STR_ERRORFILE");
     size_t pathLen;
-    char aInstallPath[128];
+    char aInstallPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
     memset(curFilePath, 0, sizeof(curFilePath));
 #ifdef J3D_PORT

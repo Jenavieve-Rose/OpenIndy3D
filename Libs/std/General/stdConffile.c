@@ -7,7 +7,7 @@ StdConffileEntry stdConffile_entry;
 char* stdConffile_aLine;
 
 #define STDCONFFILE_STACKSIZE 20
-#define STDCONFFILE_FILENAMESIZE 128
+#define STDCONFFILE_FILENAMESIZE J3D_PATHSIZE // Port: was 128 (PORT-PLAN.md P1.30)
 
 static int stdConffile_bOpen = 0;
 
@@ -366,7 +366,7 @@ void J3DAPI stdConffile_PushStack(void)
 {
 #line 612
     STD_ASSERTREL(stackLevel < 20);
-    STD_ASSERTREL(strlen(stdConffile_pFilename) < 128);
+    STD_ASSERTREL(strlen(stdConffile_pFilename) < STDCONFFILE_FILENAMESIZE); // Port: was < 128 (PORT-PLAN.md P1.30)
     strcpy(aFilenameStack[stackLevel], stdConffile_pFilename);
 
     linenumStack[stackLevel] = stdConffile_linenum;

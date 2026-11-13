@@ -1335,7 +1335,7 @@ void J3DAPI sithRender_SetExtraThingRenderFunc(int (J3DAPI* pfFunc)(SithThing* p
 int J3DAPI sithRender_MakeScreenShot(void)
 {
     char aCurFilename[64];
-    char aFilePath[128];
+    char aFilePath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
     size_t ssnum = 0;
     stdUtil_Format(aCurFilename, STD_ARRAYLEN(aCurFilename), sithGetScreenShotFileTemplate(), ssnum);
