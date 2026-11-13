@@ -409,13 +409,12 @@ int J3DAPI stdDisplay_GetTotalMemory(size_t* pTotal, size_t* pFree)
     return 0;
 }
 
-void J3DDisplay_PrepareScreenshot(void)
+void J3DDisplay_SyncBackBuffer(int bOverwriteAll)
 {
-    // Retail's renderer drew into the back buffer itself; the port's draws into a scene texture (render_metal.h), so a
-    // frame the renderer drew is copied back first.
+    // See stdDisplay_common.h. J3DRender_TakeScene does nothing unless a scene was drawn since the last BeginScene.
     if ( stdDisplay_bModeSet )
     {
-        J3DRender_CopySceneToBackBuffer(stdDisplay_backBuffer.pPixels, stdDisplay_backBuffer.rasterInfo.width,
+        J3DRender_TakeScene(bOverwriteAll ? NULL : stdDisplay_backBuffer.pPixels, stdDisplay_backBuffer.rasterInfo.width,
             stdDisplay_backBuffer.rasterInfo.height, stdDisplay_backBuffer.rasterInfo.rowSize);
     }
 }

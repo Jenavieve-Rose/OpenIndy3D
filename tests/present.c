@@ -4,9 +4,9 @@
  * (J3DMetal_ArmCapture) and sampled at the centre of each quadrant: once with the window at the back buffer's size,
  * once with it at twice that, so the presenter scales as it does fullscreen.
  *
- * Then the renderer skeleton (P2.9): std3D opens on the Metal device, a scene begins (taking the back buffer's
- * pattern), clears depth and ends; the back buffer is then painted over on the CPU. The next present must show the
- * scene's picture, the pattern, not the painted-over back buffer. Also checks that the drawable covers the window in
+ * Then the renderer and the frame order (P2.9, P2.17): std3D opens on the Metal device, a scene begins (taking the back
+ * buffer's pattern), clears depth and ends; then one quadrant is filled grey on the CPU, as retail's CPU writes after a
+ * scene landed on the scene's picture. The present must show the scene's picture with the grey quadrant on it. Also checks that the drawable covers the window in
  * pixels and that the memory queries report the Metal device. Needs no game data.
  *
  * It needs a window server: without one (an SSH session, for example) it is skipped (exit 77), as it is when the
@@ -186,9 +186,10 @@ int main(void)
         CHECK(std3D_StartScene() == 0, "StartScene");
         std3D_ClearZBuffer(); // within the scene: a second pass
         std3D_EndScene();
-        stdDisplay_BackBufferFill(0x00808080, NULL); // after the scene: must not reach this frame's picture
+        stdDisplay_BackBufferFill(0x00808080, &aQuadrants[3]); // after the scene: lands on its picture
+        const uint32_t aAfter[4] = { aColors[0], aColors[1], aColors[2], 0x00808080 };
         uint32_t sceneWidth = 0, sceneHeight = 0;
-        res = present_CaptureAndCheck(pWindow, aQuadrants, aColors, &sceneWidth, &sceneHeight, 1);
+        res = present_CaptureAndCheck(pWindow, aQuadrants, aAfter, &sceneWidth, &sceneHeight, 1);
         CHECK(res == 0, "the scene frame was presented");
         std3D_Close();
         std3D_Shutdown();

@@ -95,10 +95,11 @@ void J3DRender_SetAlphaRef(int alphaRef);
 // (0 to 1 per channel) at endDepth and beyond. Off by default.
 void J3DRender_SetFog(int bEnabled, float red, float green, float blue, float startDepth, float endDepth);
 
-// When the scene texture holds a scene drawn since the last BeginScene, waits for the GPU and copies it into the back
-// buffer (32 bpp, the scene's size), so the CPU side sees the frame the GPU drew. 0 when copied, 1 when there was
-// nothing newer to copy. stdDisplay uses it before a screenshot (P2.17).
-int J3DRender_CopySceneToBackBuffer(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize);
+// When the scene texture holds a scene drawn since the last BeginScene: waits for the GPU, copies it into the back
+// buffer (32 bpp, the scene's size; pPixels NULL: no copy, the caller overwrites it all) and hands the frame's picture
+// back to the back buffer, so the next present shows the back buffer. 0 when there was a scene to take, 1 otherwise.
+// stdDisplay calls it before the CPU touches the back buffer (P2.17).
+int J3DRender_TakeScene(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize);
 
 // Waits for the GPU and copies the scene texture (BGRA, the back buffer's size) into a malloc'd buffer the caller
 // frees. 0 on success. For tests and diagnostics.

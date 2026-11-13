@@ -528,7 +528,7 @@ int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, 
     return 0;
 }
 
-int J3DRender_CopySceneToBackBuffer(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize)
+int J3DRender_TakeScene(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize)
 {
     if ( !render_bSceneNewer || render_encoder || !render_sceneColor || render_sceneColor.width != width
         || render_sceneColor.height != height )
@@ -536,8 +536,12 @@ int J3DRender_CopySceneToBackBuffer(uint8_t* pPixels, uint32_t width, uint32_t h
         return 1;
     }
 
-    J3DMetal_WaitForGPU();
-    [render_sceneColor getBytes:pPixels bytesPerRow:rowSize fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
+    if ( pPixels )
+    {
+        J3DMetal_WaitForGPU();
+        [render_sceneColor getBytes:pPixels bytesPerRow:rowSize fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
+    }
+    J3DMetal_SetSceneTexture(nil); // the back buffer is the frame's picture again
     render_bSceneNewer = 0;
     return 0;
 }

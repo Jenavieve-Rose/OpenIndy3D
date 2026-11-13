@@ -255,6 +255,11 @@ int J3DAPI stdDisplay_VBufferFill(tVBuffer* pVBuffer, uint32_t dwFillColor, cons
         return 1;
     }
 
+    if ( pVBuffer == &stdDisplay_backBuffer )
+    {
+        J3DDisplay_SyncBackBuffer(pRect == NULL); // a fill after a scene lands on it (P2.17)
+    }
+
     const size_t bytesPerPixel = pVBuffer->rasterInfo.colorInfo.bpp / 8;
     size_t left = 0, top = 0, width = pVBuffer->rasterInfo.width, height = pVBuffer->rasterInfo.height;
     if ( pRect )
@@ -302,14 +307,14 @@ int J3DAPI stdDisplay_BackBufferFill(uint32_t color, const StdRect* lpRect)
 
 int J3DAPI stdDisplay_SaveScreen(const char* pFilename)
 {
-    J3DDisplay_PrepareScreenshot();
-    return stdBmp_WriteVBuffer(pFilename, &stdDisplay_backBuffer);
+    return stdBmp_WriteVBuffer(pFilename, &stdDisplay_backBuffer); // it locks the back buffer, which syncs it (P2.17)
 }
 
 int J3DAPI stdDisplay_LockBackBuffer(void** ppSurface, uint32_t* pWidth, uint32_t* pHeight, int32_t* pPitch)
 {
     if ( stdDisplay_bOpen && stdDisplay_bModeSet )
     {
+        J3DDisplay_SyncBackBuffer(0); // the CPU is about to read or write the frame on screen (P2.17)
         *pWidth    = stdDisplay_backBuffer.rasterInfo.width;
         *pHeight   = stdDisplay_backBuffer.rasterInfo.height;
         *pPitch    = (int32_t)stdDisplay_backBuffer.rasterInfo.rowSize;
@@ -422,6 +427,11 @@ int J3DAPI stdDisplay_VBufferCopy(tVBuffer* pDst, tVBuffer* pSrc, unsigned int b
 {
     STD_ASSERT(pDst != NULL);
     STD_ASSERT(pSrc != NULL);
+
+    if ( pDst == &stdDisplay_backBuffer || pSrc == &stdDisplay_backBuffer )
+    {
+        J3DDisplay_SyncBackBuffer(0); // the back buffer as the frame on screen (P2.17)
+    }
 
     // Retail dispatched on the two buffers' kind to four Blit* helpers; with no DirectDraw surfaces only the
     // system-memory pair remains. blitX is unsigned in the retail signature and passed on as int, as retail did.

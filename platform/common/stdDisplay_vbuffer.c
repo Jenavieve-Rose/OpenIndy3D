@@ -15,6 +15,8 @@
 #include <std/General/stdMemory.h>
 #include <std/Win95/stdDisplay.h>
 
+#include <platform/common/stdDisplay_common.h>
+
 tVBuffer* J3DAPI stdDisplay_VBufferNew(const tRasterInfo* pRasterInfo, int bUseVSurface, int bUseVideoMemory)
 {
     (void)bUseVSurface; (void)bUseVideoMemory; // no video surfaces: always the retail system-memory branch
@@ -62,6 +64,10 @@ void J3DAPI stdDisplay_VBufferFree(tVBuffer* pVBuffer)
 int J3DAPI stdDisplay_VBufferLock(tVBuffer* pVBuffer)
 {
     STD_ASSERTREL(pVBuffer != NULL);
+    if ( pVBuffer == &stdDisplay_backBuffer )
+    {
+        J3DDisplay_SyncBackBuffer(0); // a reader of the back buffer sees what the renderer drew (P2.17)
+    }
     ++pVBuffer->lockSurfRefCount;
     return 1;
 }

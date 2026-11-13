@@ -32,9 +32,13 @@ void J3DDisplay_InitVideoMode(StdVideoMode* pMode, uint32_t width, uint32_t heig
 // The retail sort order of the mode list: by bpp, then width, then height. qsort comparator.
 int J3DDisplay_VideoModeCompare(const void* pMode1, const void* pMode2);
 
-// Supplied by the backend: brings the back buffer up to date with the frame on screen before SaveScreen reads it.
-// The headless display has nothing to do; the SDL display copies in a scene the renderer drew (P2.17).
-void J3DDisplay_PrepareScreenshot(void);
+// Supplied by the backend: called before the CPU reads or writes the back buffer (P2.17). Retail's renderer drew into
+// the back buffer itself; the port's draws into a scene texture. When a scene has been drawn since the last scene
+// began, the SDL display copies it into the back buffer (unless bOverwriteAll: the caller is about to overwrite every
+// pixel) and makes the back buffer the frame's picture again, so CPU writes after a scene land on it and are presented,
+// and CPU readers (SaveScreen, save-game thumbnails) see the frame on screen. The headless display has nothing to do.
+// Called from every back-buffer lock, fill and blit.
+void J3DDisplay_SyncBackBuffer(int bOverwriteAll);
 
 // Makes stdDisplay_backBuffer a system-memory VBuffer in pMode's format and stdDisplay_frontBuffer a description of
 // the same raster with no pixels. 0 on success, 1 when out of memory.

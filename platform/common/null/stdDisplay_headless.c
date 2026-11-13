@@ -172,7 +172,8 @@ int J3DAPI stdDisplay_GetTotalMemory(size_t* pTotal, size_t* pFree)
     return 0;
 }
 
-void J3DDisplay_PrepareScreenshot(void)
+void J3DDisplay_SyncBackBuffer(int bOverwriteAll)
 {
+    (void)bOverwriteAll;
     // Nothing draws anywhere but the back buffer.
 }

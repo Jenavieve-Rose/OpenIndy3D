@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 16 of 22 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 17 of 22 | In progress |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **58 of 146** | |
+| **All** | | **59 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -423,8 +423,11 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
 
 #### 2C. Integration
 
-- [ ] **P2.17** (M) Frame order: trace how the retail frame interleaves the 3D scene, the HUD and back-buffer 2D
+- [x] **P2.17** (M) Frame order: trace how the retail frame interleaves the 3D scene, the HUD and back-buffer 2D
       (console, text, frozen frame under dialogs), record it in `docs/PORTING.md`, and composite in that order.
+      Done: HUD, console and text all go through `std3D`; CPU access is a clear before the scene and reads after it
+      (thumbnails, screenshots). The scene texture is the frame's picture until the CPU touches the back buffer,
+      which first takes the scene back. Checked: `present` test (CPU fill after a scene).
 - [ ] **P2.18** (S) Temporary debug input (a handful of keys read straight from SDL) so a level can be walked before
       phase 3. Removed in P3.2.
 - [ ] **P2.19** (S) Window behaviour: resize, fullscreen toggle, minimize and focus loss mapped to the activate

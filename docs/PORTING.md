@@ -693,10 +693,7 @@ that only miss NaN.
   (4 MB; a level frame uses far less) continues in a buffer twice the size, and the command buffer keeps the old one
   alive until it completes. The plan called for a ring of per-frame buffers; with the wait at `BeginScene` a single
   arena is enough.
-- Screenshots (P2.17, needed here to look at the result): `stdDisplay_SaveScreen` first calls the backend's
-  `J3DDisplay_PrepareScreenshot`; the SDL display copies a scene drawn since the last `BeginScene` from the scene
-  texture into the back buffer (`J3DRender_CopySceneToBackBuffer`), so `--screenshot-at` and the game's own screenshot
-  key capture what the GPU drew. Headless runs render offscreen, so this works with `--headless` too.
+- Screenshots capture what the GPU drew (see "Frame order", P2.17), headless runs included: they render offscreen.
 - Checked: frame 300 of `00_cyn` (`jones3d --headless --frames 300 --screenshot-at 300`) shows the canyon's
   geometry, Gouraud-lit, untextured, with walls in front of each other correctly. The `render` test gained a scene of
   50,000 draws (past the arena's 4 MB) whose last draw must land, and a scene after it. `boot-sdl`, which now draws
@@ -772,3 +769,32 @@ that only miss NaN.
   `present` test checks the mouse mapping with the window at twice the back buffer's size. Headless screenshots of all
   17 levels at frames 1 and 300 show each level textured and lit, `11_PYR`'s haze, and the near floors restored; the
   all-black frames (`15_AET` at frame 300, `00_CYN` at 10 to 30) are cutscene fades, checked over longer runs.
+
+### Frame order (P2.17)
+
+- How retail built a frame. The game loop (`JonesMain_Process`, open game) does: `std3D_ClearZBuffer`, then, only
+  with the `bClearBackBuffer` setting (off by default), `stdDisplay_BackBufferFill(0)`; `std3D_StartScene`; the world
+  (`sithDrawScene`), the overlay map, the quicksave text, the HUD (`JonesHud_Process`) and the console (frame rate
+  line) are all drawn through `std3D` (rdCache, rdFont, rdWallpaper); `std3D_EndScene`; `stdDisplay_Update`. The load
+  screen (`JonesDisplay_UpdateLoadProgress`) and the end credits follow the same shape. Nothing in a game frame is
+  drawn on the CPU: the HUD's `rdCanvas` on the back buffer only sets a 3D viewport.
+- CPU access to the back buffer happens outside that path: before a scene (the optional clear), in the intro movie's
+  blits (`LockBackBuffer`, no scene; Phase 5), and as reads after a scene: the save-game and menu thumbnails
+  (`sithGamesave_SetThumbnailImage(&stdDisplay_backBuffer)`, three call sites), `stdDisplay_SaveScreen`
+  (the screenshot key, `--screenshot-at`), and in Phase 6 the dialogs' frozen frame (`GetBackBufferDC`).
+- Retail's Direct3D drew into the back buffer surface itself, so all of these saw one picture. The port keeps that
+  rule with two buffers. `StartScene` uploads the back buffer into the scene texture, so CPU writes before a scene lie
+  under it. A frame that drew a scene is presented from the scene texture. Before the CPU touches the back buffer
+  again (any lock, fill or blit of it: `J3DDisplay_SyncBackBuffer`), a scene drawn since the last `StartScene` is
+  copied into the back buffer, and the back buffer becomes the frame's picture again (`J3DRender_TakeScene`); so a
+  CPU read after a scene sees it (thumbnails, screenshots) and a CPU write after a scene lands on it and is
+  presented. A fill of the whole back buffer skips the copy, since it overwrites every pixel.
+- The copy waits for the GPU and reads the scene texture back (1.2 MB at 640×480). It happens only when the CPU
+  touches the back buffer after a scene, which a game frame never does; a save or a screenshot costs one.
+- `J3DDisplay_PrepareScreenshot` (P2.11) became `J3DDisplay_SyncBackBuffer`, called from `stdDisplay_VBufferLock`
+  (on the back buffer), `stdDisplay_LockBackBuffer`, `stdDisplay_VBufferFill` (so `BackBufferFill` and `ClearRect`)
+  and `stdDisplay_VBufferCopy` (either side the back buffer).
+- Checked: the `present` test's scene step now fills one quadrant grey after the scene and expects the presented
+  frame to show the scene with the grey quadrant on it (it fails without the sync on fills). Headless screenshots
+  still show the rendered frame; `boot-sdl` and `boot` saves still match (the level-start autosave is taken before
+  the first scene).
