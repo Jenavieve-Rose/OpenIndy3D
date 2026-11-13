@@ -486,7 +486,7 @@ void J3DAPI sithCogFunctionSector_GetSectorThingCount(SithCog* pCog)
     if ( pSector )
     {
         nThings = sithSector_GetSectorThingCount(pSector);
-        sithCogExec_PushInt(pCog, nThings);
+        sithCogExec_PushInt(pCog, (int)nThings); // Port: narrowing cast
     }
     else
     {
@@ -501,7 +501,7 @@ void J3DAPI sithCogFunctionSector_GetSectorPlayerCount(SithCog* pCog)
     if ( pCurSector )
     {
         count = sithSector_GetSectorPlayerCount(pCurSector);
-        sithCogExec_PushInt(pCog, count);
+        sithCogExec_PushInt(pCog, (int)count); // Port: narrowing cast
     }
     else
     {
@@ -511,7 +511,7 @@ void J3DAPI sithCogFunctionSector_GetSectorPlayerCount(SithCog* pCog)
 
 void J3DAPI sithCogFunctionSector_GetSectorCount(SithCog* pCog)
 {
-    sithCogExec_PushInt(pCog, sithWorld_pCurrentWorld->numSectors);
+    sithCogExec_PushInt(pCog, (int)sithWorld_pCurrentWorld->numSectors); // Port: narrowing cast
 }
 
 void J3DAPI sithCogFunctionSector_GetSectorCenter(SithCog* pCog)
@@ -541,7 +541,7 @@ void J3DAPI sithCogFunctionSector_GetNumSectorVertices(SithCog* pCog)
     }
     else
     {
-        sithCogExec_PushInt(pCog, pSector->numVertices);
+        sithCogExec_PushInt(pCog, (int)pSector->numVertices); // Port: narrowing cast
     }
 }
 
@@ -557,7 +557,7 @@ void J3DAPI sithCogFunctionSector_GetNumSectorSurfaces(SithCog* pCog)
     }
     else
     {
-        sithCogExec_PushInt(pCog, pSector->numSurfaces);
+        sithCogExec_PushInt(pCog, (int)pSector->numSurfaces); // Port: narrowing cast
     }
 }
 

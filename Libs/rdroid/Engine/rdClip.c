@@ -1078,7 +1078,7 @@ void J3DAPI rdClip_ClipFacePVS(rdClipFrustum* pFrustrum, const rdPrimit3* pSrc, 
         rdVector_Copy3(&pDest->aVertices[i], &pSrc->aVertices[pSrc->aVertIdxs[i]]);
     }
 
-    pDest->numVertices = rdClip_Face3WPVS(pFrustrum, pDest->aVertices, pSrc->numVertices);
+    pDest->numVertices = rdClip_Face3WPVS(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
 }
  
 int J3DAPI rdClip_Face3WPVS(rdClipFrustum* pFrustrum, rdVector3* aVertices, int numVertices)

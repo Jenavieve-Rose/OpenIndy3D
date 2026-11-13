@@ -466,7 +466,7 @@ int J3DAPI sithAIInstinct_LookForTarget(SithAIControlBlock* pLocal, SithAIInstin
     {
         if ( pLocal->goalThing == pLocal->pTargetThing )
         {
-            pLocal->unknown141 = sithMain_frameNumber;
+            pLocal->unknown141 = (int)sithMain_frameNumber; // Port: narrowing cast
             pLocal->targetSightState2 = pLocal->targetSightState;
             rdVector_Copy3(&pLocal->vecUnknown0, &pLocal->toTarget);
             pLocal->targetDistance = pLocal->distance;

@@ -331,7 +331,7 @@ int J3DAPI sithSoundClass_ReadSoundClassesListBinary(tFileHandle fh, SithWorld* 
         return 0;
     }
 
-    if ( sithSoundClass_AllocSoundClasses(pWorld, pWorld->sizeSoundClasses) )
+    if ( sithSoundClass_AllocSoundClasses(pWorld, (int)pWorld->sizeSoundClasses) ) // Port: narrowing cast
     {
         goto error;
     }

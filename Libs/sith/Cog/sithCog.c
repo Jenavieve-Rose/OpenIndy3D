@@ -155,7 +155,7 @@ int J3DAPI sithCog_Open(SithWorld* pWorld)
         {
             for ( refNumber = 0, pRef = pCog->pScript->aSymRefs; refNumber < pCog->pScript->numSymbolRefs; ++refNumber, ++pRef )
             {
-                symbolId = pRef->symbolId;
+                symbolId = (int)pRef->symbolId; // Port: narrowing cast
 #line 261
                 SITH_ASSERTREL(symbolId >= 0);
 
@@ -177,7 +177,7 @@ int J3DAPI sithCog_Open(SithWorld* pWorld)
         cogRefNum = 0;
         for ( refNumber = 0, pRef = pCog->pScript->aSymRefs; refNumber < pCog->pScript->numSymbolRefs; ++refNumber, ++pRef )
         {
-            symbolId = pRef->symbolId;
+            symbolId = (int)pRef->symbolId; // Port: narrowing cast
 #line 292
             SITH_ASSERTREL(symbolId >= 0);
 
@@ -432,7 +432,7 @@ void J3DAPI sithCog_SendMessage(SithCog* pCog, unsigned int messageType, SithCog
             sithConsole_PrintString(std_genBuffer);
         }
 
-        sithCogExec_ExecuteMessage(pCog, handlerNum);
+        sithCogExec_ExecuteMessage(pCog, (int)handlerNum); // Port: narrowing cast
     }
 }
 
@@ -525,7 +525,7 @@ int J3DAPI sithCog_SendMessageEx(SithCog* pCog, SithCogMsgType messageType, Sith
         sithConsole_PrintString(std_genBuffer);
     }
 
-    sithCogExec_ExecuteMessage(pCog, handlerNum);
+    sithCogExec_ExecuteMessage(pCog, (int)handlerNum); // Port: narrowing cast
     return pCog->returnValue;
 }
 
@@ -625,7 +625,7 @@ int J3DAPI sithCog_WriteCogsListText(const SithWorld* pWorld)
                 continue;
             }
 
-            sithCog_GetSymbolRefInitializer(pWorld, pCog, symIdx, aValue);
+            sithCog_GetSymbolRefInitializer(pWorld, pCog, (int)symIdx, aValue); // Port: narrowing cast
             if ( stdConffile_Printf("%s ", aValue) )
             {
                 goto error;
@@ -691,7 +691,7 @@ void J3DAPI sithCog_GetSymbolRefInitializer(const SithWorld* pWorld, const SithC
             }
             else
             {
-                pFilename = Sound_GetSoundFilename(Sound_GetSoundHandle(objectIdx));
+                pFilename = Sound_GetSoundFilename(Sound_GetSoundHandle((uint32_t)objectIdx)); // Port: narrowing cast
                 if ( pFilename )
                 {
                     sprintf(pOutString, "%s", pFilename);
@@ -776,7 +776,7 @@ void J3DAPI sithCog_GetSymbolRefInitializer(const SithWorld* pWorld, const SithC
             break;
 
         case SITHCOG_SYM_REF_COG:
-            cogIdx = objectIdx;
+            cogIdx = (int)objectIdx; // Port: narrowing cast
             cogIdx = STDMATH_CLAMP(cogIdx, -1, (int)pWorld->numCogs);
             objectIdx = cogIdx;
             if ( cogIdx < 0 )
@@ -990,7 +990,7 @@ int J3DAPI sithCog_WriteCogsListBinary(tFileHandle fh, const SithWorld* pWorld)
                 continue;
             }
 
-            sithCog_GetSymbolRefInitializer(pWorld, pCog, symIdx, *pValue);
+            sithCog_GetSymbolRefInitializer(pWorld, pCog, (int)symIdx, *pValue); // Port: narrowing cast
             ++pValue;
         }
     }
@@ -1202,7 +1202,7 @@ int J3DAPI sithCog_ParseSymbolRef(SithWorld* pWorld, SithCogSymbol* pSymbol, con
                 hSnd = sithSound_Load(pWorld, pString);
                 if ( hSnd )
                 {
-                    pSymbol->value.val.intValue = Sound_GetSoundIndex(hSnd);
+                    pSymbol->value.val.intValue = (int)Sound_GetSoundIndex(hSnd); // Port: narrowing cast
                 }
                 else
                 {
@@ -1234,7 +1234,7 @@ int J3DAPI sithCog_ParseSymbolRef(SithWorld* pWorld, SithCogSymbol* pSymbol, con
                 pModel = sithModel_Load(pString, 1);
                 if ( pModel )
                 {
-                    pSymbol->value.val.intValue = pModel->num;
+                    pSymbol->value.val.intValue = (int)pModel->num; // Port: narrowing cast
                 }
                 else
                 {
@@ -1354,7 +1354,7 @@ SithCog* J3DAPI sithCog_Load(SithWorld* pWorld, const char* pName)
     }
 
     pCog = &pWorld->aCogs[pWorld->numCogs];
-    pCog->idx = pWorld->numCogs;
+    pCog->idx = (int)pWorld->numCogs; // Port: narrowing cast
     if ( (pWorld->state & SITH_WORLD_STATE_STATIC) != 0 )
     {
         pCog->idx = SITHWORLD_STATICINDEX(pCog->idx);

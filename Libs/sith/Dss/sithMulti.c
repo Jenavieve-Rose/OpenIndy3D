@@ -135,7 +135,7 @@ int J3DAPI sithMulti_CheckPlayers(int msecTime, SithEventParams* pParam)
 #line 240
                 stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Haven't heard from player %d, kicking them out of the game.\n", i, 0, 0, 0);
                 sithMulti_QuitPlayer(sithPlayer_aPlayers[i].playerNetId);
-                sithMulti_RemovePlayer(i);
+                sithMulti_RemovePlayer((unsigned int)i); // Port: narrowing cast
             }
         }
 
@@ -175,7 +175,7 @@ HRESULT J3DAPI sithMulti_CreatePlayer(const wchar_t* pSessionName, const wchar_t
     wcsncpy(settings.aPassword, pPassword, STD_ARRAYLEN(settings.aPassword) - 1);
     settings.aPassword[STD_ARRAYLEN(settings.aPassword) - 1] = 0;
 
-    settings.opt3       = tickRate;
+    settings.opt3       = (uint32_t)tickRate; // Port: narrowing cast
     settings.maxPlayers = STD_ARRAYLEN(sithPlayer_aPlayers);
     sithMulti_dword_56F980 = SITH_RAND() * 4294967296.0f;
     settings.opt1 = sithMulti_dword_56F980;
@@ -190,7 +190,7 @@ HRESULT J3DAPI sithMulti_CreatePlayer(const wchar_t* pSessionName, const wchar_t
     memset(&sithMulti_server, 0, sizeof(sithMulti_server));
     sithMulti_server.idServer = sithMessage_localPlayerId;
     sithMulti_tickRate = tickRate;
-    sithEvent_RegisterTask(2u, sithMulti_CheckPlayers, tickRate, SITHEVENT_TASKINTERVAL);
+    sithEvent_RegisterTask(2u, sithMulti_CheckPlayers, (uint32_t)tickRate, SITHEVENT_TASKINTERVAL); // Port: narrowing cast
     return 0;
 }
 
@@ -388,7 +388,7 @@ int J3DAPI sithMulti_ProcessWelcome(const SithMessage* pMsg)
 
 #line 660
             SITH_ASSERTREL(sithMulti_tickRate);
-            sithEvent_RegisterTask(2u, sithMulti_CheckPlayers, sithMulti_tickRate, SITHEVENT_TASKINTERVAL);
+            sithEvent_RegisterTask(2u, sithMulti_CheckPlayers, (uint32_t)sithMulti_tickRate, SITHEVENT_TASKINTERVAL); // Port: narrowing cast
             sithMessage_StopProcessMessages();
         }
         else
@@ -514,13 +514,13 @@ int J3DAPI sithMulti_ProcessSyncPlayers(const SithMessage* pMsg)
             {
 #line 828
                 stdPrintf(sith_pHS->pStatusPrint, J3D_FILE, __LINE__, "Got a new player but we missed the welcome packet, apparently.\n", 0, 0, 0, 0);
-                sithMulti_ProcessPlayerJoin(i);
+                sithMulti_ProcessPlayerJoin((int)i); // Port: narrowing cast
             }
             else if ( !sithPlayer_aPlayers[i].playerNetId && (prevFlags & SITH_PLAYER_JOINEDGAME) != 0 && (sith_mode.subModeFlags & 8) == 0 )
             {
 #line 833
                 stdPrintf(sith_pHS->pStatusPrint, J3D_FILE, __LINE__, "Noticed that player %d was removed by the server.  Removing locally.\n", i, 0, 0, 0);
-                sithMulti_RemovePlayer(i);
+                sithMulti_RemovePlayer((unsigned int)i); // Port: narrowing cast
             }
 
             strncpy(paStr, (const char*)pCurDSSMsgData_, 15);
@@ -614,7 +614,7 @@ int J3DAPI sithMulti_ProcessJoinRequest(const SithMessage* pMsg)
     {
 #line 950
         stdPrintf(sith_pHS->pStatusPrint, J3D_FILE, __LINE__, "Received knock from player %d, already in game.\n", playerId, 0, 0, 0);
-        sithMulti_SendWelcome(playerId, i, playerId);
+        sithMulti_SendWelcome(playerId, (int)i, playerId); // Port: narrowing cast
         return 1;
     }
 
@@ -657,7 +657,7 @@ int J3DAPI sithMulti_ProcessJoinRequest(const SithMessage* pMsg)
         return 1;
     }
 
-    sithMulti_curWelcomePlayerNum = i;
+    sithMulti_curWelcomePlayerNum = (unsigned int)i; // Port: narrowing cast
     if ( stdComm_UpdatePlayers(0) )
     {
 #line 1005
@@ -726,7 +726,7 @@ void J3DAPI sithMulti_SendChat(const char* pString, int arg0, int arg1)
 
     SITHDSS_PUSHINT32(arg0);
     SITHDSS_PUSHINT32(arg1);
-    SITHDSS_PUSHUINT32(len);
+    SITHDSS_PUSHUINT32((uint32_t)len); // Port: narrowing cast
     strncpy((char*)pCurDSSMsgData_, pString, len - 1);
     pCurDSSMsgData_[len - 1] = 0;
     pCurDSSMsgData_ += len;
@@ -973,7 +973,7 @@ int J3DAPI sithMulti_GetPlayerIndexByID(DPID playerID)
     {
         if ( playerID == sithPlayer_aPlayers[i].playerNetId )
         {
-            return i;
+            return (int)i; // Port: narrowing cast
         }
     }
 
@@ -1308,5 +1308,5 @@ void J3DAPI sithMulti_LobbyMessage(void)
     }
 
     dataSize = pCurDSSMsgData_ - &sithMulti_message.data[0];
-    stdComm_SendLobbyMessage(&sithMulti_message.data[0], dataSize);
+    stdComm_SendLobbyMessage(&sithMulti_message.data[0], (uint32_t)dataSize); // Port: narrowing cast
 }

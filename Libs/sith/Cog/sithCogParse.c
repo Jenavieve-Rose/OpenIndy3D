@@ -523,7 +523,7 @@ void J3DAPI sithCogParse_LexerSetSymbol(const char* pName)
     pSymbol = sithCogParse_GetSymbol(pCurrentSymbols, pName);
     if ( pSymbol )
     {
-        yylval.intValue = pSymbol->id;
+        yylval.intValue = (int)pSymbol->id; // Port: narrowing cast
         return;
     }
 
@@ -544,7 +544,7 @@ void J3DAPI sithCogParse_LexerSetSymbol(const char* pName)
     value.val.intValue = 0;
     sithCogParse_SetSymbolValue(pSymbol, &value);
 
-    yylval.intValue = pSymbol->id;
+    yylval.intValue = (int)pSymbol->id; // Port: narrowing cast
 }
 
 void J3DAPI sithCogParse_LexerSetString(const char* pString)
@@ -570,7 +570,7 @@ void J3DAPI sithCogParse_LexerSetString(const char* pString)
         pSymbol->value.val.pString[strlen(pString) - 2] = 0;
     }
 
-    yylval.intValue = pSymbol->id;
+    yylval.intValue = (int)pSymbol->id; // Port: narrowing cast
 }
 
 void J3DAPI sithCogParse_LexerSetVector(const char* pString)

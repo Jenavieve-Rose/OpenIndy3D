@@ -504,7 +504,7 @@ int J3DAPI rdCamera_AddLight(rdCamera* pCamera, rdLight* pLight, const rdVector3
         return 0;
     }
 
-    pLight->num = pCamera->numLights;
+    pLight->num = (int)pCamera->numLights; // Port: narrowing cast
     pCamera->aLights[pCamera->numLights] = pLight;
     rdVector_Copy3(&pCamera->aLightPositions[pCamera->numLights], pPos);
 

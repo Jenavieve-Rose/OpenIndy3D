@@ -179,7 +179,7 @@ int J3DAPI sithAnimate_GetSurfaceAnimIndex(const SithSurface* pSurf)
         return -1;
     }
 
-    index = pAnim - aAnims;
+    index = (int)(pAnim - aAnims); // Port: narrowing cast
     return index;
 }
 
@@ -1744,7 +1744,7 @@ void J3DAPI sithAnimate_UpdatePageFlipAnim(SithAnimationSlot* pAnim)
     {
 #line 2097
         SITH_ASSERTREL(pAnim->pThing);
-        pAnim->pThing->renderData.matCelNum = pAnim->curFrame;
+        pAnim->pThing->renderData.matCelNum = (int)pAnim->curFrame; // Port: narrowing cast
     }
     else if ( (pAnim->flags & SITHANIMATE_SURFACE) != 0 )
     {
@@ -1753,7 +1753,7 @@ void J3DAPI sithAnimate_UpdatePageFlipAnim(SithAnimationSlot* pAnim)
 #line 2105
         SITH_ASSERTREL(pAnim->curFrame < pAnim->pSurface->face.pMaterial->numCels);
 
-        pAnim->pSurface->face.matCelNum = pAnim->curFrame;
+        pAnim->pSurface->face.matCelNum = (int)pAnim->curFrame; // Port: narrowing cast
         pAnim->pSurface->flags |= SITH_SURFACE_SYNC;
     }
     else if ( (pAnim->flags & SITHANIMATE_MATERIAL) != 0 )
@@ -1829,14 +1829,14 @@ SithAnimationSlot* J3DAPI sithAnimate_NewAnim(void)
     animNum = aFreeAnimNums[--numFreeAnims];
     if ( (int)animNum > lastUsedAnimIndex )
     {
-        lastUsedAnimIndex = animNum;
+        lastUsedAnimIndex = (int)animNum; // Port: narrowing cast
     }
 
     // Reset animation
     memset(&aAnims[animNum], 0, sizeof(SithAnimationSlot));
 
     // Set animation ID
-    aAnims[animNum].animID = ((sithPlayer_playerNum + 1) << 16) | (animNum & 0xFFFF);
+    aAnims[animNum].animID = (int)(((sithPlayer_playerNum + 1) << 16) | (animNum & 0xFFFF)); // Port: narrowing cast
 
     return &aAnims[animNum];
 }

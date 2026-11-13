@@ -213,13 +213,13 @@ size_t J3DAPI stdFileWrite(tFileHandle fh, const void* pData, size_t size)
 
 char* J3DAPI stdFileGets(tFileHandle fh, char* pStr, size_t size)
 {
-    char* pResult = fgets(pStr, size, (FILE*)fh);
+    char* pResult = fgets(pStr, (int)size, (FILE*)fh); // Port: narrowing cast
     return pResult;
 }
 
 wchar_t* J3DAPI stdFileGetws(tFileHandle fh, wchar_t* pOutStr, size_t size)
 {
-    wchar_t* pResult = fgetws(pOutStr, size, (FILE*)fh);
+    wchar_t* pResult = fgetws(pOutStr, (int)size, (FILE*)fh); // Port: narrowing cast
     return pResult;
 }
 
@@ -230,7 +230,7 @@ int J3DAPI stdFileEof(tFileHandle fh)
 
 int J3DAPI stdFileTell(tFileHandle fh)
 {
-    return ftell((FILE*)fh);
+    return (int)ftell((FILE*)fh); // Port: narrowing cast
 }
 
 size_t J3DAPI stdFileSize(const char* pFilePath)

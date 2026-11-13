@@ -432,7 +432,7 @@ void J3DAPI sithCogFunctionSound_LoadSound(SithCog* pCog)
         hSnd = sithSound_Load(pWorld, pFilename);
         if ( hSnd )
         {
-            sithCogExec_PushInt(pCog, Sound_GetSoundIndex(hSnd));
+            sithCogExec_PushInt(pCog, (int)Sound_GetSoundIndex(hSnd)); // Port: narrowing cast
         }
         else
         {
@@ -568,7 +568,7 @@ void J3DAPI sithCogFunctionSound_GetSoundLen(SithCog* pCog)
         return;
     }
 
-    msecLen = Sound_GetLengthMsec(hCurSound);
+    msecLen = (int)Sound_GetLengthMsec(hCurSound); // Port: narrowing cast
     sithCogExec_PushFlex(pCog, (float)msecLen * 0.001f);
 }
 

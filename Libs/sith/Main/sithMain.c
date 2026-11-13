@@ -235,7 +235,7 @@ void J3DAPI sithShutdown(void)
 
 void J3DAPI sithSetPerformanceLevel(size_t level)
 {
-    sith_performanceLevel = level;
+    sith_performanceLevel = (int)level; // Port: narrowing cast
 }
 
 int J3DAPI sithGetPerformanceLevel(void)
@@ -352,8 +352,8 @@ void J3DAPI sithOpenPostProcess(void)
     if ( stdComm_IsGameActive() )
     {
         sithPlayer_NewPlayer(sithPlayer_pLocalPlayerThing);
-        sithMulti_SendWelcome(sithMessage_localPlayerId, sithPlayer_playerNum, SITHMESSAGE_SENDTOJOINEDPLAYERS);
-        sithMulti_SendWelcome(sithMessage_localPlayerId, sithPlayer_playerNum, SITHMESSAGE_SENDTOJOINEDPLAYERS); // TODO: Why same message sent twice
+        sithMulti_SendWelcome(sithMessage_localPlayerId, (int)sithPlayer_playerNum, SITHMESSAGE_SENDTOJOINEDPLAYERS); // Port: narrowing cast
+        sithMulti_SendWelcome(sithMessage_localPlayerId, (int)sithPlayer_playerNum, SITHMESSAGE_SENDTOJOINEDPLAYERS); // TODO: Why same message sent twice
     }
     else if ( (sith_mode.debugModeFlags & SITHDEBUG_INEDITOR) == 0 )
     {

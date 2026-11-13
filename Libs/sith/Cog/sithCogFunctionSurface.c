@@ -204,7 +204,7 @@ void J3DAPI sithCogFunctionSurface_GetNumSurfaceVertices(SithCog* pCog)
     }
     else
     {
-        sithCogExec_PushInt(pCog, pSurf->face.numVertices);
+        sithCogExec_PushInt(pCog, (int)pSurf->face.numVertices); // Port: narrowing cast
     }
 }
 
@@ -473,7 +473,7 @@ void J3DAPI sithCogFunctionSurface_GetSurfaceMaterial(SithCog* pCog)
     pMaterial = pSurf->face.pMaterial;
     if ( pMaterial )
     {
-        sithCogExec_PushInt(pCog, pMaterial - sithWorld_pCurrentWorld->aMaterials);
+        sithCogExec_PushInt(pCog, (int)(pMaterial - sithWorld_pCurrentWorld->aMaterials)); // Port: narrowing cast
     }
     else
     {
@@ -497,7 +497,7 @@ void J3DAPI sithCogFunctionSurface_SetSurfaceMaterial(SithCog* pCog)
     pSurf->face.pMaterial = pMaterial;
     if ( pCurrentMat )
     {
-        sithCogExec_PushInt(pCog, pCurrentMat - sithWorld_pCurrentWorld->aMaterials);
+        sithCogExec_PushInt(pCog, (int)(pCurrentMat - sithWorld_pCurrentWorld->aMaterials)); // Port: narrowing cast
     }
     else
     {
@@ -793,7 +793,7 @@ void J3DAPI sithCogFunctionSurface_GetSurfaceCount(SithCog* pCog)
 {
     if ( sithWorld_pCurrentWorld )
     {
-        sithCogExec_PushInt(pCog, sithWorld_pCurrentWorld->numSurfaces);
+        sithCogExec_PushInt(pCog, (int)sithWorld_pCurrentWorld->numSurfaces); // Port: narrowing cast
     }
     else
     {

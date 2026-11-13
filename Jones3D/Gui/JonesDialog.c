@@ -920,7 +920,7 @@ static BOOL CALLBACK JonesDialog_SubclassDialogProc(HWND hwnd, UINT uMsg, WPARAM
 
     if ( pfPrevHook )
     {
-        result = CallWindowProc(pfPrevHook, hwnd, uMsg, wParam, lParam);
+        result = (BOOL)CallWindowProc(pfPrevHook, hwnd, uMsg, wParam, lParam); // Port: narrowing cast
     }
     else
     {
@@ -990,7 +990,7 @@ static UINT CALLBACK JonesDialog_SubclassFileDialogProc(HWND hDlg, UINT uMsg, WP
                     SetWindowLongPtr(hParent, GWL_USERDATA, (LONG_PTR)pData);
                 }
 
-                result = CallWindowProc((WNDPROC)pfPrevHook, hDlg, uMsg, wParam, lParam);
+                result = (UINT)CallWindowProc((WNDPROC)pfPrevHook, hDlg, uMsg, wParam, lParam); // Port: narrowing cast
                 if ( pData && pData->dwSize == sizeof(JonesDialogData) )
                 {
                     GetWindowRect(hParent, &pData->rcWindow);
@@ -1017,7 +1017,7 @@ static UINT CALLBACK JonesDialog_SubclassFileDialogProc(HWND hDlg, UINT uMsg, WP
 
     if ( pfPrevHook )
     {
-        result = CallWindowProc((WNDPROC)pfPrevHook, hDlg, uMsg, wParam, lParam);
+        result = (UINT)CallWindowProc((WNDPROC)pfPrevHook, hDlg, uMsg, wParam, lParam); // Port: narrowing cast
     }
     else
     {
@@ -1205,7 +1205,7 @@ int J3DAPI JonesDialog_ShowDialog(LPCSTR lpTemplateName, HWND hWnd, DLGPROC lpDi
     hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     if ( !JonesMain_HasStarted() )
     {
-        return DialogBoxParam(hInstance, lpTemplateName, hWnd, lpDialogFunc, dwInitParam);
+        return (int)DialogBoxParam(hInstance, lpTemplateName, hWnd, lpDialogFunc, dwInitParam); // Port: narrowing cast
     }
 
     memset(&dlgData, 0, sizeof(dlgData));
@@ -1222,11 +1222,11 @@ int J3DAPI JonesDialog_ShowDialog(LPCSTR lpTemplateName, HWND hWnd, DLGPROC lpDi
     JonesDialog_SetGameState(&gameState, windowed);
     if ( !windowed )
     {
-        result = DialogBoxParam(hInstance, lpTemplateName, hWnd, JonesDialog_SubclassDialogProc, (LPARAM)&dlgData);
+        result = (int)DialogBoxParam(hInstance, lpTemplateName, hWnd, JonesDialog_SubclassDialogProc, (LPARAM)&dlgData); // Port: narrowing cast
     }
     else
     {
-        result = DialogBoxParam(hInstance, lpTemplateName, hWnd, lpDialogFunc, dwInitParam);
+        result = (int)DialogBoxParam(hInstance, lpTemplateName, hWnd, lpDialogFunc, dwInitParam); // Port: narrowing cast
     }
 
     JonesDialog_ResetGameState(&gameState, windowed);

@@ -185,7 +185,7 @@ int J3DAPI sithSurface_WriteAdjoinsListBinary(tFileHandle fh, const SithWorld* p
         pCndAdjoin = &aCndAdjoins[i];
 
         pCndAdjoin->flags     = pAdjoin->flags;
-        pCndAdjoin->mirrorIdx = pAdjoin->pMirrorAdjoin ? pAdjoin->pMirrorAdjoin - pWorld->aAdjoins : -1;
+        pCndAdjoin->mirrorIdx = pAdjoin->pMirrorAdjoin ? (int)(pAdjoin->pMirrorAdjoin - pWorld->aAdjoins) : -1; // Port: narrowing cast
         pCndAdjoin->distance  = pAdjoin->distance;
     }
 
@@ -329,12 +329,12 @@ int J3DAPI sithSurface_WriteSurfacesListBinary(tFileHandle fh, const SithWorld* 
         matIdx = pSurf->face.pMaterial ? pSurf->face.pMaterial->num : -1;
         if ( SITHWORLD_IS_STATICINDEX(matIdx) )
         {
-            numMaterials = sithWorld_pStaticWorld->numMaterials;
+            numMaterials = (int)sithWorld_pStaticWorld->numMaterials; // Port: narrowing cast
             numMaterials = SITHWORLD_STATICINDEX(numMaterials);
         }
         else
         {
-            numMaterials = pWorld->numMaterials;
+            numMaterials = (int)pWorld->numMaterials; // Port: narrowing cast
         }
 
         if ( matIdx > numMaterials )
@@ -355,11 +355,11 @@ int J3DAPI sithSurface_WriteSurfacesListBinary(tFileHandle fh, const SithWorld* 
         pCndSurf->geoMode   = pSurf->face.geometryMode;
         pCndSurf->lightMode = pSurf->face.lightingMode;
 
-        pCndSurf->adjoinNum = pSurf->pAdjoin ? pSurf->pAdjoin - pWorld->aAdjoins : -1;
+        pCndSurf->adjoinNum = pSurf->pAdjoin ? (int32_t)(pSurf->pAdjoin - pWorld->aAdjoins) : -1; // Port: narrowing cast
 
         rdVector_Copy4(&pCndSurf->color, &pSurf->face.extraLight);
         rdVector_Copy3(&pCndSurf->normal, &pSurf->face.normal);
-        pCndSurf->numVerts = pSurf->face.numVertices;
+        pCndSurf->numVerts = (uint32_t)pSurf->face.numVertices; // Port: narrowing cast
 
         totalVerts += pSurf->face.numVertices;
     }
@@ -391,10 +391,10 @@ int J3DAPI sithSurface_WriteSurfacesListBinary(tFileHandle fh, const SithWorld* 
         pSurf = &pWorld->aSurfaces[i];
         for ( j = 0; j < pSurf->face.numVertices; ++j )
         {
-            pCndSurfVert->vertIdx = pSurf->face.aVertices[j];
+            pCndSurfVert->vertIdx = (int)pSurf->face.aVertices[j]; // Port: narrowing cast
             if ( pSurf->face.aTexVertices )
             {
-                pCndSurfVert->texIdx = pSurf->face.aTexVertices[j];
+                pCndSurfVert->texIdx = (int)pSurf->face.aTexVertices[j]; // Port: narrowing cast
             }
             else
             {
@@ -603,12 +603,12 @@ int J3DAPI sithSurface_WriteSurfacesListText(const SithWorld* pWorld)
         matIdx = pSurf->face.pMaterial ? pSurf->face.pMaterial->num : -1;
         if ( SITHWORLD_IS_STATICINDEX(matIdx) )
         {
-            numMaterials = sithWorld_pStaticWorld->numMaterials;
+            numMaterials = (int)sithWorld_pStaticWorld->numMaterials; // Port: narrowing cast
             numMaterials = SITHWORLD_STATICINDEX(numMaterials);
         }
         else
         {
-            numMaterials = pWorld->numMaterials;
+            numMaterials = (int)pWorld->numMaterials; // Port: narrowing cast
         }
 
         if ( matIdx > numMaterials )
@@ -1137,7 +1137,7 @@ int J3DAPI sithSurface_GetSurfaceIndex(const SithSurface* pSurf)
 {
     if ( pSurf >= sithWorld_pCurrentWorld->aSurfaces && pSurf <= &sithWorld_pCurrentWorld->aSurfaces[sithWorld_pCurrentWorld->numSurfaces] )
     {
-        return pSurf - sithWorld_pCurrentWorld->aSurfaces;
+        return (int)(pSurf - sithWorld_pCurrentWorld->aSurfaces); // Port: narrowing cast
     }
 
     return -1;
@@ -1147,7 +1147,7 @@ int J3DAPI sithSurface_GetSurfaceIndexEx(const SithWorld* pWorld, const SithSurf
 {
     if ( pSurface >= pWorld->aSurfaces && pSurface <= &pWorld->aSurfaces[pWorld->numSurfaces] )
     {
-        return pSurface - pWorld->aSurfaces;
+        return (int)(pSurface - pWorld->aSurfaces); // Port: narrowing cast
     }
 
     return -1;

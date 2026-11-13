@@ -213,7 +213,7 @@ int J3DAPI sithCogExec_PopInt(SithCog* pCog)
     value = *sithCogExec_GetSymbolValue(&retVal, pCog, &value);
     if ( value.type == SITHCOG_VALUE_FLOAT )
     {
-        result = lrintf(value.val.floatValue);
+        result = (int)lrintf(value.val.floatValue); // Port: narrowing cast
     }
     else if ( value.type == SITHCOG_VALUE_INT )
     {
@@ -711,7 +711,7 @@ void J3DAPI sithCogExec_PushCallstack(SithCog* pCog)
         return;
     }
 
-    pCog->callstack[pCog->callDepth].execPos     = pCog->execPos;
+    pCog->callstack[pCog->callDepth].execPos     = (int)pCog->execPos; // Port: narrowing cast
     pCog->callstack[pCog->callDepth].execStatus  = pCog->status;
     pCog->callstack[pCog->callDepth].statusParam = pCog->statusParams[0];
     pCog->callstack[pCog->callDepth].execMsgType = pCog->execMsgType;

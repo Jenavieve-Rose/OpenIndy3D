@@ -111,7 +111,7 @@ int J3DAPI sithDSS_ProcessSurfaceStatus(const SithMessage* pMsg)
     index = SITHDSS_POPINT32();
     if ( index >= 0 )
     {
-        pSurf->face.pMaterial = sithMaterial_GetMaterialByIndex(index);
+        pSurf->face.pMaterial = sithMaterial_GetMaterialByIndex((int)index); // Port: narrowing cast
     }
 
     curcelNumber = SITHDSS_POPUINT16();
@@ -386,7 +386,7 @@ int J3DAPI sithDSS_AIStatus(const SithAIControlBlock* pLocal, DPID idTo, signed 
 
     SITHDSS_PUSHINT32(pLocal->msecFireWaitTime);
     SITHDSS_PUSHINT32(pLocal->msecPauseMoveUntil);
-    SITHDSS_PUSHINT32(pLocal->numFrames);
+    SITHDSS_PUSHINT32((int32_t)pLocal->numFrames); // Port: narrowing cast
     for ( i = 0; i < pLocal->numFrames; ++i )
     {
         SITHDSS_PUSHVEC3(&pLocal->aFrames[i]);
@@ -418,7 +418,7 @@ int J3DAPI sithDSS_ProcessAIStatus(const SithMessage* pMsg)
     SITH_ASSERTREL(pWorld && pMsg);
 
     thingIdx = SITHDSS_POPUINT16();
-    pThing   = sithThing_GetThingByIndex(thingIdx);
+    pThing   = sithThing_GetThingByIndex((int)thingIdx); // Port: narrowing cast
     if ( !pThing )
     {
 #line 623
@@ -447,14 +447,14 @@ int J3DAPI sithDSS_ProcessAIStatus(const SithMessage* pMsg)
     pLocal->msecNextUpdate = SITHDSS_POPINT32();
 
     thingIdx = SITHDSS_POPUINT16();
-    pLocal->goalThing = sithThing_GetThingByIndex(thingIdx);
+    pLocal->goalThing = sithThing_GetThingByIndex((int)thingIdx); // Port: narrowing cast
     SITHDSS_POPVEC3(&pLocal->vecUnknown6);
     SITHDSS_POPVEC3(&pLocal->vecUnknown5);
     pLocal->unknown150 = SITHDSS_POPINT32();
     pLocal->unknown141 = 0;
 
     thingIdx = SITHDSS_POPUINT16();
-    pLocal->pTargetThing = sithThing_GetThingByIndex(thingIdx);
+    pLocal->pTargetThing = sithThing_GetThingByIndex((int)thingIdx); // Port: narrowing cast
     SITHDSS_POPVEC3(&pLocal->targetPos);
     SITHDSS_POPVEC3(&pLocal->vecUnknown122);
     pLocal->msecAttackStart = SITHDSS_POPINT32();
@@ -474,7 +474,7 @@ int J3DAPI sithDSS_ProcessAIStatus(const SithMessage* pMsg)
     if ( (pLocal->mode & SITHAI_MODE_FLEEING) != 0 )
     {
         thingIdx = SITHDSS_POPUINT16();
-    pLocal->pFleeFromThing = sithThing_GetThingByIndex(thingIdx);
+    pLocal->pFleeFromThing = sithThing_GetThingByIndex((int)thingIdx); // Port: narrowing cast
     }
 
     SITHDSS_POPVEC3(&pLocal->homePos);
@@ -634,7 +634,7 @@ int J3DAPI sithDSS_AnimStatus(const SithAnimationSlot* pAnim, DPID idTo, unsigne
         SITHDSS_PUSHFLOAT(pAnim->deltaValue);
         SITHDSS_PUSHFLOAT(pAnim->endValue);
         SITHDSS_PUSHFLOAT(pAnim->curValue);
-        SITHDSS_PUSHINT32(pAnim->curFrame);
+        SITHDSS_PUSHINT32((int32_t)pAnim->curFrame); // Port: narrowing cast
         SITHDSS_PUSHVEC4(&pAnim->deltaVector);
         SITHDSS_PUSHVEC4(&pAnim->startVector);
         SITHDSS_PUSHVEC4(&pAnim->endVector);
@@ -677,7 +677,7 @@ int J3DAPI sithDSS_AnimStatus(const SithAnimationSlot* pAnim, DPID idTo, unsigne
     {
         SITHDSS_PUSHINT32(pAnim->msecNextFrameTime);
         SITHDSS_PUSHINT32(pAnim->msecPerFrame);
-        SITHDSS_PUSHINT32(pAnim->curFrame);
+        SITHDSS_PUSHINT32((int32_t)pAnim->curFrame); // Port: narrowing cast
     }
 
     if ( (pAnim->flags & SITHANIMATE_LIGHT) != 0 )
@@ -1038,7 +1038,7 @@ int J3DAPI sithDSS_ProcessPuppetStatus(const SithMessage* pMsg)
             if ( trackNum < STD_ARRAYLEN(pPuppet->aTracks) )
             {
                 SithPuppetClassSubmode* pSubmode = &pThing->pPuppetClass->aModes[pThing->pPuppetState->majorMode][submode];
-                int bTrack = sithPuppet_NewTrack(pThing, pSubmode, trackNum, submode);
+                int bTrack = sithPuppet_NewTrack(pThing, pSubmode, (int)trackNum, submode); // Port: narrowing cast
                 if ( bTrack )
                 {
                     return 0;
@@ -1104,7 +1104,7 @@ int J3DAPI sithDSS_SyncCameras(DPID idTo, unsigned int outstream)
 
     SITHDSS_PUSHINT16(sithCamera_pCurCamera - sithCamera_aCameras);
     SITHDSS_PUSHINT32(sithCamera_camInfo.bCurCameraSet);
-    SITHDSS_PUSHINT32(sithCamera_camInfo.curCycleCamNum);
+    SITHDSS_PUSHINT32((int32_t)sithCamera_camInfo.curCycleCamNum); // Port: narrowing cast
     SITHDSS_PUSHVEC3(&sithCamera_camInfo.povShake.vecPosOffset);
     SITHDSS_PUSHVEC3(&sithCamera_camInfo.povShake.vecAngleOffset);
     SITHDSS_PUSHFLOAT(sithCamera_camInfo.povShake.posDelta);
@@ -1151,9 +1151,9 @@ int J3DAPI sithDSS_ProcessSyncCameras(const SithMessage* pMsg)
         pCamera = &sithCamera_aCameras[i];
         pCamera->pSector = NULL;
         cameraNum = SITHDSS_POPINT32();
-        pCamera->pPrimaryFocusThing = sithThing_GetThingByIndex(cameraNum);
+        pCamera->pPrimaryFocusThing = sithThing_GetThingByIndex((int)cameraNum); // Port: narrowing cast
         cameraNum = SITHDSS_POPINT32();
-        pCamera->pSecondaryFocusThing = sithThing_GetThingByIndex(cameraNum);
+        pCamera->pSecondaryFocusThing = sithThing_GetThingByIndex((int)cameraNum); // Port: narrowing cast
         pCamera->fov = SITHDSS_POPFLOAT();
     }
 

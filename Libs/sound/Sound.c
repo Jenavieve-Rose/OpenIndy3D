@@ -291,7 +291,7 @@ void J3DAPI Sound_Close(void)
         }
 
         Sound_sizeChannels = 0;
-        Sound_numChannels  = Sound_sizeChannels;
+        Sound_numChannels  = (int)Sound_sizeChannels; // Port: narrowing cast
         Sound_state = SOUNDSTATE_STARTUP;
     }
 }
@@ -350,7 +350,7 @@ int J3DAPI Sound_Save(tFileHandle fh)
                 uint8_t* aSndCache = soundbank_apSoundCache[pSndInfo->bankNum];
 
                 // TODO: Make sure name max len should be less or equal than STD_ARRAYLEN(Sound_sndFilename)
-                curvalue = strlen((const char*)&aSndCache[pSndInfo->filePathOffset]) + 1;
+                curvalue = (uint32_t)(strlen((const char*)&aSndCache[pSndInfo->filePathOffset]) + 1); // Port: narrowing cast
                 if ( Sound_pHS->pFileWrite(fh, &curvalue, sizeof(curvalue)) != sizeof(curvalue) )
                 {
                     return 0;
@@ -1136,7 +1136,7 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
     }
 
     // Read WAV header into buffer
-    nRead = Sound_pHS->pFileRead(fh, Sound_loadBuffer, STD_ARRAYLEN(Sound_loadBuffer));
+    nRead = (int)Sound_pHS->pFileRead(fh, Sound_loadBuffer, STD_ARRAYLEN(Sound_loadBuffer)); // Port: narrowing cast
     if ( nRead < 50 ) // 50 - is WAV header size?
     {
         return SOUND_INVALIDHANDLE;
@@ -1191,8 +1191,8 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
 
         // Assign sound info
         pSndInfo->hSnd           = Sound_GenerateSoundHandle();
-        pSndInfo->bankNum        = bankNum;
-        pSndInfo->filePathOffset = Sound_WriteSoundFilepathToBank(pSndInfo->bankNum, pFilepath, strlen(pFilepath) + 1); // + 1 is terminating zero
+        pSndInfo->bankNum        = (uint32_t)bankNum; // Port: narrowing cast
+        pSndInfo->filePathOffset = (uint32_t)Sound_WriteSoundFilepathToBank(pSndInfo->bankNum, pFilepath, strlen(pFilepath) + 1); // + 1 is terminating zero
 
         // Check if we have enough space in the sound cache to write the sound data
         if ( !pSndInfo->filePathOffset )
@@ -1201,17 +1201,17 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
         }
 
         // Assign name offset & compressed flag
-        pSndInfo->nameOffset  = pSndInfo->filePathOffset + (pFilename - (const uint8_t*)pFilepath);
+        pSndInfo->nameOffset  = (uint32_t)(pSndInfo->filePathOffset + (pFilename - (const uint8_t*)pFilepath)); // Port: narrowing cast
         pSndInfo->bCompressed = wavType == 6; // 6 - IndyWV
 
         // Move file pointer to sound data offset
-        Sound_pHS->pFileSeek(fh, pSoundData - Sound_loadBuffer, 0);
+        Sound_pHS->pFileSeek(fh, (int)(pSoundData - Sound_loadBuffer), 0); // Port: narrowing cast
 
         if ( pSndInfo->bCompressed || Sound_bNoSoundCompression )
         {
             // Compressed Sound data read
 
-            pSndInfo->dataOffset = Sound_GetFreeCache(pSndInfo->bankNum, pSndInfo->dataSize);
+            pSndInfo->dataOffset = (uint32_t)Sound_GetFreeCache(pSndInfo->bankNum, pSndInfo->dataSize); // Port: narrowing cast
             if ( !pSndInfo->dataOffset )
             {
                 goto error;
@@ -1231,7 +1231,7 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
             // Uncompressed sound data read
 
             dataSize = pSndInfo->dataSize;
-            pSndInfo->dataOffset = Sound_GetFreeCache(pSndInfo->bankNum, pSndInfo->dataSize + dataSize); // Reserve space for original data size + compressed data size
+            pSndInfo->dataOffset = (uint32_t)Sound_GetFreeCache(pSndInfo->bankNum, pSndInfo->dataSize + dataSize); // Reserve space for original data size + compressed data size
             if ( !pSndInfo->dataOffset )
             {
                 goto error;
@@ -1256,7 +1256,7 @@ tSoundHandle J3DAPI Sound_Load(const char* pFilepath, uint32_t* sndIdx)
             ((tAudioCompressedData*)&soundbank_apSoundCache[pSndInfo->bankNum][pSndInfo->dataOffset])->uncompressedSize = pSndInfo->dataSize;
 
             // Now assign compressed data size
-            pSndInfo->dataSize = compressedSize;
+            pSndInfo->dataSize = (uint32_t)compressedSize; // Port: narrowing cast
 
             // Increase free cache size to size of data size
             Sound_IncreaseFreeCache(pSndInfo->bankNum, pSndInfo->dataSize + dataSize - compressedSize);
@@ -1679,7 +1679,7 @@ tSoundChannelHandle J3DAPI Sound_Play(tSoundHandle hSnd, float volume, float pan
         }
 
         memset(Sound_apChannels, 0, Sound_maxChannels * sizeof(tSoundChannel));
-        Sound_numChannels = Sound_sizeChannels = Sound_maxChannels;
+        Sound_numChannels = (int)(Sound_sizeChannels = Sound_maxChannels); // Port: narrowing cast
     }
 
     // First scan for a free channel while tracking lowest priority
@@ -2795,7 +2795,7 @@ int J3DAPI Sound_GenerateLipSync(tSoundChannelHandle hChannel, uint8_t* pMouthPo
             bAllocated  = 1;
 
             AudioLib_ResetCompressor(&compressor);
-            AudioLib_Uncompress(&compressor, pSndData, ((tAudioCompressedData*)&soundbank_apSoundCache[pSndInfo->bankNum][pSndInfo->dataOffset])->compressedData, sndDataSize);
+            AudioLib_Uncompress(&compressor, pSndData, ((tAudioCompressedData*)&soundbank_apSoundCache[pSndInfo->bankNum][pSndInfo->dataOffset])->compressedData, (unsigned int)sndDataSize); // Port: narrowing cast
         }
         else
         {
@@ -2803,7 +2803,7 @@ int J3DAPI Sound_GenerateLipSync(tSoundChannelHandle hChannel, uint8_t* pMouthPo
             sndDataSize = pSndInfo->dataSize;
         }
 
-        genDataSize = AudioLib_GenerateLipSynchBlock(
+        genDataSize = (int)AudioLib_GenerateLipSynchBlock( // Port: narrowing cast
             aBuffer,
             pSndData,
             60u,
@@ -2813,7 +2813,7 @@ int J3DAPI Sound_GenerateLipSync(tSoundChannelHandle hChannel, uint8_t* pMouthPo
             pSndInfo->sempleBitSize,
             pSndInfo->numChannels,
             1,
-            sndDataSize
+            (int)sndDataSize // Port: narrowing cast
         );
 
         if ( bAllocated )
@@ -2846,7 +2846,7 @@ int J3DAPI Sound_GenerateLipSync(tSoundChannelHandle hChannel, uint8_t* pMouthPo
     }
     else
     {
-        a2 = 1000 * curPos / (pSndInfo->numChannels * (pSndInfo->sempleBitSize >> 3) * pSndInfo->sampleRate) + a4;
+        a2 = (int)(1000 * curPos / (pSndInfo->numChannels * (pSndInfo->sempleBitSize >> 3) * pSndInfo->sampleRate) + a4); // Port: narrowing cast
     }
 
     if ( !AudioLib_GetMouthPosition(pSndInfo->pLipSyncData, a2, pMouthPosX, pMouthPosY) )

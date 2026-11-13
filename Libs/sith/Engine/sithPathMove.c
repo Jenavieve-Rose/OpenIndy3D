@@ -481,7 +481,7 @@ void J3DAPI sithPathMove_UpdatePath(SithThing* pThing)
 {
     if ( (pThing->moveInfo.pathMovement.mode & SITH_PATHMOVE_FOLLOWPATH) != 0 )
     {
-        pThing->moveInfo.pathMovement.currentFrame = pThing->moveInfo.pathMovement.nextFrame;
+        pThing->moveInfo.pathMovement.currentFrame = (int)pThing->moveInfo.pathMovement.nextFrame; // Port: narrowing cast
         if ( pThing->moveInfo.pathMovement.currentFrame == pThing->moveInfo.pathMovement.goalFrame )
         {
             sithPathMove_Finish(pThing);
@@ -493,7 +493,7 @@ void J3DAPI sithPathMove_UpdatePath(SithThing* pThing)
     }
     else
     {
-        pThing->moveInfo.pathMovement.currentFrame = pThing->moveInfo.pathMovement.nextFrame;
+        pThing->moveInfo.pathMovement.currentFrame = (int)pThing->moveInfo.pathMovement.nextFrame; // Port: narrowing cast
         sithPathMove_Finish(pThing);
     }
 }

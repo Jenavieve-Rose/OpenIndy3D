@@ -1063,7 +1063,7 @@ int J3DAPI rdModel3_Write(const char* pFilename, const rdModel3* pModel, const c
                     {
                         if ( pFace->pMaterial == pModel->apMaterials[i] )
                         {
-                            matNum = i;
+                            matNum = (int)i; // Port: narrowing cast
                         }
                     }
 
@@ -1138,7 +1138,7 @@ int J3DAPI rdModel3_Write(const char* pFilename, const rdModel3* pModel, const c
         pNode = &pModel->aHierarchyNodes[nodeNum];
         if ( pNode->pParent )
         {
-            parentNum = pNode->pParent->num;
+            parentNum = (int)pNode->pParent->num; // Port: narrowing cast
         }
         else
         {
@@ -1147,7 +1147,7 @@ int J3DAPI rdModel3_Write(const char* pFilename, const rdModel3* pModel, const c
 
         if ( pNode->pChild )
         {
-            childNum = pNode->pChild->num;
+            childNum = (int)pNode->pChild->num; // Port: narrowing cast
         }
         else
         {
@@ -1156,7 +1156,7 @@ int J3DAPI rdModel3_Write(const char* pFilename, const rdModel3* pModel, const c
 
         if ( pNode->pSibling )
         {
-            siblingNum = pNode->pSibling->num;
+            siblingNum = (int)pNode->pSibling->num; // Port: narrowing cast
         }
         else
         {
@@ -1562,7 +1562,7 @@ void J3DAPI rdModel3_CalcFaceNormals(rdModel3* pModel3)
                     prevVertNum = vertNum - 1;
                     if ( prevVertNum < 0 )
                     {
-                        prevVertNum = pFace->numVertices - 1;
+                        prevVertNum = (int)(pFace->numVertices - 1); // Port: narrowing cast
                     }
 
                     nextVertNum = (vertNum + 1) % pFace->numVertices;

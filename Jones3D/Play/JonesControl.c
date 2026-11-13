@@ -111,7 +111,7 @@ void J3DAPI JonesControl_EnableJoystickAxes(void)
     int numJoysticks;
     int i;
 
-    numJoysticks = stdControl_GetNumJoysticks();
+    numJoysticks = (int)stdControl_GetNumJoysticks(); // Port: narrowing cast
     for ( i = 0; i < numJoysticks; ++i )
     {
         stdControl_EnableAxis(i * 6);

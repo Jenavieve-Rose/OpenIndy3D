@@ -120,7 +120,7 @@ int J3DAPI rdPuppet_AddTrack(rdPuppet* pPuppet, rdKeyframe* pKFTrack, int lowPri
     pTrack->status      |= RDPUPPET_TRACK_UNKNOWN_1;
 
     rdPuppet_ResetTrack(pPuppet, curTrack);
-    return curTrack;
+    return (int)curTrack; // Port: narrowing cast
 }
 
 int J3DAPI rdPuppet_RemoveTrack(rdPuppet* pPuppet, size_t track)
@@ -134,7 +134,7 @@ int J3DAPI rdPuppet_RemoveTrack(rdPuppet* pPuppet, size_t track)
 
     if ( pTrack->pfCallback )
     {
-        pTrack->pfCallback(pPuppet->pThing->pThing, track, (rdKeyMarkerType)0); // notify finished
+        pTrack->pfCallback(pPuppet->pThing->pThing, (int)track, (rdKeyMarkerType)0); // notify finished
     }
 
     pTrack->status     = 0;
@@ -341,7 +341,7 @@ void J3DAPI rdPuppet_AdvanceTrack(rdPuppet* pPuppet, size_t track, float frames)
 
                     if ( pTrackEntry->pKFTrack->aMarkerFrames[i] > pTrackEntry->prevFrame || pTrackEntry->prevFrame == 0.0f )
                     {
-                        pTrackEntry->pfCallback(pPuppet->pThing->pThing, track, pTrackEntry->pKFTrack->aMarkerTypes[i]);
+                        pTrackEntry->pfCallback(pPuppet->pThing->pThing, (int)track, pTrackEntry->pKFTrack->aMarkerTypes[i]); // Port: narrowing cast
                     }
 
                     ++i;
@@ -356,7 +356,7 @@ void J3DAPI rdPuppet_AdvanceTrack(rdPuppet* pPuppet, size_t track, float frames)
                 i = 0;
                 while ( pTrackEntry->pKFTrack && i < numMarkers )
                 {
-                    pTrackEntry->pfCallback(pPuppet->pThing->pThing, track, pTrackEntry->pKFTrack->aMarkerTypes[i]);
+                    pTrackEntry->pfCallback(pPuppet->pThing->pThing, (int)track, pTrackEntry->pKFTrack->aMarkerTypes[i]); // Port: narrowing cast
                     ++i;
                 }
             }
@@ -369,7 +369,7 @@ void J3DAPI rdPuppet_AdvanceTrack(rdPuppet* pPuppet, size_t track, float frames)
             {
                 if ( pTrackEntry->pKFTrack->aMarkerFrames[i] > pTrackEntry->prevFrame || pTrackEntry->pKFTrack->aMarkerFrames[i] <= pTrackEntry->curFrame )
                 {
-                    pTrackEntry->pfCallback(pPuppet->pThing->pThing, track, pTrackEntry->pKFTrack->aMarkerTypes[i]);
+                    pTrackEntry->pfCallback(pPuppet->pThing->pThing, (int)track, pTrackEntry->pKFTrack->aMarkerTypes[i]); // Port: narrowing cast
                 }
 
                 ++i;
@@ -439,7 +439,7 @@ int J3DAPI rdPuppet_UpdateTracks(rdPuppet* pPuppet, float secDeltaTime)
         }
     }
 
-    return numUpdatedTracks;
+    return (int)numUpdatedTracks; // Port: narrowing cast
 }
 
 void J3DAPI rdPuppet_ResetTrack(rdPuppet* pPuppet, size_t track)

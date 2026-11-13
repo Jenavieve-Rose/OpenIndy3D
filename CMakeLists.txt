@@ -17,7 +17,7 @@ endif()
 
 # J3D_DEBUG (j3d.h) follows NDEBUG. The decomp's release build is the reference, so NDEBUG is defined in every
 # configuration unless the engine's debug asserts are asked for explicitly.
-option(J3D_WERROR_SHORTEN "Treat -Wshorten-64-to-32 as an error (enable once the Phase 1 audit is closed)" OFF)
+option(J3D_WERROR_SHORTEN "Treat -Wshorten-64-to-32 as an error (on since the Phase 1 audit closed, PORT-PLAN.md P1.29)" ON)
 option(J3D_DEBUG_ASSERTS "Compile the engine's debug-only J3D_ASSERT checks" OFF)
 option(J3D_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer (PORT-PLAN.md P1.21)" OFF)
 
@@ -58,7 +58,8 @@ target_compile_options(j3d_common INTERFACE
     # A function that falls off its end returned whatever eax held in retail and returns garbage here. All known cases
     # are fixed (docs/PORTING.md, "Functions with no return value"); a new one must not get in.
     -Werror=return-type
-    # Every 64-to-32 narrowing is reported. They are triaged in the Phase 1 64-bit audit; see docs/PORTING.md.
+    # Every 64-to-32 narrowing is reported, and is an error while J3D_WERROR_SHORTEN is on (the default). The Phase 1
+    # audit triaged all of them (docs/PORTING.md, "64-bit audit: narrowing conversions"); jonesConfig.c is exempt below.
     -Wshorten-64-to-32
     # Every other warning class was cleared in Phase 1 (PORT-PLAN.md P1.23, P1.24, P1.28) and is an error from then on.
     # The exceptions: narrowing until J3D_WERROR_SHORTEN is on, and AudioLib.c's unsequenced write, which is verified
@@ -173,6 +174,9 @@ target_link_libraries(platform PUBLIC j3d_common)
 # The game shell is a library so the test harnesses can link it without the app entry point.
 file(GLOB_RECURSE J3D_GAME_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/Jones3D/*.c)
 add_library(jones3d_game STATIC ${J3D_GAME_SOURCES})
+# jonesConfig.c's 58 narrowing conversions are Win32 dialog message plumbing, which Phase 6 replaces (PORT-PLAN.md
+# P6.24); until then they stay warnings.
+set_source_files_properties(${J3D_ROOT}/Jones3D/Display/jonesConfig.c PROPERTIES COMPILE_OPTIONS -Wno-error=shorten-64-to-32)
 target_link_libraries(jones3d_game PUBLIC
     j3d_common
     sith smush sound rdroid std zlib

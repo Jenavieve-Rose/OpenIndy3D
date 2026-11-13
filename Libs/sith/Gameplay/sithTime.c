@@ -46,7 +46,7 @@ void J3DAPI sithTime_Advance(void)
 
     if ( (sith_mode.debugModeFlags & SITHDEBUG_SLOWMODE) != 0 )
     {
-        sithTime_frameTime = lrintf((float)sithTime_frameTime * 0.2f); // frameTime / 5.0f
+        sithTime_frameTime = (uint32_t)lrintf((float)sithTime_frameTime * 0.2f); /* Port: narrowing cast */ // frameTime / 5.0f
     }
 
     sithTime_frameTimeFlex = (float)sithTime_frameTime * 0.001f;

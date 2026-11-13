@@ -594,7 +594,7 @@ void J3DAPI sithCogFunctionPlayer_GetNumPlayers(SithCog* pCog)
 
 void J3DAPI sithCogFunctionPlayer_GetMaxPlayers(SithCog* pCog)
 {
-    sithCogExec_PushInt(pCog, sithPlayer_numPlayers);
+    sithCogExec_PushInt(pCog, (int)sithPlayer_numPlayers); // Port: narrowing cast
 }
 
 void J3DAPI sithCogFunctionPlayer_GetAbsoluteMaxPlayers(SithCog* pCog)

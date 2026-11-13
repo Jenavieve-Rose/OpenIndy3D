@@ -50,7 +50,7 @@ void decode_565BtoRGBA(void* pDst, const void* pSrc, int n) { (void)pDst; (void)
 void mixer_MemCopy(void* pDst, const void* pSrc, int n) { (void)pDst; (void)pSrc; (void)n; null_Unreachable(__func__); }
 void mixer_MemFill(void* pDst, int value, int n)        { (void)pDst; (void)value; (void)n; null_Unreachable(__func__); }
 
-void dbloc16_Codec2(unsigned short* pDst, unsigned char* pSrc, int offset1, int offset2, int width, short* pMotion,
+void dbloc16_Codec2(unsigned short* pDst, unsigned char* pSrc, ptrdiff_t offset1, ptrdiff_t offset2, int width, short* pMotion,
                     unsigned char* pParams, int height, int nextLine, void* pSmall, void* pBig, unsigned short* pPalette)
 {
     (void)pDst; (void)pSrc; (void)offset1; (void)offset2; (void)width; (void)pMotion; (void)pParams; (void)height;

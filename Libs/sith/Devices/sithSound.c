@@ -321,7 +321,7 @@ tSoundHandle J3DAPI sithSound_Load(SithWorld* pWorld, const char* filename)
     
     sprintf(aPath, "%s%c%s", "sound", '\\', filename);
 
-    sndIdx = pWorld->numSounds;
+    sndIdx = (uint32_t)pWorld->numSounds; // Port: narrowing cast
     
     if ( (pWorld->state & SITH_WORLD_STATE_STATIC) != 0 )
     {

@@ -239,7 +239,7 @@ int J3DAPI sithMaterial_WriteMaterialsListBinary(tFileHandle fh, const SithWorld
     for ( i = 0; i < pWorld->numMaterials; ++i )
     {
         pMat = &pWorld->aMaterials[i];
-        pCurInfo->numMipLevels = std3D_GetMipMapCount(pMat->aTextures);
+        pCurInfo->numMipLevels = (uint32_t)std3D_GetMipMapCount(pMat->aTextures); // Port: narrowing cast
         texSize = rdMaterial_GetMipSize(pMat->width, pMat->height, pCurInfo->numMipLevels);
         texSize *= 2 * pMat->numCels;
         sizePixelBuffers += texSize;
@@ -265,7 +265,7 @@ int J3DAPI sithMaterial_WriteMaterialsListBinary(tFileHandle fh, const SithWorld
         fhMat = sith_pHS->pFileOpen(aPath, "rb");
         if ( fhMat )
         {
-            pCurInfo->numCels = pMat->numCels;
+            pCurInfo->numCels = (uint32_t)pMat->numCels; // Port: narrowing cast
             pCurInfo->width   = pMat->width;
             pCurInfo->height  = pMat->height;
             strncpy(pCurInfo->aName, pMat->aName, STD_ARRAYLEN(pCurInfo->aName) - 1);
@@ -278,7 +278,7 @@ int J3DAPI sithMaterial_WriteMaterialsListBinary(tFileHandle fh, const SithWorld
 
             memcpy(&pCurInfo->colorInfo, &matHeader.colorInfo, sizeof(pCurInfo->colorInfo));
 
-            if ( sith_pHS->pFileSeek(fhMat, sizeof(rdMatRecordHeader) * pMat->numCels, 1) )
+            if ( sith_pHS->pFileSeek(fhMat, (int)(sizeof(rdMatRecordHeader) * pMat->numCels), 1) ) // Port: narrowing cast
             {
                 goto error;
             }
@@ -562,7 +562,7 @@ int J3DAPI sithMaterial_ReadMaterialsListBinary(tFileHandle fh, SithWorld* pWorl
 
         sithMaterial_CacheAdd(pMat);
 
-        pMat->num = pWorld->numMaterials;
+        pMat->num = (int)pWorld->numMaterials; // Port: narrowing cast
         if ( (pWorld->state & SITH_WORLD_STATE_STATIC) != 0 )
         {
             pMat->num = SITHWORLD_STATICINDEX(pMat->num);
@@ -643,7 +643,7 @@ rdMaterial* J3DAPI sithMaterial_Load(const char* pName)
 
     sithMaterial_CacheAdd(pMat);
 
-    pMat->num = pWorld->numMaterials;
+    pMat->num = (int)pWorld->numMaterials; // Port: narrowing cast
     if ( (pWorld->state & SITH_WORLD_STATE_STATIC) != 0 )
     {
         pMat->num = SITHWORLD_STATICINDEX(pMat->num);

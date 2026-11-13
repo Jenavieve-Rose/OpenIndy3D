@@ -1091,7 +1091,7 @@ void J3DAPI sithCogFunctionAI_FirstThingInView(SithCog* pCog)
         rdMatrix_PostTranslate34(&orient, &pThing->pos);
     }
 
-    sithCogFunctionAI_numThingsInView = sithAIUtil_GetThingsInView(
+    sithCogFunctionAI_numThingsInView = (int)sithAIUtil_GetThingsInView( // Port: narrowing cast
         pThing->pInSector,
         &orient,
         fovX,

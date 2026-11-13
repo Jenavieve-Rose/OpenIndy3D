@@ -91,7 +91,7 @@ int read();
  * is returned in "result".
  */
 #define YY_INPUT(buf,result,max_size) \
-	if ( (result = sith_pHS->pFileRead(yyin, (char *) buf, max_size )) < 0 ) \
+	if ( (result = (int)sith_pHS->pFileRead(yyin, (char *) buf, max_size )) < 0 ) /* Port: narrowing cast */ \
 	    YY_FATAL_ERROR( "read() in flex scanner failed" );
 #define YY_NULL 0
 
@@ -182,7 +182,7 @@ size_t yylinenum;
  */
 #define YY_DO_BEFORE_ACTION \
 	yytext = yy_bp; \
-	yyleng = yy_cp - yy_bp; \
+	yyleng = (int)(yy_cp - yy_bp); /* Port: narrowing cast */ \
 	yy_hold_char = *yy_cp; \
 	*yy_cp = '\0'; \
 	yy_c_buf_p = yy_cp;
@@ -714,7 +714,7 @@ case YY_STATE_EOF(INITIAL):
 	    case YY_END_OF_BUFFER:
 		{
 		/* amount of text matched not including the EOB char */
-		int yy_amount_of_matched_text = yy_cp - yytext - 1;
+		int yy_amount_of_matched_text = (int)(yy_cp - yytext - 1); // Port: narrowing cast
 
 		/* undo the effects of YY_DO_BEFORE_ACTION */
 		*yy_cp = yy_hold_char;
@@ -852,7 +852,7 @@ static int yy_get_next_buffer()
     /* try to read more data */
 
     /* first move last chars to start of buffer */
-    number_to_move = yy_c_buf_p - yytext;
+    number_to_move = (int)(yy_c_buf_p - yytext); // Port: narrowing cast
 
     for ( i = 0; i < number_to_move; ++i )
 	*(dest++) = *(source++);

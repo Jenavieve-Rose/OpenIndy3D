@@ -1071,7 +1071,7 @@ float J3DAPI sithCollision_SearchForCollisions(SithSector* pStartSector, SithThi
 
     if ( moveDist != 0.0f && (searchFlags & 0x800) != 0 )
     {
-        numCurSectors = aNumSectors[stackLevel];
+        numCurSectors = (unsigned int)aNumSectors[stackLevel]; // Port: narrowing cast
         for ( secNum = 0, pCurSect = apSearchedSectors[stackLevel][0]; secNum < numCurSectors; ++secNum, pCurSect = apSearchedSectors[stackLevel][secNum] )
         {
             for ( curi = pCurSect->pFirstAdjoin; curi; curi = curi->pNextAdjoin )

@@ -473,7 +473,7 @@ int J3DAPI sithSoundMixer_GetNextChannelGUID(void)
         sithSoundMixer_channelGUIDSeed = 1;
     }
 
-    return ((sithPlayer_playerNum + 1) << 16) | (sithSoundMixer_channelGUIDSeed++ & 0xFFFF);
+    return (int)(((sithPlayer_playerNum + 1) << 16) | (sithSoundMixer_channelGUIDSeed++ & 0xFFFF)); // Port: narrowing cast
 }
 
 tSoundChannelFlag J3DAPI sithSoundMixer_PlayFlagsToChannelFlags(SoundPlayFlag flags)

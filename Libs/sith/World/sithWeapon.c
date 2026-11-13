@@ -1669,7 +1669,7 @@ int J3DAPI sithWeapon_GetAimOrient(rdMatrix34* pOutOrient, SithThing* pShooter, 
                     if ( targetNum < 0 || dot > curDot )
                     {
                         curDot    = dot;
-                        targetNum = i;
+                        targetNum = (int)i; // Port: narrowing cast
                     }
                 }
             }

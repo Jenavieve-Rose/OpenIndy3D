@@ -305,7 +305,7 @@ int J3DAPI sithGamesave_SaveCurrentWorld(SithMessageStream outstream)
     {
         if ( (sithInventory_aTypes[i].flags & SITHINVENTORY_TYPE_REGISTERED) != 0 )
         {
-            bFailed = sithDSS_Inventory(sithPlayer_pLocalPlayerThing, i, DPID_ALLPLAYERS, outstream);
+            bFailed = sithDSS_Inventory(sithPlayer_pLocalPlayerThing, (unsigned int)i, DPID_ALLPLAYERS, outstream); // Port: narrowing cast
             if ( bFailed )
             {
                 return bFailed;
@@ -788,7 +788,7 @@ int J3DAPI sithGamesave_SaveFile(const char* pFilename)
         }
     }
 
-    header.localPlayerNum = sithPlayer_playerNum;
+    header.localPlayerNum = (uint32_t)sithPlayer_playerNum; // Port: narrowing cast
 
     // Write header to file
     hresult = stdConffile_Write(&header, sizeof(NdsHeader));
@@ -1076,7 +1076,7 @@ HBITMAP J3DAPI sithGamesave_LoadThumbnail(const char* pFilename)
     bmi.bmiHeader.biPlanes        = 1;
     bmi.bmiHeader.biBitCount      = SITHSAVEGAME_THUMBBPP;
     bmi.bmiHeader.biCompression   = BI_RGB;
-    bmi.bmiHeader.biSizeImage     = imageSize;
+    bmi.bmiHeader.biSizeImage     = (DWORD)imageSize; // Port: narrowing cast
     bmi.bmiHeader.biXPelsPerMeter = 0;
     bmi.bmiHeader.biYPelsPerMeter = 0;
     bmi.bmiHeader.biClrUsed       = 0;

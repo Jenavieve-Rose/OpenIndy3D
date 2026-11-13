@@ -1279,15 +1279,15 @@ void J3DAPI sithAIMove_SetSubMode(SithAIControlBlock* pLocal, SithThingMoveStatu
         pTrack = sithPuppet_FindActiveTrack(pThing, pKeyframe);
         if ( pTrack )
         {
-            sithPuppet_SynchMode(pThing, pTrack->submode, submode, -1.0f, 0);
+            sithPuppet_SynchMode(pThing, pTrack->submode, (SithPuppetSubMode)submode, -1.0f, 0); // Port: narrowing cast
         }
         else
         {
-            sithPuppet_SetSubMode(pThing, submode, pfCallback);
+            sithPuppet_SetSubMode(pThing, (SithPuppetSubMode)submode, pfCallback); // Port: narrowing cast
         }
     }
 
-    pThing->pPuppetState->submode = submode;
+    pThing->pPuppetState->submode = (SithPuppetSubMode)submode; // Port: narrowing cast
     pThing->moveStatus = moveStatus;
 }
 

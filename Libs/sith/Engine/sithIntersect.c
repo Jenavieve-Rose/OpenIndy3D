@@ -352,7 +352,7 @@ int J3DAPI sithIntersect_TestSphereFaceHit(const rdVector3* startPos, float radi
     curSphPos.x = *(&startPos->x + axis1);
     curSphPos.y = *(&startPos->x + axis2);
 
-    numVertices = pFace->numVertices;
+    numVertices = (int)pFace->numVertices; // Port: narrowing cast
     for ( vertNum = 0, curEdgeMask = 1; vertNum < numVertices; ++vertNum, curEdgeMask <<= 1 )
     {
         nedge.x = edgeVec.x = -*(&aVertices[pFace->aVertices[vertNum]].x + axis1); // Get n-th component of vertex, i.e. x, y or z
@@ -791,12 +791,12 @@ static inline void J3DAPI sithIntersect_GetProjectionAxes(const rdVector3* pNorm
 
     if ( *(&pNormal->x + idx) > 0.0f )
     {
-        *pAxis1 = sithIntersect_aFaceProjectionAxes[idx][0];
-        *pAxis2 = sithIntersect_aFaceProjectionAxes[idx][1];
+        *pAxis1 = (int)sithIntersect_aFaceProjectionAxes[idx][0]; // Port: narrowing cast
+        *pAxis2 = (int)sithIntersect_aFaceProjectionAxes[idx][1]; // Port: narrowing cast
     }
     else
     {
-        *pAxis1 = sithIntersect_aFaceProjectionAxes[idx][1];
-        *pAxis2 = sithIntersect_aFaceProjectionAxes[idx][0];
+        *pAxis1 = (int)sithIntersect_aFaceProjectionAxes[idx][1]; // Port: narrowing cast
+        *pAxis2 = (int)sithIntersect_aFaceProjectionAxes[idx][0]; // Port: narrowing cast
     }
 }

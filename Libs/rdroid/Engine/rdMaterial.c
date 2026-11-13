@@ -293,8 +293,8 @@ int J3DAPI rdMaterial_Write(const char* pFilename, const rdMaterial* pMaterial, 
     strncpy(header.magic, RDMAT_MAGIC, 4);
     header.version     = RDMAT_VERSION;
     header.type        = RDMAT_TYPE_TEXTURE;
-    header.numCels     = pMaterial->numCels;
-    header.numTextures = pMaterial->numCels;
+    header.numCels     = (uint32_t)pMaterial->numCels; // Port: narrowing cast
+    header.numTextures = (uint32_t)pMaterial->numCels; // Port: narrowing cast
     memcpy(&header.colorInfo, &(**paTextures)->rasterInfo.colorInfo, sizeof(ColorInfo));
 
     fh = rdroid_pHS->pFileOpen(pFilename, "wb+");
@@ -323,7 +323,7 @@ int J3DAPI rdMaterial_Write(const char* pFilename, const rdMaterial* pMaterial, 
         }
 
         texcelInfo.unknown0 = 0;
-        texcelInfo.celNum   = i;
+        texcelInfo.celNum   = (int)i; // Port: narrowing cast
         if ( rdroid_pHS->pFileWrite(fh, &texcelInfo, sizeof(rdMatTextureCelInfo)) != sizeof(rdMatTextureCelInfo) )
         {
             goto error;
@@ -336,7 +336,7 @@ int J3DAPI rdMaterial_Write(const char* pFilename, const rdMaterial* pMaterial, 
         texHeader.transparentBool = 0;
         texHeader.width           = pMaterial->width;
         texHeader.height          = pMaterial->height;
-        texHeader.numMipLevels    = numMipLevels;
+        texHeader.numMipLevels    = (int)numMipLevels; // Port: narrowing cast
         texHeader.unknown2        = 0;
         if ( rdroid_pHS->pFileWrite(fh, &texHeader, sizeof(rdMatTextureHeader)) != sizeof(rdMatTextureHeader) )
         {

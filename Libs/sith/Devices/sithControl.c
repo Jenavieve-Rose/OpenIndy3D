@@ -304,7 +304,7 @@ void J3DAPI sithControl_UnbindControl(SithControlBindFlag flags, size_t controlI
     return;
 
 found:
-    sithControl_UnbindFunctionIndex(funcId, bindIndex);
+    sithControl_UnbindFunctionIndex((int)funcId, bindIndex); // Port: narrowing cast
 }
 
 void J3DAPI sithControl_RegisterControlCallback(SithControlCallback pfCallback)
@@ -682,10 +682,10 @@ void J3DAPI sithControl_RebindKeyboard(void)
             {
                 pBinding = &aControlBindings[funcId].aBindings[bindIndex];
                 bAxis = pBinding->flags & SITHCONTROLBIND_AXISCONTROL;
-                controlId = pBinding->controlId;
+                controlId = (int)pBinding->controlId; // Port: narrowing cast
                 if ( !bAxis && STDCONTROL_ISKEYBOARDBUTTON(controlId) )
                 {
-                    sithControl_UnbindFunctionIndex(funcId, bindIndex);
+                    sithControl_UnbindFunctionIndex((int)funcId, bindIndex); // Port: narrowing cast
                     bFound = 1;
                 }
             }
@@ -715,7 +715,7 @@ void J3DAPI sithControl_UnbindJoystickAxes(void)
                 currentcontrolId = pBinding->controlId & 0x0FFFFFFF;
                 if ( !bAxis && STDCONTROL_ISJOYSTICKBUTTON(currentcontrolId) || bAxis && STDCONTROL_ISJOYSTICKAXIS(currentcontrolId) )
                 {
-                    sithControl_UnbindFunctionIndex(funcId, bindIndex);
+                    sithControl_UnbindFunctionIndex((int)funcId, bindIndex); // Port: narrowing cast
                     bCurFound = 1;
                 }
             }
@@ -752,7 +752,7 @@ void J3DAPI sithControl_UnbindMouseAxes(void)
                 currentcontrolId = pBinding->controlId & 0x0FFFFFFF;
                 if ( !bAxis && STDCONTROL_ISMOUSEBUTTON(currentcontrolId) || bAxis && STDCONTROL_ISMOUSEAXIS(currentcontrolId) )
                 {
-                    sithControl_UnbindFunctionIndex(funcId, bindIndex);
+                    sithControl_UnbindFunctionIndex((int)funcId, bindIndex); // Port: narrowing cast
                     bCurFound = 1;
                 }
             }
@@ -1022,7 +1022,7 @@ void J3DAPI sithControl_EnumBindings(int (J3DAPI* pfFunc)(size_t, const char*, S
         bAxisFunc = aControlFlags[funcId] & SITHCONTROLFUNCTION_AXIS;
         for ( bindIndex = 0; bContinue && bindIndex < pBinding->numBindings; ++bindIndex )
         {
-            controlId = pBinding->aBindings[bindIndex].controlId;
+            controlId = (int)pBinding->aBindings[bindIndex].controlId; // Port: narrowing cast
             flags = pBinding->aBindings[bindIndex].flags;
             if ( (flags & SITHCONTROLBIND_KEYCONTROL) != 0 && STDCONTROL_ISKEYBOARDBUTTON(controlId) && !bKeyboard )
             {

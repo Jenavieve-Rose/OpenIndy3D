@@ -161,7 +161,7 @@ void J3DAPI stdFnames_CopyShortName(char* pOut, int size, const char* pPath)
 
 char* J3DAPI stdFnames_Concat(char* path1, const char* path2, int size)
 {
-    int len = strlen(path1);
+    int len = (int)strlen(path1); // Port: narrowing cast
 
     if ( *path1 && !STDFNAMES_ISSEP(path1[len - 1]) && len < size - 1 )
     {

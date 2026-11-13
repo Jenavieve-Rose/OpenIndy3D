@@ -517,7 +517,7 @@ int ZEXPORTVA gzprintf (gzFile file, const char *format, /* args */ ...)
     (void)vsprintf(buf, format, va);
 #endif
     va_end(va);
-    len = strlen(buf); /* some *sprintf don't return the nb of bytes written */
+    len = (int)strlen(buf); /* some *sprintf don't return the nb of bytes written */ // Port: narrowing cast
     if (len <= 0) return 0;
 
     return gzwrite(file, buf, (unsigned)len);
@@ -689,7 +689,7 @@ z_off_t ZEXPORT gzseek (file, offset, whence)
 	/* map to fseek */
 	s->stream.avail_in = 0;
 	s->stream.next_in = s->inbuf;
-        zfilio_pFilio->Seek(s->file, offset, SEEK_SET);
+        zfilio_pFilio->Seek(s->file, (int)offset, SEEK_SET); // Port: narrowing cast
 
 	s->stream.total_in = s->stream.total_out = (uLong)offset;
 	return offset;
@@ -738,7 +738,7 @@ int ZEXPORT gzrewind (file)
     }
 
     (void) inflateReset(&s->stream);
-    return zfilio_pFilio->Seek(s->file, s->startpos, SEEK_SET);
+    return zfilio_pFilio->Seek(s->file, (int)s->startpos, SEEK_SET); // Port: narrowing cast
 }
 
 /* ===========================================================================

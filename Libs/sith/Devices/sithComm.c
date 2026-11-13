@@ -204,7 +204,7 @@ int J3DAPI sithMessage_ReceiveMessage(SithMessage* pMsg, DPID* pSender)
 
     if ( res == 0 ) // success
     {
-        pMsg->length   = dataLen - 4;
+        pMsg->length   = (unsigned int)(dataLen - 4); // Port: narrowing cast
         pMsg->msecTime = sithTime_msecGameTime;
         return 1;
     }
@@ -389,7 +389,7 @@ void J3DAPI sithMessage_CheckMembershipList(DPID idTo)
     }
 
     outmsg.type = SITHDSS_CHECKMEMBERSHIPLIST;
-    outmsg.length = pCurDSSMsgData_ - outmsg.data;
+    outmsg.length = (unsigned int)(pCurDSSMsgData_ - outmsg.data); // Port: narrowing cast
     sithMessage_SendMessage(&outmsg, idTo, 1, DPSEND_GUARANTEED);
 }
 

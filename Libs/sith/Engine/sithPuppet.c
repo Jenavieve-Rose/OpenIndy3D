@@ -797,7 +797,7 @@ float J3DAPI sithPuppet_UpdateThingMove(SithThing* pThing, rdPuppetTrackCallback
         }
         else
         {
-            sithAIMove_GetAIMoveModes(pThing, moveSpeed, axis, &moveStatus, &submode);
+            sithAIMove_GetAIMoveModes(pThing, moveSpeed, (int)axis, &moveStatus, &submode); // Port: narrowing cast
             pThing->moveStatus = moveStatus;
         }
     }
@@ -1609,7 +1609,7 @@ int J3DAPI sithPuppet_PlayKey(rdPuppet* pPuppet, rdKeyframe* pTrack, int lowPrio
         rdPuppet_PlayTrack(pPuppet, track);
     }
 
-    pPuppet->aTracks[track].guid = ((sithPlayer_playerNum + 1) << 16) | (uint16_t)(track + 1);
+    pPuppet->aTracks[track].guid = (uint32_t)(((sithPlayer_playerNum + 1) << 16) | (uint16_t)(track + 1)); // Port: narrowing cast
     return track;
 }
 
@@ -1629,7 +1629,7 @@ int J3DAPI sithPuppet_GetTrackNumForGUID(const SithThing* pThing, uint32_t guid)
     {
         if ( pPuppet->aTracks[idx].guid == guid )
         {
-            trackNum = idx;
+            trackNum = (int)idx; // Port: narrowing cast
             break;
         }
     }
@@ -3111,10 +3111,10 @@ int J3DAPI sithPuppet_WriteStaticKeyframesListBinary(tFileHandle fh, const SithW
         pCurInfo->name[STD_ARRAYLEN(pCurInfo->name) - 1] = 0;
         pCurInfo->flags      = pKey->flags;
         pCurInfo->type       = pKey->type;
-        pCurInfo->numFrames  = pKey->numFrames;
+        pCurInfo->numFrames  = (uint32_t)pKey->numFrames; // Port: narrowing cast
         pCurInfo->fps        = pKey->fps;
-        pCurInfo->numMarkers = pKey->numMarkers;
-        pCurInfo->numJoints  = pKey->numJoints;
+        pCurInfo->numMarkers = (uint32_t)pKey->numMarkers; // Port: narrowing cast
+        pCurInfo->numJoints  = (uint32_t)pKey->numJoints; // Port: narrowing cast
         pCurInfo->numNodes   = 0;
 
         for ( j = 0; j < pKey->numJoints; ++j )
@@ -3122,8 +3122,8 @@ int J3DAPI sithPuppet_WriteStaticKeyframesListBinary(tFileHandle fh, const SithW
             if ( pKey->aNodes[j].numEntries > 0 )
             {
                 ++pCurInfo->numNodes;
-                pCurNode->nodeNum = j;
-                pCurNode->numEntries = pKey->aNodes[j].numEntries;
+                pCurNode->nodeNum = (uint32_t)j; // Port: narrowing cast
+                pCurNode->numEntries = (uint32_t)pKey->aNodes[j].numEntries; // Port: narrowing cast
 
                 strncpy(pCurNode->meshName, pKey->aNodes[j].aMeshName, STD_ARRAYLEN(pCurNode->meshName) - 1);
                 pCurNode->meshName[STD_ARRAYLEN(pCurNode->meshName) - 1] = 0;
@@ -3334,7 +3334,7 @@ int J3DAPI sithPuppet_ReadStaticKeyframesListBinary(tFileHandle fh, SithWorld* p
             ++pCurMarker;
         }
 
-        pKeyframe->idx = pWorld->numKeyframes;
+        pKeyframe->idx = (int)pWorld->numKeyframes; // Port: narrowing cast
         if ( (pWorld->state & SITH_WORLD_STATE_STATIC) != 0 )
         {
             pKeyframe->idx = SITHWORLD_STATICINDEX(pKeyframe->idx);
@@ -3353,7 +3353,7 @@ int J3DAPI sithPuppet_ReadStaticKeyframesListBinary(tFileHandle fh, SithWorld* p
         {
             nodeNum = pCurNode->nodeNum;
             pNode = &pKeyframe->aNodes[nodeNum];
-            pNode->nodeNum    = nodeNum;
+            pNode->nodeNum    = (int)nodeNum; // Port: narrowing cast
             pNode->numEntries = pCurNode->numEntries;
             strncpy(pNode->aMeshName, pCurNode->meshName, STD_ARRAYLEN(pNode->aMeshName) - 1);
             pNode->aMeshName[STD_ARRAYLEN(pNode->aMeshName) - 1] = 0;
@@ -3462,7 +3462,7 @@ rdKeyframe* J3DAPI sithPuppet_LoadKeyframe(const char* pName)
     pKey = &pWorld->aKeyframes[pWorld->numKeyframes];
     if ( rdKeyframe_LoadEntry(aCurPath, pKey) )
     {
-        pKey->idx = pWorld->numKeyframes;
+        pKey->idx = (int)pWorld->numKeyframes; // Port: narrowing cast
         if ( (pWorld->state & SITH_WORLD_STATE_STATIC) != 0 )
         {
             pKey->idx = SITHWORLD_STATICINDEX(pKey->idx);

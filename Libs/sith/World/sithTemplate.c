@@ -94,11 +94,11 @@ int J3DAPI sithTemplate_AllocWorldTemplates(SithWorld* pWorld, size_t size)
         sithThing_Reset(&pWorld->aThingTemplates[i]);
         if ( (pWorld->state & SITH_WORLD_STATE_STATIC) != 0 )
         {
-            pWorld->aThingTemplates[i].idx = SITHWORLD_STATICINDEX(i);
+            pWorld->aThingTemplates[i].idx = (int)SITHWORLD_STATICINDEX(i); // Port: narrowing cast
         }
         else
         {
-            pWorld->aThingTemplates[i].idx = i;
+            pWorld->aThingTemplates[i].idx = (int)i; // Port: narrowing cast
         }
     }
 

@@ -24,7 +24,7 @@ SITHDSS_DEFINE_ACCESSORS(Float, float)
 
 //Helper macros for data serialization / de-serialization
 
-#define SITHDSS_ENDOUT (sithMulti_message.length = pCurDSSMsgData_ - sithMulti_message.data)
+#define SITHDSS_ENDOUT (sithMulti_message.length = (uint32_t)(pCurDSSMsgData_ - sithMulti_message.data)) // Port: narrowing cast; bounded by the message buffer
 
 #define SITHDSS_ENDIN
 

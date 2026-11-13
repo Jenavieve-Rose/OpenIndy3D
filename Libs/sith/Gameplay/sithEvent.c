@@ -84,7 +84,7 @@ int J3DAPI sithEvent_CreateEvent(size_t taskId, SithEventParams* params, uint32_
     }
 
     pEvent->msecEventTime = sithTime_msecGameTime + when;
-    pEvent->taskNum       = taskId;
+    pEvent->taskNum       = (int)taskId; // Port: narrowing cast
     memcpy(&pEvent->params, params, sizeof(pEvent->params));
     sithEvent_AddEvent(pEvent);
     return 1;
@@ -99,7 +99,7 @@ void J3DAPI sithEvent_FreeEvent(SithEvent* pEvent)
 #line 228
     SITH_ASSERTREL(pEvent != NULL);
 
-    index = pEvent - aEventBuffer;
+    index = (int)(pEvent - aEventBuffer); // Port: narrowing cast
 #line 232
     SITH_ASSERTREL((index >= 0) && (index < 256));
 

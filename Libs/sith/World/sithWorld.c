@@ -1184,7 +1184,7 @@ void J3DAPI sithWorld_CalcSurfaceNormals(SithWorld* pWorld)
             prevVert = j - 1;
             if ( prevVert < 0 )
             {
-                prevVert = pFace->numVertices - 1;
+                prevVert = (int)(pFace->numVertices - 1); // Port: narrowing cast
             }
 
             nextVert = (j + 1) % pFace->numVertices;
@@ -1734,56 +1734,56 @@ int J3DAPI sithWorld_WriteEntryBinary(SithWorld* pWorld, const char* pFilename)
         worldHeader.distancesLOD[i] = pWorld->distancesLOD[i];
     }
 
-    worldHeader.numSounds                     = pWorld->numSounds;
-    worldHeader.numMaterials                  = pWorld->numMaterials;
-    worldHeader.sizeMaterials                 = pWorld->sizeMaterials;
+    worldHeader.numSounds                     = (uint32_t)pWorld->numSounds; // Port: narrowing cast
+    worldHeader.numMaterials                  = (uint32_t)pWorld->numMaterials; // Port: narrowing cast
+    worldHeader.sizeMaterials                 = (uint32_t)pWorld->sizeMaterials; // Port: narrowing cast
     worldHeader.aMaterials                    = 0;
     worldHeader.apMatArray                    = 0;
-    worldHeader.numVertices                   = pWorld->numVertices;
+    worldHeader.numVertices                   = (uint32_t)pWorld->numVertices; // Port: narrowing cast
     worldHeader.aVertices                     = 0;
     worldHeader.aTransformedVertices          = 0;
     worldHeader.aVertexRenderTickIds          = 0;
-    worldHeader.numTexVertices                = pWorld->numTexVertices;
+    worldHeader.numTexVertices                = (uint32_t)pWorld->numTexVertices; // Port: narrowing cast
     worldHeader.aTexVerticies                 = 0;
     worldHeader.aVertDynamicLights            = 0;
     worldHeader.aVertDynamicLightsRenderTicks = 0;
-    worldHeader.numAdjoins                    = pWorld->numAdjoins;
+    worldHeader.numAdjoins                    = (uint32_t)pWorld->numAdjoins; // Port: narrowing cast
     worldHeader.aAdjoins                      = 0;
-    worldHeader.numSurfaces                   = pWorld->numSurfaces;
+    worldHeader.numSurfaces                   = (uint32_t)pWorld->numSurfaces; // Port: narrowing cast
     worldHeader.aSurfaces                     = 0;
-    worldHeader.numSectors                    = pWorld->numSectors;
+    worldHeader.numSectors                    = (uint32_t)pWorld->numSectors; // Port: narrowing cast
     worldHeader.aSectors                      = 0;
-    worldHeader.numAIClasses                  = pWorld->numAIClasses;
-    worldHeader.sizeAIClasses                 = pWorld->sizeAIClasses;
+    worldHeader.numAIClasses                  = (uint32_t)pWorld->numAIClasses; // Port: narrowing cast
+    worldHeader.sizeAIClasses                 = (uint32_t)pWorld->sizeAIClasses; // Port: narrowing cast
     worldHeader.aAIClasses                    = 0;
-    worldHeader.numModels                     = pWorld->numModels;
-    worldHeader.sizeModels                    = pWorld->sizeModels;
+    worldHeader.numModels                     = (uint32_t)pWorld->numModels; // Port: narrowing cast
+    worldHeader.sizeModels                    = (uint32_t)pWorld->sizeModels; // Port: narrowing cast
     worldHeader.aModels                       = 0;
-    worldHeader.numSprites                    = pWorld->numSprites;
-    worldHeader.sizeSprites                   = pWorld->sizeSprites;
+    worldHeader.numSprites                    = (uint32_t)pWorld->numSprites; // Port: narrowing cast
+    worldHeader.sizeSprites                   = (uint32_t)pWorld->sizeSprites; // Port: narrowing cast
     worldHeader.aSprites                      = 0;
-    worldHeader.numKeyframes                  = pWorld->numKeyframes;
-    worldHeader.sizeKeyframes                 = pWorld->sizeKeyframes;
+    worldHeader.numKeyframes                  = (uint32_t)pWorld->numKeyframes; // Port: narrowing cast
+    worldHeader.sizeKeyframes                 = (uint32_t)pWorld->sizeKeyframes; // Port: narrowing cast
     worldHeader.aKeyframes                    = 0;
-    worldHeader.numPuppetClasses              = pWorld->numPuppetClasses;
-    worldHeader.sizePuppetClasses             = pWorld->sizePuppetClasses;
+    worldHeader.numPuppetClasses              = (uint32_t)pWorld->numPuppetClasses; // Port: narrowing cast
+    worldHeader.sizePuppetClasses             = (uint32_t)pWorld->sizePuppetClasses; // Port: narrowing cast
     worldHeader.aPuppetClasses                = 0;
-    worldHeader.numSoundClasses               = pWorld->numSoundClasses;
-    worldHeader.sizeSoundClasses              = pWorld->sizeSoundClasses;
+    worldHeader.numSoundClasses               = (uint32_t)pWorld->numSoundClasses; // Port: narrowing cast
+    worldHeader.sizeSoundClasses              = (uint32_t)pWorld->sizeSoundClasses; // Port: narrowing cast
     worldHeader.aSoundClasses                 = 0;
-    worldHeader.numCogScripts                 = pWorld->numCogScripts;
-    worldHeader.sizeCogScripts                = pWorld->sizeCogScripts;
+    worldHeader.numCogScripts                 = (uint32_t)pWorld->numCogScripts; // Port: narrowing cast
+    worldHeader.sizeCogScripts                = (uint32_t)pWorld->sizeCogScripts; // Port: narrowing cast
     worldHeader.aCogScripts                   = 0;
-    worldHeader.numCogs                       = pWorld->numCogs;
-    worldHeader.sizeCogs                      = pWorld->sizeCogs;
+    worldHeader.numCogs                       = (uint32_t)pWorld->numCogs; // Port: narrowing cast
+    worldHeader.sizeCogs                      = (uint32_t)pWorld->sizeCogs; // Port: narrowing cast
     worldHeader.aCogs                         = 0;
-    worldHeader.numThingTemplates             = pWorld->numThingTemplates;
-    worldHeader.sizeThingTemplates            = pWorld->sizeThingTemplates;
+    worldHeader.numThingTemplates             = (uint32_t)pWorld->numThingTemplates; // Port: narrowing cast
+    worldHeader.sizeThingTemplates            = (uint32_t)pWorld->sizeThingTemplates; // Port: narrowing cast
     worldHeader.aThingTemplates               = 0;
-    worldHeader.numThings                     = pWorld->numThings;
+    worldHeader.numThings                     = (uint32_t)pWorld->numThings; // Port: narrowing cast
     worldHeader.lastThingIdx                  = 0;
     worldHeader.aThings                       = 0;
-    worldHeader.sizePVS                       = pWorld->sizePVS;
+    worldHeader.sizePVS                       = (uint32_t)pWorld->sizePVS; // Port: narrowing cast
     worldHeader.aPVS                          = 0;
 
     fh = sith_pHS->pFileOpen(pFilename, "wb");

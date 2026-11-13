@@ -68,8 +68,10 @@ typedef struct Bl16DecodeState
     const unsigned char* pSrc;
     const unsigned char* pParams;
     int pitch;
-    int offset1;
-    int offset2;
+    // Port: ptrdiff_t, were int. They are the distances from the current frame to the two previous ones, which are
+    // separate allocations: on 64-bit the distance need not fit in 32 bits (PORT-PLAN.md P1.27, P5.7).
+    ptrdiff_t offset1;
+    ptrdiff_t offset2;
 } Bl16DecodeState;
 
 typedef struct Bl16Small
@@ -107,7 +109,7 @@ unsigned char decode_RleByte(void);
 void decode_Run(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, unsigned char* pPixel);
 int decode_Convert(unsigned char* pSrc, LecBitmapHeader* pSrcBitmap, int n, void* pPalette, unsigned char* pDst, LecBitmapHeader* pDstBitmap, void* pTable);
 /* codec 2's block decoder (MASM, 0x004EDF70) */
-void dbloc16_Codec2(unsigned short* pDst, unsigned char* pSrc, int offset1, int offset2, int width, short* pMotion, unsigned char* pParams,
+void dbloc16_Codec2(unsigned short* pDst, unsigned char* pSrc, ptrdiff_t offset1, ptrdiff_t offset2, int width, /* Port: ptrdiff_t offsets */ short* pMotion, unsigned char* pParams,
                     int height, int nextLine, Bl16Small* pSmall, Bl16Big* pBig, unsigned short* pPalette);
 
 int dbloc16_Register(LecShare* pShare, void* pParam);

@@ -246,7 +246,7 @@ void J3DAPI jonesInventory_UpdateIQPoints(size_t difficulty)
         if ( jonesInventory_pGameStatistics->aLevelStatistic[jonesInventory_pGameStatistics->curLevelNum].numIQUpdates < 20 )
         {
             difficulty = STDMATH_CLAMP(difficulty, 0, 5);
-            penalty    = 5 - difficulty;
+            penalty    = (int)(5 - difficulty); // Port: narrowing cast
             if ( jonesInventory_pGameStatistics->aLevelStatistic[jonesInventory_pGameStatistics->curLevelNum].numIQUpdates + penalty > 20 )
             {
                 penalty = 20 - jonesInventory_pGameStatistics->aLevelStatistic[jonesInventory_pGameStatistics->curLevelNum].numIQUpdates;

@@ -363,9 +363,9 @@ int J3DAPI sithSector_WriteSectorsListBinary(tFileHandle fh, const SithWorld* pW
         pSecInfo->radius = pSec->radius;
 
         pSecInfo->firstSurfaceIdx = sithSurface_GetSurfaceIndexEx(pWorld, pSec->pFirstSurface);
-        pSecInfo->numSurfaces     = pSec->numSurfaces;
+        pSecInfo->numSurfaces     = (int32_t)pSec->numSurfaces; // Port: narrowing cast
         pSecInfo->pvsIdx          = pSec->pvsIdx;
-        pSecInfo->numVertices     = pSec->numVertices;
+        pSecInfo->numVertices     = (int32_t)pSec->numVertices; // Port: narrowing cast
 
         rdVector_Copy3(&pSecInfo->thrust, &pSec->thrust);
 
@@ -907,7 +907,7 @@ int J3DAPI sithSector_GetSectorIndexEx(const SithWorld* pWorld, const SithSector
 {
     if ( pSector >= pWorld->aSectors && pSector <= &pWorld->aSectors[pWorld->numSectors] )
     {
-        return pSector - pWorld->aSectors;
+        return (int)(pSector - pWorld->aSectors); // Port: narrowing cast
     }
 
     return -1;
@@ -917,7 +917,7 @@ int J3DAPI sithSector_GetSectorIndex(const SithSector* pSector)
 {
     if ( pSector >= sithWorld_pCurrentWorld->aSectors && pSector <= &sithWorld_pCurrentWorld->aSectors[sithWorld_pCurrentWorld->numSectors] )
     {
-        return pSector - sithWorld_pCurrentWorld->aSectors;
+        return (int)(pSector - sithWorld_pCurrentWorld->aSectors); // Port: narrowing cast
     }
 
     return -1;

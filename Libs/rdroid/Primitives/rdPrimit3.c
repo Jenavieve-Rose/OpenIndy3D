@@ -299,11 +299,11 @@ void J3DAPI rdPrimit3_ClipFaceVerts(const rdClipFrustum* pFrustrum, rdGeometryMo
         case RD_GEOMETRY_WIREFRAME:
             if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
             {
-                pFace->numVertices = rdClip_Face3W(pFrustrum, pFace->aVertices, pFace->numVertices);
+                pFace->numVertices = rdClip_Face3W(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
             }
             else
             {
-                pFace->numVertices = rdClip_Face3WOrtho(pFrustrum, pFace->aVertices, pFace->numVertices);
+                pFace->numVertices = rdClip_Face3WOrtho(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
             }
 
             break;
@@ -311,11 +311,11 @@ void J3DAPI rdPrimit3_ClipFaceVerts(const rdClipFrustum* pFrustrum, rdGeometryMo
         case RD_GEOMETRY_NONE:
             if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
             {
-                pFace->numVertices = rdClip_Face3S(pFrustrum, pFace->aVertices, pFace->numVertices);
+                pFace->numVertices = rdClip_Face3S(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
             }
             else
             {
-                pFace->numVertices = rdClip_Face3SOrtho(pFrustrum, pFace->aVertices, pFace->numVertices);
+                pFace->numVertices = rdClip_Face3SOrtho(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
             }
 
             break;
@@ -327,11 +327,11 @@ void J3DAPI rdPrimit3_ClipFaceVerts(const rdClipFrustum* pFrustrum, rdGeometryMo
                 case RD_LIGHTING_LIT:
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pFace->numVertices = rdClip_Face3S(pFrustrum, pFace->aVertices, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3S(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pFace->numVertices = rdClip_Face3SOrtho(pFrustrum, pFace->aVertices, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3SOrtho(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
                     }
 
                     break;
@@ -339,11 +339,11 @@ void J3DAPI rdPrimit3_ClipFaceVerts(const rdClipFrustum* pFrustrum, rdGeometryMo
                 case RD_LIGHTING_DIFFUSE:
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pFace->numVertices = rdClip_Face3S(pFrustrum, pFace->aVertices, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3S(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pFace->numVertices = rdClip_Face3SOrtho(pFrustrum, pFace->aVertices, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3SOrtho(pFrustrum, pFace->aVertices, (int)pFace->numVertices); // Port: narrowing cast
                     }
 
                     break;
@@ -351,11 +351,11 @@ void J3DAPI rdPrimit3_ClipFaceVerts(const rdClipFrustum* pFrustrum, rdGeometryMo
                 case RD_LIGHTING_GOURAUD:
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pFace->numVertices = rdClip_Face3GS(pFrustrum, pFace->aVertices, pFace->aVertLights, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3GS(pFrustrum, pFace->aVertices, pFace->aVertLights, (int)pFace->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pFace->numVertices = rdClip_Face3GSOrtho(pFrustrum, pFace->aVertices, pFace->aVertLights, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3GSOrtho(pFrustrum, pFace->aVertices, pFace->aVertLights, (int)pFace->numVertices); // Port: narrowing cast
                     }
 
             }
@@ -370,11 +370,11 @@ void J3DAPI rdPrimit3_ClipFaceVerts(const rdClipFrustum* pFrustrum, rdGeometryMo
                 case RD_LIGHTING_DIFFUSE:
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pFace->numVertices = rdClip_Face3GT(pFrustrum, pFace->aVertices, pFace->aTexVertices, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3GT(pFrustrum, pFace->aVertices, pFace->aTexVertices, (int)pFace->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pFace->numVertices = rdClip_Face3GTOrtho(pFrustrum, pFace->aVertices, pFace->aTexVertices, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3GTOrtho(pFrustrum, pFace->aVertices, pFace->aTexVertices, (int)pFace->numVertices); // Port: narrowing cast
                     }
 
                     break;
@@ -382,11 +382,11 @@ void J3DAPI rdPrimit3_ClipFaceVerts(const rdClipFrustum* pFrustrum, rdGeometryMo
                 case RD_LIGHTING_GOURAUD:
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pFace->numVertices = rdClip_Face3T(pFrustrum, pFace->aVertices, pFace->aTexVertices, pFace->aVertLights, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3T(pFrustrum, pFace->aVertices, pFace->aTexVertices, pFace->aVertLights, (int)pFace->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pFace->numVertices = rdClip_Face3TOrtho(pFrustrum, pFace->aVertices, pFace->aTexVertices, pFace->aVertLights, pFace->numVertices);
+                        pFace->numVertices = rdClip_Face3TOrtho(pFrustrum, pFace->aVertices, pFace->aTexVertices, pFace->aVertLights, (int)pFace->numVertices); // Port: narrowing cast
                     }
 
                     break;
@@ -417,11 +417,11 @@ void J3DAPI rdPrimit3_ClipFace(const rdClipFrustum* pFrustrum, rdGeometryMode ge
 
             if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
             {
-                pDest->numVertices = rdClip_Face3W(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                pDest->numVertices = rdClip_Face3W(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
             }
             else
             {
-                pDest->numVertices = rdClip_Face3WOrtho(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                pDest->numVertices = rdClip_Face3WOrtho(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
             }
 
             break;
@@ -434,11 +434,11 @@ void J3DAPI rdPrimit3_ClipFace(const rdClipFrustum* pFrustrum, rdGeometryMode ge
 
             if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
             {
-                pDest->numVertices = rdClip_Face3S(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                pDest->numVertices = rdClip_Face3S(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
             }
             else
             {
-                pDest->numVertices = rdClip_Face3SOrtho(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                pDest->numVertices = rdClip_Face3SOrtho(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
             }
 
             break;
@@ -455,11 +455,11 @@ void J3DAPI rdPrimit3_ClipFace(const rdClipFrustum* pFrustrum, rdGeometryMode ge
 
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pDest->numVertices = rdClip_Face3S(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3S(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pDest->numVertices = rdClip_Face3SOrtho(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3SOrtho(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
                     }
 
                     break;
@@ -472,11 +472,11 @@ void J3DAPI rdPrimit3_ClipFace(const rdClipFrustum* pFrustrum, rdGeometryMode ge
 
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pDest->numVertices = rdClip_Face3S(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3S(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pDest->numVertices = rdClip_Face3SOrtho(pFrustrum, pDest->aVertices, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3SOrtho(pFrustrum, pDest->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
                     }
 
                     break;
@@ -519,11 +519,11 @@ void J3DAPI rdPrimit3_ClipFace(const rdClipFrustum* pFrustrum, rdGeometryMode ge
 
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pDest->numVertices = rdClip_Face3GS(pFrustrum, pDest->aVertices, pDest->aVertLights, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3GS(pFrustrum, pDest->aVertices, pDest->aVertLights, (int)pSrc->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pDest->numVertices = rdClip_Face3GSOrtho(pFrustrum, pDest->aVertices, pDest->aVertLights, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3GSOrtho(pFrustrum, pDest->aVertices, pDest->aVertLights, (int)pSrc->numVertices); // Port: narrowing cast
                     }
             }
 
@@ -546,11 +546,11 @@ void J3DAPI rdPrimit3_ClipFace(const rdClipFrustum* pFrustrum, rdGeometryMode ge
 
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pDest->numVertices = rdClip_Face3GT(pFrustrum, pDest->aVertices, pDest->aTexVertices, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3GT(pFrustrum, pDest->aVertices, pDest->aTexVertices, (int)pSrc->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pDest->numVertices = rdClip_Face3GTOrtho(pFrustrum, pDest->aVertices, pDest->aTexVertices, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3GTOrtho(pFrustrum, pDest->aVertices, pDest->aTexVertices, (int)pSrc->numVertices); // Port: narrowing cast
                     }
 
                     break;
@@ -601,11 +601,11 @@ void J3DAPI rdPrimit3_ClipFace(const rdClipFrustum* pFrustrum, rdGeometryMode ge
 
                     if ( rdCamera_pCurCamera->projectType == RDCAMERA_PROJECT_PERSPECTIVE )
                     {
-                        pDest->numVertices = rdClip_Face3T(pFrustrum, pDest->aVertices, pDest->aTexVertices, pDest->aVertLights, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3T(pFrustrum, pDest->aVertices, pDest->aTexVertices, pDest->aVertLights, (int)pSrc->numVertices); // Port: narrowing cast
                     }
                     else
                     {
-                        pDest->numVertices = rdClip_Face3TOrtho(pFrustrum, pDest->aVertices, pDest->aTexVertices, pDest->aVertLights, pSrc->numVertices);
+                        pDest->numVertices = rdClip_Face3TOrtho(pFrustrum, pDest->aVertices, pDest->aTexVertices, pDest->aVertLights, (int)pSrc->numVertices); // Port: narrowing cast
                     }
 
                     break;

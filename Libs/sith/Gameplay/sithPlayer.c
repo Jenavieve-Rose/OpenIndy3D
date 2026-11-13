@@ -107,7 +107,7 @@ void J3DAPI sithPlayer_PlacePlayers(SithWorld* pWorld)
 
     sithPlayer_numPlayers = numPlayers;
 
-    for ( thNum = numPlayers; thNum < SITHPLAYER_MAX_PLAYERS; ++thNum )
+    for ( thNum = (int)numPlayers; thNum < SITHPLAYER_MAX_PLAYERS; ++thNum ) // Port: narrowing cast
     {
         sithPlayer_aPlayers[thNum].pThing    = NULL;
         sithPlayer_aPlayers[thNum].pInSector = NULL;
@@ -390,7 +390,7 @@ int J3DAPI sithPlayer_GetPlayerNumByName(wchar_t* pwName)
         }
 
         if ( !wstrcmpi(sithPlayer_aPlayers[i].awName, pwName) ) {
-            return i;
+            return (int)i; // Port: narrowing cast
         }
     }
 
@@ -410,7 +410,7 @@ int J3DAPI sithPlayer_GetPlayerNum(DPID playerId)
     {
         if ( playerId == sithPlayer_aPlayers[i].playerNetId )
         {
-            return i;
+            return (int)i; // Port: narrowing cast
         }
     }
 

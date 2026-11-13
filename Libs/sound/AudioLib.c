@@ -520,7 +520,7 @@ int J3DAPI AudioLib_Compress(tAudioCompressorState* pCompressorState, uint8_t* p
         pInBuffer += 0x1000;
     }
 
-    return pOutBuffer + 10 - pStart;
+    return (int)(pOutBuffer + 10 - pStart); // Port: narrowing cast
 }
 
 #ifdef J3D_DEBUG
@@ -1111,7 +1111,7 @@ int J3DAPI AudioLib_GenerateLipSynchBlock(uint8_t* pOutData, const uint8_t* pSnd
 
         entry = time & 0xFFFF0000;
         *pEntry++ = entry;
-        numEntries = pEntry - (uint32_t*)pOutData - 2;
+        numEntries = (int)(pEntry - (uint32_t*)pOutData - 2); // Port: narrowing cast
         pEntry = (uint32_t*)(pOutData + 4);
         *pEntry = numEntries;
         return 4 * numEntries + 8;
@@ -1260,7 +1260,7 @@ int J3DAPI AudioLib_CompressBlock(tAudioCompressorState* pCompressorState, uint8
         *pCurOut++ = bitBuffer & 0xFF;
     }
 
-    return pCurOut - pOutBuffer;
+    return (int)(pCurOut - pOutBuffer); // Port: narrowing cast
 }
 
 // ADPCM decompress
@@ -1747,7 +1747,7 @@ int J3DAPI AudioLib_WVSMCompressBlock(uint8_t* pOutBuffer, const uint8_t* pInBuf
         rightError = rightIn - rightValue;
     }
 
-    sample = pCurOut - pOutBuffer;
+    sample = (int)(pCurOut - pOutBuffer); // Port: narrowing cast
     pCurOut = pOutBuffer;
     *pCurOut++ = (sample - 2) >> 8;
     *pCurOut++ = sample - 2;
@@ -1809,5 +1809,5 @@ int J3DAPI AudioLib_WVSMUncompressBlock(uint8_t* pOutBuffer, const uint8_t* pInB
         }
     }
 
-    return pIn - pInBuffer;
+    return (int)(pIn - pInBuffer); // Port: narrowing cast
 }

@@ -280,7 +280,7 @@ int J3DAPI rdParticle_LoadEntry(const char* pFilename, rdParticle* pParticle)
         goto syntax_error;
     }
 
-    numCels = pParticle->pMaterial->numCels;
+    numCels = (int)pParticle->pMaterial->numCels; // Port: narrowing cast
     if ( !pParticle->pMaterial )
     {
         goto syntax_error;
@@ -517,7 +517,7 @@ int J3DAPI rdParticle_Draw(const rdThing* pThing, const rdMatrix34* pOrient)
             rdParticle_aFaceVerts[3].y = rdParticle_aTransformedVerts[i].y;
             rdParticle_aFaceVerts[3].z = rdParticle_aTransformedVerts[i].z + pParticle->sizeHalf;
 
-            numInFrustum = rdQClip_VerticesInFrustrum(rdCamera_pCurCamera->pFrustum, rdParticle_aFaceVerts, 4);
+            numInFrustum = (int)rdQClip_VerticesInFrustrum(rdCamera_pCurCamera->pFrustum, rdParticle_aFaceVerts, 4); // Port: narrowing cast
             if ( numInFrustum == 4 )
             {
                 bAlphaPoly = rdParticle_aFaceVerts[0].y < 1.5f;

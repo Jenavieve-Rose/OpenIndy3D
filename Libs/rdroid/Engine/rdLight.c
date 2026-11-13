@@ -74,13 +74,13 @@ void J3DAPI rdLight_FreeEntry(rdLight* pLight)
 void J3DAPI rdLight_CalcVertexIntensities(const rdLight** apLights, const rdVector3* aLightPos, size_t numLights, const rdVector3* aVertexNormal, const rdVector3* aVertices, const rdVector4* aVertexColors, rdVector4* aColors, size_t numVertices, float attenuation)
 {
     int i;
-    for ( i = numVertices - 1; i >= 0; --i )
+    for ( i = (int)(numVertices - 1); i >= 0; --i ) // Port: narrowing cast
     {
         int j;
 
         rdVector_Copy4(&aColors[i], &aVertexColors[i]);
 
-        for ( j = numLights - 1; j >= 0; --j )
+        for ( j = (int)(numLights - 1); j >= 0; --j ) // Port: narrowing cast
         {
             float dist;
 

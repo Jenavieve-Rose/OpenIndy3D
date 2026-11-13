@@ -91,7 +91,7 @@ int J3DAPI stdFileUtil_FindNext(FindFileData* ffData, tFoundFileInfo* pFileInfo)
     strcpy(pFileInfo->aName, findInfo.name);
 
     pFileInfo->bIsDirectory = findInfo.attrib & _A_SUBDIR;
-    pFileInfo->lastChanged  = findInfo.time_write;
+    pFileInfo->lastChanged  = (uint32_t)findInfo.time_write; // Port: narrowing cast
     return 1;
 }
 

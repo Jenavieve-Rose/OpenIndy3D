@@ -699,8 +699,8 @@ static void J3DAPI JonesMain_PrintQuickSave(void)
 static int J3DAPI JonesMain_HandleWMActivateApp(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
     // TODO: If JonesMain_bWndMsgProcessed will be used by main wnd proc than it should be set to true here
-    JonesMain_OnAppActivate(hWnd, wParam);
-    return DefWindowProc(hWnd, WM_ACTIVATEAPP, wParam, lParam);
+    JonesMain_OnAppActivate(hWnd, (int)wParam); // Port: narrowing cast
+    return (int)DefWindowProc(hWnd, WM_ACTIVATEAPP, wParam, lParam); // Port: narrowing cast
 }
 
 static LRESULT J3DAPI JonesMain_HandleWMActivate(HWND hWnd, WPARAM activateState, LPARAM hwndActivate, int minimizedState)
@@ -849,7 +849,7 @@ static int J3DAPI JonesMain_GameWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 
         case WM_POWERBROADCAST:
             JonesMain_HandleWMPowerBroadcast(hWnd, wParam);
-            return lParam;
+            return (int)lParam; // Port: narrowing cast
 
         case WM_SYSCOMMAND:
             JonesMain_HandleWMSysCommand(hWnd, wParam, (int16_t)lParam, (int16_t)HIWORD(lParam));
@@ -970,7 +970,7 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
     wuRegistry_SaveFloat("Sound Volume", JonesMain_state.soundSettings.maxSoundVolume);
 
     Sound_SetMaxVolume(JonesMain_state.soundSettings.maxSoundVolume);
-    SmushPlay_SetGlobalVolume((size_t)(JonesMain_state.soundSettings.maxSoundVolume * 127.0f)); // TODO: Can be removed as it's being set in PlayIntroMovie
+    SmushPlay_SetGlobalVolume((int)((size_t)(JonesMain_state.soundSettings.maxSoundVolume * 127.0f))); // TODO: Can be removed as it's being set in PlayIntroMovie
 
     // Handle start mode
     switch ( JonesMain_state.startMode )
@@ -1621,7 +1621,7 @@ void J3DAPI JonesMain_PrintFramerate(void)
 
     ++JonesMain_frameCount;
     JonesMain_frameTime = stdPlatform_GetTimeMsec();
-    numPolys = sithRender_numArchPolys + sithRender_numAlphaArchPolys + sithRender_numThingPolys + sithRender_numAlphaThingPoly;
+    numPolys = (int)(sithRender_numArchPolys + sithRender_numAlphaArchPolys + sithRender_numThingPolys + sithRender_numAlphaThingPoly); // Port: narrowing cast
 
     if ( JonesMain_bPrintFramerate )
     {
@@ -2233,7 +2233,7 @@ int J3DAPI JonesMain_LogError(const char* pFormat, ...)
             break;
     }
 
-    return strlen(std_genBuffer);
+    return (int)strlen(std_genBuffer); // Port: narrowing cast
 }
 
 int J3DAPI JonesMain_NoLog(const char* pFormat, ...)
@@ -2281,7 +2281,7 @@ int J3DAPI JonesMain_PlayIntroMovie(void)
     }
 
     SmushPlay_SysStartup(stdWin95_GetWindow(), SoundDriver_GetDSound());
-    SmushPlay_SetGlobalVolume((size_t)(JonesMain_state.soundSettings.maxSoundVolume * 127.0f));
+    SmushPlay_SetGlobalVolume((int)((size_t)(JonesMain_state.soundSettings.maxSoundVolume * 127.0f))); // Port: narrowing cast
 
     if ( stdDisplay_GetCurrentVideoMode(&videoMode) )
     {
@@ -2454,7 +2454,7 @@ int J3DAPI JonesMain_IntroWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
         case WM_POWERBROADCAST:
             JonesMain_HandleWMPowerBroadcast(hWnd, wParam);
-            return lParam;
+            return (int)lParam; // Port: narrowing cast
     }
 
     if ( JonesMain_bWndMsgProcessed )

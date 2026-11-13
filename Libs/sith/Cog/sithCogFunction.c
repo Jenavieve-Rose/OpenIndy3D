@@ -1228,7 +1228,7 @@ void J3DAPI sithCogFunction_LoadModel(SithCog* pCog)
         pModel = sithModel_Load(pFilename, 1);
         if ( pModel )
         {
-            sithCogExec_PushInt(pCog, pModel->num);
+            sithCogExec_PushInt(pCog, (int)pModel->num); // Port: narrowing cast
         }
         else
         {
@@ -1305,7 +1305,7 @@ void J3DAPI sithCogFunction_SetTimerEx(SithCog* pCog)
     params.param2 = sithCogExec_PopInt(pCog);
     params.param1 = sithCogExec_PopInt(pCog);
     params.idx = pCog->idx;
-    msWhen = lrintf(sithCogExec_PopFlex(pCog) * 1000.0f);
+    msWhen = (int)lrintf(sithCogExec_PopFlex(pCog) * 1000.0f); // Port: narrowing cast
 
     if ( msWhen < 0 )
     {
@@ -1664,7 +1664,7 @@ void J3DAPI sithCogFunction_GetLevelTime(SithCog* pCog)
 
 void J3DAPI sithCogFunction_GetThingCount(SithCog* pCog)
 {
-    sithCogExec_PushInt(pCog, sithWorld_pCurrentWorld->numThings);
+    sithCogExec_PushInt(pCog, (int)sithWorld_pCurrentWorld->numThings); // Port: narrowing cast
 }
 
 void J3DAPI sithCogFunction_GetThingTemplateCount(SithCog* pCog)
@@ -1783,7 +1783,7 @@ void J3DAPI sithCogFunction_SetMaterialCel(SithCog* pCog)
     }
     else
     {
-        curCelNum = pCurMat->curCelNum;
+        curCelNum = (int)pCurMat->curCelNum; // Port: narrowing cast
         pCurMat->curCelNum = celCount;
         sithCogExec_PushInt(pCog, curCelNum);
         return;
@@ -1952,7 +1952,7 @@ void J3DAPI sithCogFunction_SetCameraMode(SithCog* pCog)
 void J3DAPI sithCogFunction_GetCameraMode(SithCog* pCog)
 {
     int camNum;
-    if ( sithCamera_pCurCamera && (camNum = sithCamera_pCurCamera - sithCamera_aCameras) < (int)STD_ARRAYLEN(sithCamera_aCameras) )
+    if ( sithCamera_pCurCamera && (camNum = (int)(sithCamera_pCurCamera - sithCamera_aCameras)) < (int)STD_ARRAYLEN(sithCamera_aCameras) ) // Port: narrowing cast
     {
         sithCogExec_PushInt(pCog, camNum);
     }
@@ -2706,7 +2706,7 @@ void J3DAPI sithCogFunction_LoadHolsterModel(SithCog* pCog)
     if ( pModel && pCurType )
     {
         pCurType->pHolsterModel = pModel;
-        sithCogExec_PushInt(pCog, pModel->num);
+        sithCogExec_PushInt(pCog, (int)pModel->num); // Port: narrowing cast
     }
     else
     {
@@ -2769,7 +2769,7 @@ void J3DAPI sithCogFunction_ResetHolsterModel(SithCog* pCog)
         return;
     }
 
-    sithWeapon_ResetHolsterModel(pThing, holsterNum);
+    sithWeapon_ResetHolsterModel(pThing, (int)holsterNum); // Port: narrowing cast
     if ( (pCog->flags & SITHCOG_NOSYNC) == 0 && pCog->execMsgType != SITHCOG_MSG_STARTUP && pCog->execMsgType != SITHCOG_MSG_SHUTDOWN )
     {
         sithThing_SyncThing(pThing, SITHTHING_SYNC_STATE);

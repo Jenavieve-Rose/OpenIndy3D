@@ -152,7 +152,7 @@ int J3DAPI sithDSSCog_SyncCogState(const SithCog* pCog, DPID idTO, SithMessageSt
     {
         SITHDSS_PUSHINT32(pCog->statusParams[0]);
         SITHDSS_PUSHINT32(pCog->statusParams[1]);
-        SITHDSS_PUSHUINT32(pCog->execPos);
+        SITHDSS_PUSHUINT32((uint32_t)pCog->execPos); // Port: narrowing cast
         SITHDSS_PUSHINT32(pCog->linkId);
         SITHDSS_PUSHINT32(pCog->senderIdx);
         SITHDSS_PUSHINT32(pCog->senderType);

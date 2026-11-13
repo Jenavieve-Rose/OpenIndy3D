@@ -181,7 +181,7 @@ error:
 
 int J3DAPI sithPVS_WritePVSBinary(tFileHandle fh, const SithWorld* pWorld)
 {
-    uint32_t sizePVS = pWorld->sizePVS;
+    uint32_t sizePVS = (uint32_t)pWorld->sizePVS; // Port: narrowing cast
     size_t nWritten;
 
     nWritten = sith_pHS->pFileWrite(fh, &sizePVS, sizeof(uint32_t));

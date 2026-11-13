@@ -873,7 +873,7 @@ static tJonesCreditEntry JonesHud_aCredits[327] =
 
 
 // Initialized data (.data), in retail order after the JonesHudConstants.h tables
-static size_t JonesHud_msecMenuItemMoveDuration = 250;
+static uint32_t JonesHud_msecMenuItemMoveDuration = 250; // Port: uint32_t (retail DWORD), was size_t: millisecond times wrap at 2^32 as timeGetTime does (PORT-PLAN.md P1.27)
 static int JonesHud_selectedWeaponID            = -1;
 static float JonesHud_curEnduranceIndAlpha      = 0.2f;
 static float JonesHud_curEnduranceState         = -1.0f;
@@ -884,10 +884,10 @@ static int JonesHud_curWhoopsSndFxIdx           = -1;
 // layout, which is retail's order (uninitialized statics would be hash ordered).
 static int JonesHud_bCutsceneStart = 0;
 static rdVector4 JonesHud_healthIndBarPos = { 0 };
-static size_t JonesHud_msecDeltaTime = 0;
+static uint32_t JonesHud_msecDeltaTime = 0; // Port: uint32_t (retail DWORD), was size_t: millisecond times wrap at 2^32 as timeGetTime does (PORT-PLAN.md P1.27)
 static JonesHudMenuItem* JonesHud_apMenuItems[JONESHUD_MAX_MENU_ITEMS] = { 0 };
 static int JonesHud_hudState = 0;
-static size_t JonesHud_msecGameOverWaitDeltaTime = 0;
+static uint32_t JonesHud_msecGameOverWaitDeltaTime = 0; // Port: uint32_t (retail DWORD), was size_t: millisecond times wrap at 2^32 as timeGetTime does (PORT-PLAN.md P1.27)
 static rdVector4 JonesHud_enduranceIndBarPos = { 0 };
 static int JonesHud_creditsCurMatIdx = 0;
 static float JonesHud_screenHeightScalar = 0;
@@ -896,7 +896,7 @@ static int JonesHud_selectedTreasuresMenuItemID = 0;
 static JonesHudRect JonesHud_healthIndRect = { 0 };
 static float JonesHud_indScale = 0;
 static int JonesHud_curCelNum = 0;
-static size_t JonesHud_msecTime = 0;
+static uint32_t JonesHud_msecTime = 0; // Port: uint32_t (retail DWORD), was size_t: millisecond times wrap at 2^32 as timeGetTime does (PORT-PLAN.md P1.27)
 static rdMatrix34 JonesHud_camViewMatrix = { 0 };
 static rdFont* JonesHud_pCreditsFont2 = 0;
 static char JonesHud_aSlectedNdsFilePath[JONESCONFIG_GAMESAVE_FILEPATHSIZE] = { 0 };
@@ -939,7 +939,7 @@ static int JonesHud_creditsCanvasWidth = 0;
 static float JonesHud_healthIndAlpha = 0;
 static int JonesHud_bFadeHealthHUD = 0;
 static float JonesHud_aCosSinTable[24][2] = { 0 };
-static size_t JonesHud_msecHealthIndLastFadeUpdate = 0;
+static uint32_t JonesHud_msecHealthIndLastFadeUpdate = 0; // Port: uint32_t (retail DWORD), was size_t: millisecond times wrap at 2^32 as timeGetTime does (PORT-PLAN.md P1.27)
 static float JonesHud_curFadeHealthState = 0;
 static int JonesHud_bStartup = 0;
 static int JonesHud_bOpen = 0;
@@ -1483,7 +1483,7 @@ void J3DAPI JonesHud_Process(void)
 
 void J3DAPI JonesHud_Update(const SithWorld* pWorld)
 {
-    size_t curTime;
+    uint32_t curTime; // Port: uint32_t (retail DWORD), was size_t (PORT-PLAN.md P1.27)
     uint32_t width;
     float prevHeightScalar;
     float prevWidth;
@@ -2346,7 +2346,7 @@ void J3DAPI JonesHud_ProcessMenuItems(void)
             bActivateKeyPressed = 0;
             while ( JonesHud_aActivateKeyIds[i] > 0 )
             {
-                if ( JonesHud_GetKey(JonesHud_aActivateKeyIds[i]) )
+                if ( JonesHud_GetKey((unsigned int)JonesHud_aActivateKeyIds[i]) ) // Port: narrowing cast
                 {
                     bActivateKeyPressed = 1;
                     break;
@@ -2708,7 +2708,7 @@ int J3DAPI JonesHud_GetKey(unsigned int keyId)
                 }
                 else if ( JonesHud_msecMenuItemMoveDuration > 75 )
                 {
-                    JonesHud_msecMenuItemMoveDuration = (size_t)(JonesHud_msecMenuItemMoveDuration * 0.75);
+                    JonesHud_msecMenuItemMoveDuration = (uint32_t)(JonesHud_msecMenuItemMoveDuration * 0.75); // Port: uint32_t, was size_t
                     if ( JonesHud_msecMenuItemMoveDuration < 75 )
                     {
                         JonesHud_msecMenuItemMoveDuration = 75;
@@ -4558,7 +4558,7 @@ int J3DAPI JonesHud_DrawCredits(int bEndCredits, tSoundChannelHandle hSndChannel
                                         JonesHud_msecCreditsFadeStart = msecCurTime;
                                     }
 
-                                    JonesHud_curCelNum = JonesHud_apCreditsMats[JonesHud_creditsCurMatIdx]->numCels * (msecCurTime - JonesHud_msecCreditsFadeStart) / 1000;
+                                    JonesHud_curCelNum = (int)(JonesHud_apCreditsMats[JonesHud_creditsCurMatIdx]->numCels * (msecCurTime - JonesHud_msecCreditsFadeStart) / 1000); // Port: narrowing cast
                                     if ( prevCelNum == 12 && JonesHud_curCelNum == 13 ) // gg_a.mat whip fire cel 12 & 13
                                     {
                                         hSnd = Sound_GetSoundHandle(SITHWORLD_STATICINDEX(3)); // gen_whip_fire.wav

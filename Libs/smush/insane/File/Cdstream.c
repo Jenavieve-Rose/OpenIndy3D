@@ -24,7 +24,7 @@ typedef struct Stream
     char* pRead;                                /* 0x24 */
     char* pWrite;                               /* 0x28 */
     int field2C;                                /* 0x2C */
-    int hFile;                                  /* 0x30 */
+    FilioHandle hFile;                          /* 0x30 */ /* Port: FilioHandle (a host pointer), was int */
     int filePos;                                /* 0x34 */
     int fileSize;                               /* 0x38 */
     char name[0xC8];                            /* 0x3C */
@@ -181,14 +181,14 @@ static void streamer_Fill(Stream* pStream, int limit)
     if (more) {
         pWrite = pStream->pWrite;
         if (pWrite <= pStream->pRead && pWrite != pStream->pBuf) {
-            avail = pStream->pEnd - pStream->pRead;
+            avail = (int)(pStream->pEnd - pStream->pRead); // Port: narrowing cast
         }
         else {
             if (pWrite == pStream->pBuf && pStream->pEnd - pStream->pRead > 0x800) {
-                avail = pStream->pEnd - pStream->pRead - 0x800;
+                avail = (int)(pStream->pEnd - pStream->pRead - 0x800); // Port: narrowing cast
             }
             else {
-                avail = (pWrite - pStream->pRead - 0x800) & ~0x7FF;
+                avail = (int)((pWrite - pStream->pRead - 0x800) & ~0x7FF); // Port: narrowing cast
                 if (avail < 0x800) {
                     return;
                 }
@@ -225,7 +225,7 @@ static void streamer_Fill(Stream* pStream, int limit)
 
 static int streamer_SetFile(Stream* pStream, const char* pName, int startOffset)
 {
-    int hFile;
+    FilioHandle hFile; // Port: was int, which truncated the host handle on 64-bit
 
     if (pName) {
         hFile = streamer_pFile->Open(pName, "rb");
@@ -245,7 +245,7 @@ static int streamer_SetFile(Stream* pStream, const char* pName, int startOffset)
 
 static int streamer_Prime(Stream* pStream)
 {
-    int hFile;
+    FilioHandle hFile; // Port: was int, which truncated the host handle on 64-bit
     int rc = -1;
 
     if (pStream->reopen) {
@@ -328,7 +328,7 @@ static intptr_t streamer_Advance(Stream* pStream, int n)
     }
     streamer_wrap = 0;
     pStream->field2C = n;
-    len = pStream->pWrite - pStream->pEnd + n;
+    len = (int)(pStream->pWrite - pStream->pEnd + n); // Port: narrowing cast
     if (len > 0) {
         framestream_Copy(pStream->pEnd, pStream->pBuf, len);
     }
@@ -374,7 +374,7 @@ static int streamer_Percent(Stream* pStream)
         return 100;
     }
     if (pStream->pWrite <= pStream->pRead) {
-        return (pStream->pRead - pStream->pWrite) * 100 / pStream->ringSize;
+        return (int)((pStream->pRead - pStream->pWrite) * 100 / pStream->ringSize); // Port: narrowing cast
     }
-    return (pStream->ringSize - (pStream->pWrite - pStream->pRead)) * 100 / pStream->ringSize;
+    return (int)((pStream->ringSize - (pStream->pWrite - pStream->pRead)) * 100 / pStream->ringSize); // Port: narrowing cast
 }

@@ -117,7 +117,7 @@ void* J3DAPI stdMemory_Malloc(size_t size, const char* pFilename, size_t line)
     }
 
     pHeader = (tMemoryHeader*)pInfo;
-    pHeader->number = stdMemory_curState.totalAllocs;
+    pHeader->number = (int)stdMemory_curState.totalAllocs; // Port: narrowing cast
     pHeader->id = (uint32_t)(uintptr_t)pHeader;
     pHeader->size = size;
     pHeader->pFilename = pFilename;

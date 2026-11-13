@@ -421,7 +421,7 @@ void J3DAPI sithRender_BuildVisibleSurface(SithSurface* pSurface)
                     &sithWorld_pCurrentWorld->aVertices[vertIndex],
                     &rdCamera_pCurCamera->orient
                 );
-                sithWorld_pCurrentWorld->aVertexRenderTickIds[vertIndex] = sithMain_curRenderTick;
+                sithWorld_pCurrentWorld->aVertexRenderTickIds[vertIndex] = (uint32_t)sithMain_curRenderTick; // Port: narrowing cast
             }
         }
 
@@ -457,7 +457,7 @@ void J3DAPI sithRender_PVSBuildVisibleSectorList(SithSector* pSector, rdClipFrus
 {
     uint32_t width, height;
 
-    sithPVS_SetTable(sithRender_aAdjoinTable, &sithWorld_pCurrentWorld->aPVS[pSector->pvsIdx], sithWorld_pCurrentWorld->numAdjoins);
+    sithPVS_SetTable(sithRender_aAdjoinTable, &sithWorld_pCurrentWorld->aPVS[pSector->pvsIdx], (int)sithWorld_pCurrentWorld->numAdjoins); // Port: narrowing cast
     memset(sithRender_aVisibleAdjoins, 0, sizeof(sithRender_aVisibleAdjoins));
 
     sithRender_curPVSIndex = 1;
@@ -757,7 +757,7 @@ void J3DAPI sithRender_RenderSectors(void)
                                         &sithWorld_pCurrentWorld->aVertices[vertIdx],
                                         &rdCamera_pCurCamera->orient
                                     );
-                                    sithWorld_pCurrentWorld->aVertexRenderTickIds[vertIdx] = sithMain_curRenderTick;
+                                    sithWorld_pCurrentWorld->aVertexRenderTickIds[vertIdx] = (uint32_t)sithMain_curRenderTick; // Port: narrowing cast
                                 }
                             }
 
@@ -1029,7 +1029,7 @@ void J3DAPI sithRender_BuildDynamicLights(void)
                     // TODO: alpha value is not set
                 }
 
-                aVertLightsRenderTicks[vertIdx] = sithMain_curRenderTick;
+                aVertLightsRenderTicks[vertIdx] = (uint32_t)sithMain_curRenderTick; // Port: narrowing cast
             }
         }
     }
@@ -1286,7 +1286,7 @@ void J3DAPI sithRender_RenderAlphaAdjoins(void)
                         &sithWorld_pCurrentWorld->aVertices[vertIdx],
                         &rdCamera_pCurCamera->orient
                     );
-                    sithWorld_pCurrentWorld->aVertexRenderTickIds[vertIdx] = sithMain_curRenderTick;
+                    sithWorld_pCurrentWorld->aVertexRenderTickIds[vertIdx] = (uint32_t)sithMain_curRenderTick; // Port: narrowing cast
                 }
             }
 

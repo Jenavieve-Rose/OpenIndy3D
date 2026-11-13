@@ -2815,7 +2815,7 @@ void J3DAPI sithPlayerControls_ProcessGeneralControls(SithThing* pThing, float s
             pType = sithInventory_GetType(typeId);
             if ( pType->pCog )
             {
-                sithCog_SendMessage(pType->pCog, SITHCOG_MSG_USER0, SITHCOG_SYM_REF_INT, typeId, SITHCOG_SYM_REF_THING, pThing->idx, 0);
+                sithCog_SendMessage(pType->pCog, SITHCOG_MSG_USER0, SITHCOG_SYM_REF_INT, (int)typeId, SITHCOG_SYM_REF_THING, pThing->idx, 0); // Port: narrowing cast
             }
         }
 
@@ -2847,7 +2847,7 @@ int J3DAPI sithPlayerControls_ProcessEditorDebugControls(SithThing* pThing, floa
         sithControl_GetKey(keyId, &mode);
         if ( mode )
         {
-            sithPlayerActions_MoveToPlayerPosition(pThing, keyId - SITHCONTROL_WSELECT0);
+            sithPlayerActions_MoveToPlayerPosition(pThing, (unsigned int)(keyId - SITHCONTROL_WSELECT0)); // Port: narrowing cast
             break;
         }
     }

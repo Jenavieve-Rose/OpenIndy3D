@@ -614,7 +614,7 @@ void J3DAPI sithActor_SetHeadPYR(SithThing* pThing, const rdVector3* headAngles)
 
     if ( pThing->pPuppetClass && pThing->renderData.type == RD_THING_MODEL3 && pThing->renderData.apTweakedAngles )
     {
-        int lastNodeNum = pThing->renderData.data.pModel3->numHNodes - 1;
+        int lastNodeNum = (int)(pThing->renderData.data.pModel3->numHNodes - 1); // Port: narrowing cast
 
         int neckCount = pThing->pPuppetClass->aJoints[SITHPUPPET_JOINTINDEX_NECK];
         int hipNum  = pThing->pPuppetClass->aJoints[SITHPUPPET_JOINTINDEX_HIP];

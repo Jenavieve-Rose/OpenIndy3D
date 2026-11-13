@@ -79,7 +79,7 @@ void J3DAPI sithAIUtil_UpdateTargetSight(SithAIControlBlock* pLocal, SithAIUtilF
         return;
     }
 
-    pLocal->unknown124 = sithMain_frameNumber;
+    pLocal->unknown124 = (int)sithMain_frameNumber; // Port: narrowing cast
     if ( sithWeapon_HasWeaponSelected(pOwner) )
     {
         curcollideSize = sithWeapon_GetWeaponCollideSize(pOwner->thingInfo.actorInfo.weaponInfo.curWeaponID);
@@ -172,7 +172,7 @@ void J3DAPI sithAIUtil_UpdateGoalSight(SithAIControlBlock* pLocal)
         return;
     }
 
-    pLocal->unknown141 = sithMain_frameNumber;
+    pLocal->unknown141 = (int)sithMain_frameNumber; // Port: narrowing cast
     pTarget = pLocal->goalThing;
     if ( pTarget )
     {
@@ -592,13 +592,13 @@ int J3DAPI sithAIUtil_SyncWpnts(DPID idTo, unsigned int outstream)
     {
         SITHDSS_PUSHINT32(sithAIUtil_aAIWpnts[wpntNum].thingNum);
         SITHDSS_PUSHINT32(sithAIUtil_aAIWpnts[wpntNum].flags);
-        SITHDSS_PUSHINT32(sithAIUtil_aAIWpnts[wpntNum].numUsedLinks);
+        SITHDSS_PUSHINT32((int32_t)sithAIUtil_aAIWpnts[wpntNum].numUsedLinks); // Port: narrowing cast
         for ( j = 0; j < 8; ++j )
         {
             SITHDSS_PUSHINT32(sithAIUtil_aAIWpnts[wpntNum].aWpntLinks[j]);
         }
 
-        SITHDSS_PUSHINT32(sithAIUtil_aAIWpnts[wpntNum].rank);
+        SITHDSS_PUSHINT32((int32_t)sithAIUtil_aAIWpnts[wpntNum].rank); // Port: narrowing cast
     }
 
     for ( wpntNum = 0; wpntNum < 10; ++wpntNum )
@@ -946,7 +946,7 @@ static int J3DAPI sithAIUtil_SelectWpntLink(SithAIControlBlock* pLocal, unsigned
                 curRank -= 10;
             }
 
-            rankLead = sithAIUtil_aAIWpnts[nextWpnt].rank - sithAIUtil_aAIWpnts[leadWpnt].rank;
+            rankLead = (int)(sithAIUtil_aAIWpnts[nextWpnt].rank - sithAIUtil_aAIWpnts[leadWpnt].rank); // Port: narrowing cast
             if ( rankLead < 0 )
             {
                 curRank += -rankLead * 3;
@@ -1114,7 +1114,7 @@ int J3DAPI sithAIUtil_AIAdvanceToNextWpnt(SithAIControlBlock* pLocal, int bNotif
                 }
                 else
                 {
-                    nextWpntNum = sithAIUtil_SelectWpntLink(pLocal, sithAIUtil_aAIWpnts[wpntIdx].numUsedLinks, aLinks, i, ownerIdx);
+                    nextWpntNum = sithAIUtil_SelectWpntLink(pLocal, (unsigned int)sithAIUtil_aAIWpnts[wpntIdx].numUsedLinks, aLinks, i, ownerIdx); // Port: narrowing cast
                     thingNum = sithAIUtil_aAIWpnts[nextWpntNum].thingNum;
                     if ( sithAIMove_AISetMovePos(pLocal, &pCurLevel->aThings[thingNum].pos, pLocal->moveSpeed) )
                     {
@@ -1343,7 +1343,7 @@ void J3DAPI sithAIUtil_RankWpntsFromPlayer(void)
     while ( top >= 0 )
     {
         curWpnt = aStack[top--];
-        rankNum = sithAIUtil_aAIWpnts[curWpnt].rank - 1;
+        rankNum = (unsigned int)(sithAIUtil_aAIWpnts[curWpnt].rank - 1); // Port: narrowing cast
         for ( idx = 0; idx < sithAIUtil_aAIWpnts[curWpnt].numUsedLinks; ++idx )
         {
             linkCount = sithAIUtil_aAIWpnts[curWpnt].aWpntLinks[idx];
@@ -1406,7 +1406,7 @@ void J3DAPI sithAIUtil_RankWpntsFromThing(SithThing* pThing)
     while ( top >= 0 )
     {
         curWpnt = aStack[top--];
-        rankNum = sithAIUtil_aAIWpnts[curWpnt].rank - 1;
+        rankNum = (unsigned int)(sithAIUtil_aAIWpnts[curWpnt].rank - 1); // Port: narrowing cast
         for ( idx = 0; idx < sithAIUtil_aAIWpnts[curWpnt].numUsedLinks; ++idx )
         {
             linkCount = sithAIUtil_aAIWpnts[curWpnt].aWpntLinks[idx];

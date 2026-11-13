@@ -201,7 +201,7 @@ int J3DAPI sithVoice_PlayThingVoice(SithThing* pThing, tSoundHandle hSnd, float 
             pVoiceLine = stdUtil_ToAString(pwVoiceLine);
             if ( pVoiceLine )
             {
-                sithVoice_AddSubtitle(Sound_GetLengthMsec(hSnd), aFilename, pVoiceLine, &pActorInfo->voiceInfo.voiceColor);
+                sithVoice_AddSubtitle((int)Sound_GetLengthMsec(hSnd), aFilename, pVoiceLine, &pActorInfo->voiceInfo.voiceColor); // Port: narrowing cast
                 stdMemory_Free(pVoiceLine);
             }
         }

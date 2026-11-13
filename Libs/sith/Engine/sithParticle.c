@@ -332,7 +332,7 @@ void J3DAPI sithParticle_Initalize(SithThing* pThing)
                 celNum = (size_t)D3DMultiply(D3DVAL(SITH_RAND()), numCels);
                 celNum = J3DMIN(celNum, numCels - 1);
 
-                pThing->renderData.data.pParticle->aVertMatCelNums[i] = celNum;
+                pThing->renderData.data.pParticle->aVertMatCelNums[i] = (int)celNum; // Port: narrowing cast
             }
             else
             {

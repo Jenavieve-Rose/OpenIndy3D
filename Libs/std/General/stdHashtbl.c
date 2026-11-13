@@ -47,12 +47,12 @@ int J3DAPI isPrime(signed int val)
 static size_t J3DAPI stdHashtbl_nextPrime(size_t size)
 {
     size_t candidate = size;
-    while ( !isPrime(candidate) ) {
+    while ( !isPrime((int)candidate) ) { // Port: narrowing cast
         ++candidate;
     }
 
 #line 111
-    STD_ASSERTREL(isPrime(candidate));
+    STD_ASSERTREL(isPrime((int)candidate)); // Port: narrowing cast
     return candidate;
 }
 
@@ -71,7 +71,7 @@ signed int J3DAPI GetNextPrime(signed int size)
     }
 
     if ( size > 1999 ) {
-        nextPrime = stdHashtbl_nextPrime(size);
+        nextPrime = (int)stdHashtbl_nextPrime(size); // Port: narrowing cast
     }
 
 #line 149
@@ -89,7 +89,7 @@ tHashTable* J3DAPI stdHashtbl_New(size_t size)
 
     memset(pTable, 0, sizeof(tHashTable));
 
-    pTable->numNodes = GetNextPrime(size);
+    pTable->numNodes = GetNextPrime((int)size); // Port: narrowing cast
 #line 184
     pTable->paNodes = (tLinkListNode*)STDMALLOC(sizeof(tLinkListNode) * pTable->numNodes);
     if ( !pTable->paNodes ) {

@@ -151,7 +151,7 @@ void J3DAPI sithFX_CreateFairyDust(const rdVector3* pos, SithSector* pSector)
     // Retail bug: pDust is uninitialized when the template is missing
     if ( pDust )
     {
-        sithFX_fariyDustSizeFactor = sithFX_SetFairyDustSize(pDust->renderData.data.pParticle, sithFX_fariyDustSizeFactor);
+        sithFX_fariyDustSizeFactor = sithFX_SetFairyDustSize(pDust->renderData.data.pParticle, (int)sithFX_fariyDustSizeFactor); // Port: narrowing cast
     }
 }
 
@@ -286,7 +286,7 @@ int J3DAPI sithFX_CreateFairyDustDeluxDusts(SithThing* pThing, SithFairyDustUser
     if ( pDust )
     {
         pDust->pParent = pThing;
-        sithFX_newFairyDustDeluxSizeFactor = sithFX_SetFairyDustSize(pDust->renderData.data.pParticle, sithFX_newFairyDustDeluxSizeFactor);
+        sithFX_newFairyDustDeluxSizeFactor = sithFX_SetFairyDustSize(pDust->renderData.data.pParticle, (int)sithFX_newFairyDustDeluxSizeFactor); // Port: narrowing cast
 
         pFairydust->aDusts[pFairydust->numUsedDusts++] = pDust;
         if ( pFairydust->numUsedDusts == 4 )
@@ -998,7 +998,7 @@ void J3DAPI sithFX_UpdatePolyline(SithThing* pThing)
         int numCels;
 
         pThing->renderData.data.pPolyline->face.texVertOffset.y = pThing->renderData.data.pPolyline->face.texVertOffset.y + ((SITH_RANDF() - 0.7f) * 0.08f);
-        numCels = pThing->renderData.data.pPolyline->face.pMaterial->numCels;
+        numCels = (int)pThing->renderData.data.pPolyline->face.pMaterial->numCels; // Port: narrowing cast
         if ( numCels > 1 && SITH_ISFRAMECYCLE(pThing->idx, 4) ) // On every 4th frame random select new cel
         {
             pThing->renderData.data.pPolyline->face.matCelNum = (int32_t)(SITH_RAND() * (double)numCels);

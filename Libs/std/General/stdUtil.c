@@ -197,7 +197,7 @@ void J3DAPI stdUtil_WstrRemoveCharsAt(wchar_t* pwStr, int index, int numToDel)
     int size;
     int len;
 
-    len = wcslen(pwStr);
+    len = (int)wcslen(pwStr); // Port: narrowing cast
 #line 350
     STD_ASSERT(pwStr != NULL);
 #line 351
@@ -231,8 +231,8 @@ void J3DAPI stdUtil_wstrncat(wchar_t* pwSource, int sourceSize, int index, wchar
 #line 392
     STD_ASSERT(pwStrToInsert != NULL);
 
-    lenSource = wcslen(pwSource);
-    lenInsert = wcslen(pwStrToInsert);
+    lenSource = (int)wcslen(pwSource); // Port: narrowing cast
+    lenInsert = (int)wcslen(pwStrToInsert); // Port: narrowing cast
     pInsertPos = pwSource + index;
     pMoveTo = pwSource + index + lenInsert;
 
@@ -262,7 +262,7 @@ wchar_t* J3DAPI stdUtil_ToWString(const char* pString)
     pwString = (wchar_t*)STDMALLOC((sizeof(wchar_t) * strlen(pString)) + sizeof(wchar_t));
     STD_ASSERTREL(pwString!=NULL);
 
-    stdUtil_ToWStringEx(pwString, pString, strlen(pString));
+    stdUtil_ToWStringEx(pwString, pString, (int)strlen(pString)); // Port: narrowing cast
     pwString[strlen(pString)] = 0;
     return pwString;
 }
@@ -278,7 +278,7 @@ char* J3DAPI stdUtil_ToAString(const wchar_t* pwString)
     pString = (char*)STDMALLOC(wcslen(pwString) + 1);
     STD_ASSERTREL(pString!=NULL);
 
-    stdUtil_ToAStringEx(pString, pwString, wcslen(pwString));
+    stdUtil_ToAStringEx(pString, pwString, (int)wcslen(pwString)); // Port: narrowing cast
     pString[wcslen(pwString)] = 0;
     return pString;
 }
@@ -314,7 +314,7 @@ int J3DAPI stdUtil_FileExists(const char* pFilename)
 int J3DAPI stdUtil_FindFile(char* pFullname, int fullnameSize, const char* pFilename, const char* pPath)
 {
     char aToken[128] = "";
-    int fileLen = strlen(pFilename);  // unreferenced; the debug build's frame keeps its slot
+    int fileLen = (int)strlen(pFilename);  // unreferenced; the debug build's frame keeps its slot
     int bDone = 0;  // unreferenced; the debug build's frame keeps its slot
     char aSlashStr[2] = { '\\', '\0' };
     char aFullPath[128];
@@ -332,7 +332,7 @@ int J3DAPI stdUtil_FindFile(char* pFullname, int fullnameSize, const char* pFile
     pStr = pPath;
     do
     {
-        skip = strspn(pStr, ";");
+        skip = (int)strspn(pStr, ";"); // Port: narrowing cast
         pStr += skip;
         while ( *pStr && *pStr == ' ' )
         {
@@ -342,7 +342,7 @@ int J3DAPI stdUtil_FindFile(char* pFullname, int fullnameSize, const char* pFile
         pStr = stdUtil_StringSplit(pStr, aToken, sizeof(aToken), ";");
         if ( aToken[0] )
         {
-            dirLen = strlen(aToken);
+            dirLen = (int)strlen(aToken); // Port: narrowing cast
             strncpy(aFullPath, aToken, sizeof(aFullPath) - 1);
             aFullPath[sizeof(aFullPath) - 1] = '\0';
             remain = sizeof(aFullPath) - dirLen;

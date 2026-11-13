@@ -305,7 +305,7 @@ float J3DAPI sithInventory_ChangeInventory(SithThing* pThing, size_t typeId, flo
     {
         if ( pType->pCog )
         {
-            sithCog_SendMessage(pType->pCog, SITHCOG_MSG_CHANGED, SITHCOG_SYM_REF_NONE, 0, SITHCOG_SYM_REF_THING, pThing->idx, typeId);
+            sithCog_SendMessage(pType->pCog, SITHCOG_MSG_CHANGED, SITHCOG_SYM_REF_NONE, 0, SITHCOG_SYM_REF_THING, pThing->idx, (int)typeId); // Port: narrowing cast
         }
 
         pItem->status |= SITHINVENTORY_ITEM_CHANGED;
@@ -373,7 +373,7 @@ float J3DAPI sithInventory_SetInventory(SithThing* pThing, size_t typeId, float 
     {
         if ( pType->pCog )
         {
-            sithCog_SendMessage(pType->pCog, SITHCOG_MSG_CHANGED, SITHCOG_SYM_REF_NONE, 0, SITHCOG_SYM_REF_THING, pThing->idx, typeId);
+            sithCog_SendMessage(pType->pCog, SITHCOG_MSG_CHANGED, SITHCOG_SYM_REF_NONE, 0, SITHCOG_SYM_REF_THING, pThing->idx, (int)typeId); // Port: narrowing cast
         }
 
         pItem->status |= SITHINVENTORY_ITEM_CHANGED;

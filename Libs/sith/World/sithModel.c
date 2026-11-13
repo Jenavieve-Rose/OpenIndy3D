@@ -359,11 +359,11 @@ int16_t J3DAPI sithModel_GetModelIndex(const rdModel3* pModel)
     int index;
     if ( pModel >= sithWorld_pCurrentWorld->aModels && pModel < &sithWorld_pCurrentWorld->aModels[sithWorld_pCurrentWorld->numModels] )
     {
-        index = pModel - sithWorld_pCurrentWorld->aModels;
+        index = (int)(pModel - sithWorld_pCurrentWorld->aModels); // Port: narrowing cast
     }
     else if ( pModel >= sithWorld_pStaticWorld->aModels && pModel < &sithWorld_pStaticWorld->aModels[sithWorld_pStaticWorld->numModels] )
     {
-        index = pModel - sithWorld_pStaticWorld->aModels;
+        index = (int)(pModel - sithWorld_pStaticWorld->aModels); // Port: narrowing cast
         index |= SITH_STATICRESOURCE_INDEXMASK;
     }
     else
@@ -431,7 +431,7 @@ int J3DAPI sithModel_GetMeshIndex(const rdModel3* pModel, const char* pMeshName)
 
     if ( bFound )
     {
-        return i;
+        return (int)i; // Port: narrowing cast
     }
 
     return -1;

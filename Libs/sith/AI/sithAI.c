@@ -750,7 +750,7 @@ int J3DAPI sithAI_GetInstinctIndex(const SithAIControlBlock* pLocal, const SithA
 
     if ( i < pLocal->numInstincts )
     {
-        return i;
+        return (int)i; // Port: narrowing cast
     }
 
     return -1;
@@ -1067,10 +1067,10 @@ int J3DAPI sithAI_CreateAI(void)
 
     if ( (int)freeAIIndex > sithAI_lastUsedAIIndex )
     {
-        sithAI_lastUsedAIIndex = freeAIIndex;
+        sithAI_lastUsedAIIndex = (int)freeAIIndex; // Port: narrowing cast
     }
 
-    return freeAIIndex;
+    return (int)freeAIIndex; // Port: narrowing cast
 }
 
 void J3DAPI sithAI_ResetAllAIs(void)

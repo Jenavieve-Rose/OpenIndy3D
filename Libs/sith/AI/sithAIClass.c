@@ -277,7 +277,7 @@ SithAIClass* J3DAPI sithAIClass_Load(SithWorld* pWorld, const char* pName)
     if ( sithAIClass_LoadEntry(aFilePath, pClass) )
     {
         sithAIClass_CacheAdd(pClass);
-        pClass->num = pWorld->numAIClasses++;
+        pClass->num = (int)(pWorld->numAIClasses++); // Port: narrowing cast
         return pClass;
     }
 
@@ -407,7 +407,7 @@ int J3DAPI sithAIClass_LoadEntry(const char* pPath, SithAIClass* pClass)
             if ( stdConffile_entry.numArgs > i + 1 )
             {
                 pInstinct->fltArg[i] = D3DVAL(atof(stdConffile_entry.aArgs[i + 1].argValue));
-                pInstinct->intArg[i] = lrintf(pInstinct->fltArg[i]);
+                pInstinct->intArg[i] = (int)lrintf(pInstinct->fltArg[i]); // Port: narrowing cast
             }
             else
             {

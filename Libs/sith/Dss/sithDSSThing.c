@@ -844,7 +844,7 @@ int J3DAPI sithDSSThing_ProcessStopKey(const SithMessage* pMsg)
 
     if ( track < RDPUPPET_MAX_TRACKS )
     {
-        sithPuppet_StopKey(pThing->renderData.pPuppet, track, fadeTime);
+        sithPuppet_StopKey(pThing->renderData.pPuppet, (int)track, fadeTime); // Port: narrowing cast
     }
     else
     {
@@ -1788,7 +1788,7 @@ int J3DAPI sithDSSThing_PathMove(const SithThing* pThing, int frame, float speed
 
     SITHDSS_PUSHINT32(moveType);
     SITHDSS_PUSHINT32(pThing->guid);
-    SITHDSS_PUSHINT32(sithMain_frameNumber);
+    SITHDSS_PUSHINT32((int32_t)sithMain_frameNumber); // Port: narrowing cast
     SITHDSS_PUSHINT16(sithSector_GetSectorIndex(pThing->pInSector));
     SITHDSS_PUSHVEC3(&pThing->pos);
 

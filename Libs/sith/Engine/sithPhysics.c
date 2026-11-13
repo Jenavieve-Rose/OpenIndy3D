@@ -3160,10 +3160,10 @@ int J3DAPI sithPhysics_ProcessTrackFace(SithThing* pThing, rdFace* pFace, const 
 
     for ( i = 0; i < pFace->numVertices; i++ )
     {
-        prev = i - 1;
+        prev = (int)(i - 1); // Port: narrowing cast
         if ( prev < 0 )
         {
-            prev = pFace->numVertices - 1;
+            prev = (int)(pFace->numVertices - 1); // Port: narrowing cast
         }
 
         next = (i + 1) % pFace->numVertices;
@@ -3280,7 +3280,7 @@ int J3DAPI sithPhysics_ProcessTrackFace(SithThing* pThing, rdFace* pFace, const 
         {
 #line 4022
             SITH_ASSERTREL(nBackLefts < 2);
-            aBackLefts[nBackLefts++] = i;
+            aBackLefts[nBackLefts++] = (int)i; // Port: narrowing cast
         }
     }
 

@@ -149,7 +149,7 @@ int J3DAPI JonesDevDialog_ShowDevDialog(HWND hWnd, JonesState* pConfig)
 
     hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
-    res = DialogBoxParam(hInstance, (LPCSTR)101, hWnd, JonesDevDialog_DevDialogProc, (LPARAM)pConfig);
+    res = (int)DialogBoxParam(hInstance, (LPCSTR)101, hWnd, JonesDevDialog_DevDialogProc, (LPARAM)pConfig); // Port: narrowing cast
     return res;
 }
 
@@ -162,7 +162,7 @@ int J3DAPI JonesMain_ShowDisplayOptions(HWND hWnd, JonesState* pConfig)
 
     hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
 
-    res = DialogBoxParam(hInstance, (LPCSTR)106, hWnd, JonesDevDialog_DevDialogProc, (LPARAM)pConfig);
+    res = (int)DialogBoxParam(hInstance, (LPCSTR)106, hWnd, JonesDevDialog_DevDialogProc, (LPARAM)pConfig); // Port: narrowing cast
     return res;
 }
 
@@ -462,7 +462,7 @@ void J3DAPI JonesDevDialog_DevDialogHandleCommand(HWND hWnd, int controlId, LPAR
             // Geometry mode
             hCB    = GetDlgItem(hWnd, 1008);
             curIdx = ComboBox_GetCurSel(hCB);
-            pState->displaySettings.geoMode = ComboBox_GetItemData(hCB, curIdx);
+            pState->displaySettings.geoMode = (rdGeometryMode)ComboBox_GetItemData(hCB, curIdx); // Port: narrowing cast
 
             if ( pState->displaySettings.geoMode == RD_GEOMETRY_WIREFRAME || pState->displaySettings.geoMode == RD_GEOMETRY_VERTEX )
             {
@@ -472,12 +472,12 @@ void J3DAPI JonesDevDialog_DevDialogHandleCommand(HWND hWnd, int controlId, LPAR
             // Light mode
             hCB    = GetDlgItem(hWnd, 1009);
             curIdx = ComboBox_GetCurSel(hCB);
-            pState->displaySettings.lightMode = ComboBox_GetItemData(hCB, curIdx);
+            pState->displaySettings.lightMode = (rdLightMode)ComboBox_GetItemData(hCB, curIdx); // Port: narrowing cast
 
             // Filter mode
             hCB    = GetDlgItem(hWnd, 1012);
             curIdx = ComboBox_GetCurSel(hCB);
-            pState->displaySettings.filter = ComboBox_GetItemData(hCB, curIdx);
+            pState->displaySettings.filter = (Std3DMipmapFilterType)ComboBox_GetItemData(hCB, curIdx); // Port: narrowing cast
 
             pState->displaySettings.bWindowMode = IsDlgButtonChecked(hWnd, 1002) == 1; // window mode
             pState->bDevMode = IsDlgButtonChecked(hWnd, 1007) == 1;// devmode

@@ -327,7 +327,7 @@ const char* J3DAPI rdFont_GetWrapLine(const char* pText, const rdFont* pFont, fl
 {
     float width = 0.0f;
     const char* pCurrentLineEnd = NULL;
-    int textLength = strlen(pText);
+    int textLength = (int)strlen(pText); // Port: narrowing cast
     int idx;
     uint8_t chr;
 
@@ -368,7 +368,7 @@ size_t J3DAPI rdFont_GetTextWidth(const char* pText, const rdFont* pFont)
 {
     float width = 0.0f;
     const char* pCurrentLineEnd = NULL; // never read (the debug build stores it)
-    int textLength = strlen(pText);
+    int textLength = (int)strlen(pText); // Port: narrowing cast
     int idx;
     int chr;
 
@@ -409,7 +409,7 @@ void J3DAPI rdFont_DrawTextLine(const char* pText, float x, float y, float z, co
     uint8_t chr;
     int i;
 
-    textLen      = strlen(pText);
+    textLen      = (int)strlen(pText); // Port: narrowing cast
     bAlignLeft   = alignFlags & RDFONT_ALIGNLEFT;
     bAlignRight  = alignFlags & RDFONT_ALIGNRIGHT;
     bAlignCenter = alignFlags & RDFONT_ALIGNCENTER;
@@ -602,7 +602,7 @@ void J3DAPI rdFont_DrawTextLineClipped(const char* pText, float x, float y, floa
     uint8_t chr;
     int i;
 
-    textLen      = strlen(pText);
+    textLen      = (int)strlen(pText); // Port: narrowing cast
     bAlignLeft   = alignFlags & RDFONT_ALIGNLEFT;
     bAlignRight  = alignFlags & RDFONT_ALIGNRIGHT;
     bAlignCenter = alignFlags & RDFONT_ALIGNCENTER;

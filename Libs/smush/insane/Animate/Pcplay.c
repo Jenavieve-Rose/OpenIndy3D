@@ -158,23 +158,23 @@ static int animplay_Play(intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, int
     if (a2 == 0) {
         a2 = 15;
     }
-    if (animplay_pBitmap->Create(&pBitmap, a6, a7, -1)) {
+    if (animplay_pBitmap->Create(&pBitmap, (int)a6, (int)a7, -1)) { // Port: narrowing cast
         animplay_pShare->ReportError("Cannot allocate render bitmap.");
         return -1;
     }
-    loops = a11;
+    loops = (int)a11; // Port: narrowing cast
     if (loops == 0) {
         loops = -1;
     }
     cnt = loops - 1;
     if (loops != 0) {
         do {
-            rc = animplay_Create(&pPlay, (const char*)a1, a2, a12, a13, a3);
+            rc = animplay_Create(&pPlay, (const char*)a1, (int)a2, (int)a12, (int)a13, (int)a3); // Port: narrowing cast
             if (rc == 0) {
                 do {
                     v2 = 0;
                     v1 = 0;
-                    r = animplay_Pace(pPlay, pBitmap, 0, 0, 0, palette, &v1, &v2, a8, a9);
+                    r = animplay_Pace(pPlay, pBitmap, 0, 0, 0, palette, &v1, &v2, (int)a8, (int)a9); // Port: narrowing cast
                     if (r == 0 || r == 2 || r == 1) {
                         if (a10) {
                             int old = pPlay->stalled;
@@ -185,7 +185,7 @@ static int animplay_Play(intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, int
                                 break;
                             }
                         }
-                        animplay_Draw(pPlay, pBitmap, 0, a4, a5, palette, v1, v2, a3);
+                        animplay_Draw(pPlay, pBitmap, 0, (int)a4, (int)a5, palette, v1, v2, (int)a3); // Port: narrowing cast
                     }
                 } while (r >= 0 && r != 4);
                 animplay_Destroy(&pPlay);

@@ -58,7 +58,7 @@ void J3DAPI rdCache_AdvanceFrame(void)
 
 int J3DAPI rdCache_GetFrameNum(void)
 {
-    return rdCache_frameNum;
+    return (int)rdCache_frameNum; // Port: narrowing cast
 }
 
 /* Discarded by the retail linker (no caller in either image); the debug build has it at 0x00507C51, right after
@@ -297,7 +297,7 @@ void J3DAPI rdCache_SendFaceListToHardware(size_t numPolys, rdCacheProcEntry* pC
         totalVerts = 0;
         do
         {
-            curVertIdx = totalVerts;
+            curVertIdx = (int)totalVerts; // Port: narrowing cast
             lightingMode = pCurPoly->lightingMode < rdroid_curLightingMode ? pCurPoly->lightingMode : rdroid_curLightingMode;
 
             rdCache_pCurInVert      = pCurPoly->aVertices;
@@ -365,10 +365,10 @@ void J3DAPI rdCache_SendFaceListToHardware(size_t numPolys, rdCacheProcEntry* pC
             // Triangulation
             if ( pCurPoly->numVertices > 3 )
             {
-                triCount     = pCurPoly->numVertices - 2;
+                triCount     = (int)(pCurPoly->numVertices - 2); // Port: narrowing cast
                 triPoint1Num = 0;
                 triPoint2Num = 1;
-                triPoint3Num = pCurPoly->numVertices - 1;
+                triPoint3Num = (int)(pCurPoly->numVertices - 1); // Port: narrowing cast
                 for ( triNum = 0; triNum < triCount; ++triNum )
                 {
                     rdCache_aVertIndices[totalIndices++] = curVertIdx + triPoint1Num;
@@ -481,5 +481,8 @@ int J3DAPI rdCache_ProcFaceCompare(const rdCacheProcEntry* pEntry1, const rdCach
         return pCacheFaceRhs->matCelNum - pCacheFaceLhs->matCelNum;
     }
 
-    return pMat2 - pMat1;
+    // Port: retail returned pMat2 - pMat1. Materials come from two separately allocated worlds (static and level), so
+    // on 64-bit that difference can exceed 32 bits and change sign when narrowed, which breaks the sort's ordering.
+    // Only the sign was ever used: faces with the same material end up together, ordered by material address.
+    return (pMat2 > pMat1) - (pMat2 < pMat1);
 }

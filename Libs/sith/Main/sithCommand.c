@@ -1166,7 +1166,7 @@ const char* J3DAPI sithCommand_CipherText(const char* pText)
     //          cheat += chr(ord(c) ^ 34)
     //      return cheat
 
-    int len = strlen(pText);
+    int len = (int)strlen(pText); // Port: narrowing cast
     int i;
     for ( i = 0; i < len; ++i )
     {

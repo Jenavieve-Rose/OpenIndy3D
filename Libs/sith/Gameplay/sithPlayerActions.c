@@ -2338,7 +2338,7 @@ float J3DAPI sithPlayerActions_GetFaceTopZ(const SithThing* pThing, const rdFace
 
     rdMatrix_Copy34(&mat, &pThing->orient);
     vertices   = pMesh->apVertices;
-    count = pFace->numVertices;
+    count = (int)pFace->numVertices; // Port: narrowing cast
     if ( count <= 0 )
     {
         return 0.0f;

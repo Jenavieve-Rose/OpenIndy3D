@@ -607,7 +607,7 @@ int J3DAPI sithOverlayMap_DrawSector(SithSector* pSector)
                 vertIdx     = pSurf->face.aVertices[vecNum];
                 nextVertIdx = pSurf->face.aVertices[(vecNum + 1) % pSurf->face.numVertices];
 
-                edgeClipState = sithOverlayMap_CanDrawSurfaceEdge(pSurf, vertIdx, nextVertIdx);
+                edgeClipState = sithOverlayMap_CanDrawSurfaceEdge(pSurf, (int)vertIdx, (int)nextVertIdx); // Port: narrowing cast
                 if ( edgeClipState )
                 {
                     bDrawing = 1;
@@ -834,7 +834,7 @@ void J3DAPI sithOverlayMap_DrawPlayerIcon(void)
     pPoly->flags        = RD_FF_TEX_TRANSLUCENT;
     pPoly->lightingMode = RD_LIGHTING_DIFFUSE;
     pPoly->pMaterial    = sithOverlayMap_aIndyIcons[sithOverlayMap_curIndyIconNum];
-    pPoly->matCelNum    = sithOverlayMap_aIndyIcons[sithOverlayMap_curIndyIconNum]->curCelNum;
+    pPoly->matCelNum    = (int32_t)sithOverlayMap_aIndyIcons[sithOverlayMap_curIndyIconNum]->curCelNum; // Port: narrowing cast
     pPoly->numVertices  = STD_ARRAYLEN(sithOverlayMap_aPlayerIconVerts);
 
     for ( curi = 0; curi < pPoly->numVertices; ++curi )
@@ -959,7 +959,7 @@ void J3DAPI sithOverlayMap_DrawThingIcon(const SithThing* pThing, const rdMateri
     pPoly->flags        = RD_FF_TEX_TRANSLUCENT;
     pPoly->lightingMode = RD_LIGHTING_DIFFUSE;
     pPoly->pMaterial    = (rdMaterial*)pIcon;
-    pPoly->matCelNum    = pIcon->curCelNum;
+    pPoly->matCelNum    = (int32_t)pIcon->curCelNum; // Port: narrowing cast
     pPoly->numVertices  = 4;
 
     for ( i = 0; i < pPoly->numVertices; ++i )

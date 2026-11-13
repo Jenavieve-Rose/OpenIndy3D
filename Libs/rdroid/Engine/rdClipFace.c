@@ -61,12 +61,12 @@ void J3DAPI rdClip_QFace3T(const rdClipFrustum* pFrustrum, const rdPrimit3* pSrc
         pDst->numVertices = rdQClip_VerticesInFrustrum(pFrustrum, pDst->aVertices, pSrc->numVertices);
         if ( pDst->numVertices > 0 )
         {
-            pDst->numVertices = rdQClip_Face3T(pFrustrum, pDst->aVertices, pDst->aTexVertices, pDst->aVertLights, pSrc->numVertices);
+            pDst->numVertices = rdQClip_Face3T(pFrustrum, pDst->aVertices, pDst->aTexVertices, pDst->aVertLights, (int)pSrc->numVertices); // Port: narrowing cast
         }
     }
     else
     {
-        pDst->numVertices = rdClip_Face3TOrtho(pFrustrum, pDst->aVertices, pDst->aTexVertices, pDst->aVertLights, pSrc->numVertices);
+        pDst->numVertices = rdClip_Face3TOrtho(pFrustrum, pDst->aVertices, pDst->aTexVertices, pDst->aVertLights, (int)pSrc->numVertices); // Port: narrowing cast
     }
 }
 
@@ -82,7 +82,7 @@ void J3DAPI rdClip_QFace3W(const rdClipFrustum* pFrustrum, const rdPrimit3* pSrc
     pDst->numVertices = rdQClip_VerticesInFrustrum(pFrustrum, pDst->aVertices, pSrc->numVertices);
     if ( pDst->numVertices > 0 )
     {
-        pDst->numVertices = rdQClip_Face3W(pFrustrum, pDst->aVertices, pSrc->numVertices);
+        pDst->numVertices = rdQClip_Face3W(pFrustrum, pDst->aVertices, (int)pSrc->numVertices); // Port: narrowing cast
     }
 }
 

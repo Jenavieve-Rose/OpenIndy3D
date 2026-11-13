@@ -1295,7 +1295,7 @@ void J3DAPI sithThing_InitializeWorldThings(SithWorld* pWorld)
     int thingNum;
 
     sithThing_numFreeThings = 0;
-    for ( thingNum = pWorld->numThings - 1; thingNum >= 0; --thingNum )
+    for ( thingNum = (int)(pWorld->numThings - 1); thingNum >= 0; --thingNum ) // Port: narrowing cast
     {
         sithThing_Reset(&pWorld->aThings[thingNum]);
 
@@ -1312,7 +1312,7 @@ void J3DAPI sithThing_LoadPostProcess(SithWorld* pWorld)
     sithThing_numFreeThings = 0;
     pWorld->lastThingIdx    = -1;
 
-    for ( thingNum = pWorld->numThings - 1; thingNum >= 0; --thingNum )
+    for ( thingNum = (int)(pWorld->numThings - 1); thingNum >= 0; --thingNum ) // Port: narrowing cast
     {
         if ( !pWorld->aThings[thingNum].type )
         {
@@ -1774,7 +1774,7 @@ SithThing* J3DAPI sithThing_Create(SithThingType type)
         sithThing_guidEntropy = 1;
     }
 
-    pThing->guid      = ((sithPlayer_playerNum + 1) << 16) | (sithThing_guidEntropy++ & 0xFFFF);
+    pThing->guid      = (int)(((sithPlayer_playerNum + 1) << 16) | (sithThing_guidEntropy++ & 0xFFFF)); // Port: narrowing cast
     pThing->signature = sithThing_curSignature++;
 
     if ( !sithThing_curSignature ) {
@@ -3390,7 +3390,7 @@ int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWor
                 break;
 
             case SITH_MT_PATH:
-                *pPathFrameCount = pThing->moveInfo.pathMovement.numFrames;
+                *pPathFrameCount = (uint32_t)pThing->moveInfo.pathMovement.numFrames; // Port: narrowing cast
                 if ( *pPathFrameCount )
                 {
                     memcpy(pPathFrame, pThing->moveInfo.pathMovement.aFrames, sizeof(SithPathFrame) * *pPathFrameCount);
@@ -3505,7 +3505,7 @@ int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWor
                 pParticle->maxRadius    = pThing->thingInfo.particleInfo.maxRadius;
                 pParticle->size         = pThing->thingInfo.particleInfo.size;
                 pParticle->timeoutRate  = pThing->thingInfo.particleInfo.timeoutRate;
-                pParticle->numParticles = pThing->thingInfo.particleInfo.numParticles;
+                pParticle->numParticles = (uint32_t)pThing->thingInfo.particleInfo.numParticles; // Port: narrowing cast
                 pParticle->pitchRange   = pThing->thingInfo.particleInfo.pitchRange;
                 pParticle->yawRange     = pThing->thingInfo.particleInfo.yawRange;
                 if ( pThing->thingInfo.particleInfo.pMaterial )
@@ -3532,7 +3532,7 @@ int J3DAPI sithThing_WriteThingsListBinary(tFileHandle fh, const SithWorld* pWor
 
                 if ( pThing->controlInfo.aiControl.pLocal && pThing->controlInfo.aiControl.pLocal->numFrames )
                 {
-                    pAI->numFrames = pThing->controlInfo.aiControl.pLocal->numFrames;
+                    pAI->numFrames = (uint32_t)pThing->controlInfo.aiControl.pLocal->numFrames; // Port: narrowing cast
                     memcpy(pAIFrame, pThing->controlInfo.aiControl.pLocal->aFrames, sizeof(rdVector3) * pAI->numFrames);
                     pAIFrame += pAI->numFrames;
                 }
@@ -4328,7 +4328,7 @@ int J3DAPI sithThing_ParseArg(StdConffileArg* pArg, SithWorld* pWorld, SithThing
     }
     else
     {
-        parseRes = sithThing_ParseThingArg(pArg, pWorld, pThing, adjNumber);
+        parseRes = sithThing_ParseThingArg(pArg, pWorld, pThing, (int)adjNumber); // Port: narrowing cast
         switch ( parseRes )
         {
             case SITHTHING_PARSEARG_PARSED:
@@ -4342,23 +4342,23 @@ int J3DAPI sithThing_ParseArg(StdConffileArg* pArg, SithWorld* pWorld, SithThing
         {
             case SITH_THING_ACTOR:
             case SITH_THING_PLAYER:
-                bParsed = sithActor_ParseArg(pArg, pThing, adjNumber);
+                bParsed = sithActor_ParseArg(pArg, pThing, (int)adjNumber); // Port: narrowing cast
                 break;
 
             case SITH_THING_WEAPON:
-                bParsed = sithWeapon_ParseArg(pArg, pThing, adjNumber);
+                bParsed = sithWeapon_ParseArg(pArg, pThing, (int)adjNumber); // Port: narrowing cast
                 break;
 
             case SITH_THING_EXPLOSION:
-                bParsed = sithExplosion_ParseArg(pArg, pThing, adjNumber);
+                bParsed = sithExplosion_ParseArg(pArg, pThing, (int)adjNumber); // Port: narrowing cast
                 break;
 
             case SITH_THING_ITEM:
-                bParsed = sithItem_ParseArg(pArg, pThing, adjNumber);
+                bParsed = sithItem_ParseArg(pArg, pThing, (int)adjNumber); // Port: narrowing cast
                 break;
 
             case SITH_THING_PARTICLE:
-                bParsed = sithParticle_ParseArg(pArg, pThing, adjNumber);
+                bParsed = sithParticle_ParseArg(pArg, pThing, (int)adjNumber); // Port: narrowing cast
                 break;
         }
 
@@ -4370,11 +4370,11 @@ int J3DAPI sithThing_ParseArg(StdConffileArg* pArg, SithWorld* pWorld, SithThing
         switch ( pThing->moveType )
         {
             case SITH_MT_PHYSICS:
-                bParsed = sithPhysics_ParseArg(pArg, pThing, adjNumber);
+                bParsed = sithPhysics_ParseArg(pArg, pThing, (int)adjNumber); // Port: narrowing cast
                 break;
 
             case SITH_MT_PATH:
-                bParsed = sithPathMove_ParseArg(pArg, pThing, adjNumber);
+                bParsed = sithPathMove_ParseArg(pArg, pThing, (int)adjNumber); // Port: narrowing cast
                 break;
         }
 
@@ -4383,7 +4383,7 @@ int J3DAPI sithThing_ParseArg(StdConffileArg* pArg, SithWorld* pWorld, SithThing
             return 0;
         }
 
-        if ( pThing->controlType == SITH_CT_AI && sithAI_ParseArg(pArg, pThing, adjNumber) )
+        if ( pThing->controlType == SITH_CT_AI && sithAI_ParseArg(pArg, pThing, (int)adjNumber) ) // Port: narrowing cast
         {
             return 0;
         }
@@ -4901,7 +4901,7 @@ int J3DAPI sithThing_GetThingMeshIndex(const SithThing* pThing, const char* pMes
 
     if ( found )
     {
-        return i;
+        return (int)i; // Port: narrowing cast
     }
 
     return -1;
@@ -4928,7 +4928,7 @@ int J3DAPI sithThing_GetThingJointIndex(const SithThing* pThing, const char* pJo
 
     if ( found )
     {
-        return i;
+        return (int)i; // Port: narrowing cast
     }
 
     return -1;
@@ -4944,7 +4944,7 @@ void J3DAPI sithThing_FreeThingIndex(SithWorld* pWorld, size_t thingNum)
     if ( thingNum == pWorld->lastThingIdx )
     {
         int i;
-        for ( i = thingNum - 1; i >= 0; --i )
+        for ( i = (int)(thingNum - 1); i >= 0; --i ) // Port: narrowing cast
         {
             if ( pWorld->aThings[i].type != SITH_THING_FREE )
             {
@@ -4974,10 +4974,10 @@ int J3DAPI sithThing_GetFreeThingIndex(void)
     SITH_ASSERTREL((freeThingIndex < sithWorld_pCurrentWorld->numThings));
     if ( (int)freeThingIndex > sithWorld_pCurrentWorld->lastThingIdx )
     {
-        sithWorld_pCurrentWorld->lastThingIdx = freeThingIndex;
+        sithWorld_pCurrentWorld->lastThingIdx = (int)freeThingIndex; // Port: narrowing cast
     }
 
-    return freeThingIndex;
+    return (int)freeThingIndex; // Port: narrowing cast
 }
 
 int J3DAPI sithThing_ParseThingPlacement(SithWorld* pWorld)

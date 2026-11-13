@@ -129,7 +129,7 @@ static ZfileHandle* zfilio_open(const char* pPath, const char* pMode)
     ZfileHandle* pFile;
     const char* pExt;
     int size;
-    int fh;
+    FilioHandle fh; // Port: was int, which truncated the host handle on 64-bit
     int i;
 
 #line 211

@@ -79,7 +79,7 @@ void J3DAPI sithExplosion_CreateSpriteThing(SithThing* pThing)
         if ( pThing->renderData.type == RD_THING_SPRITE3 )
         {
             pCelMaterial = pThing->renderData.data.pSprite3->face.pMaterial;
-            if ( !pCelMaterial || (numCels = pCelMaterial->numCels) <= 1 )
+            if ( !pCelMaterial || (numCels = (unsigned int)pCelMaterial->numCels) <= 1 ) // Port: narrowing cast
             {
                 pExplode->flags &= ~SITH_EF_ANIMATESPRITE;
             }
@@ -92,7 +92,7 @@ void J3DAPI sithExplosion_CreateSpriteThing(SithThing* pThing)
         else if ( pExplode->pSprite )
         {
             pCelMaterial = pExplode->pSprite->renderData.data.pSprite3->face.pMaterial;
-            if ( !pCelMaterial || (numCels = pCelMaterial->numCels) <= 1 || (float)pExplode->pSprite->msecLifeLeft == 0.0f )
+            if ( !pCelMaterial || (numCels = (unsigned int)pCelMaterial->numCels) <= 1 || (float)pExplode->pSprite->msecLifeLeft == 0.0f ) // Port: narrowing cast
             {
                 pExplode->flags &= ~SITH_EF_ANIMATESPRITE;
             }

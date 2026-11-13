@@ -2278,7 +2278,7 @@ void J3DAPI sithCogFunctionThing_MoveToFrame(SithCog* pCog)
     {
         if ( pCog->execMsgType != SITHCOG_MSG_STARTUP && pCog->execMsgType != SITHCOG_MSG_SHUTDOWN )
         {
-            sithDSSThing_PathMove(pThing, frame, curSpeed, 0, SITHMESSAGE_SENDTOJOINEDPLAYERS, SITHMESSAGE_STREAM_ALL);
+            sithDSSThing_PathMove(pThing, (int)frame, curSpeed, 0, SITHMESSAGE_SENDTOJOINEDPLAYERS, SITHMESSAGE_STREAM_ALL); // Port: narrowing cast
         }
     }
 }
@@ -2313,7 +2313,7 @@ void J3DAPI sithCogFunctionThing_SkipToFrame(SithCog* pCog)
     {
         if ( pCog->execMsgType != SITHCOG_MSG_STARTUP && pCog->execMsgType != SITHCOG_MSG_SHUTDOWN )
         {
-            sithDSSThing_PathMove(pThing, frame, curSpeed, 1, SITHMESSAGE_SENDTOJOINEDPLAYERS, SITHMESSAGE_STREAM_ALL);
+            sithDSSThing_PathMove(pThing, (int)frame, curSpeed, 1, SITHMESSAGE_SENDTOJOINEDPLAYERS, SITHMESSAGE_STREAM_ALL); // Port: narrowing cast
         }
     }
 }
@@ -3091,7 +3091,7 @@ void J3DAPI sithCogFunctionThing_GetGoalFrame(SithCog* pCog)
         goto error;
     }
 
-    sithCogExec_PushInt(pCog, pThing->moveInfo.pathMovement.goalFrame);
+    sithCogExec_PushInt(pCog, (int)pThing->moveInfo.pathMovement.goalFrame); // Port: narrowing cast
     return;
 
 error:
@@ -4363,7 +4363,7 @@ void J3DAPI sithCogFunctionThing_SetThingModel(SithCog* pCog)
         pPrevModel = pThing->renderData.data.pModel3;
         if ( pPrevModel )
         {
-            curprevModelIdx = pPrevModel->num;
+            curprevModelIdx = (int)pPrevModel->num; // Port: narrowing cast
         }
         else
         {
@@ -4420,7 +4420,7 @@ void J3DAPI sithCogFunctionThing_GetThingModel(SithCog* pCog)
         }
         else
         {
-            sithCogExec_PushInt(pCog, pModel->num);
+            sithCogExec_PushInt(pCog, (int)pModel->num); // Port: narrowing cast
             return;
         }
     }
@@ -6259,7 +6259,7 @@ void J3DAPI sithCogFunctionThing_SetJointAngle(SithCog* pCog)
         int nodeNum;
         int maxNode;
 
-        maxNode = pThing->renderData.data.pModel3->numHNodes - 1;
+        maxNode = (int)(pThing->renderData.data.pModel3->numHNodes - 1); // Port: narrowing cast
         nodeNum = pThing->pPuppetClass->aJoints[jointNum];
         if ( J3DINRANGE(nodeNum, 0, maxNode) )
         {
@@ -6287,7 +6287,7 @@ void J3DAPI sithCogFunctionThing_GetJointAngle(SithCog* pCog)
         int nodeNum;
         int maxNode;
 
-        maxNode = pThing->renderData.data.pModel3->numHNodes - 1;
+        maxNode = (int)(pThing->renderData.data.pModel3->numHNodes - 1); // Port: narrowing cast
         nodeNum = pThing->pPuppetClass->aJoints[jointNum];
         if ( J3DINRANGE(nodeNum, 0, maxNode) )
         {
