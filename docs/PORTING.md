@@ -1190,3 +1190,28 @@ The DirectSound part of `win32_shim_dx.h` (interfaces, `WAVEFORMATEX`, `DSBUFFER
 - `boot`, `boot-sdl`, `saveload`, `input` now run with sound open; their saves carry sound state and stay
   reproducible.
 - By hand: listening in the first three levels, headphones in and out, the background mute.
+
+### Phase 4 code audit
+
+1. **Warnings** (`-Wall -Wextra -Wconversion -Wshadow -Wcast-align`) and **static analysis** on every file written
+   this phase. `SoundDriver_mix.c`: two `-Wcast-align` reports, the compressed sound's header read through a struct
+   pointer, fixed (read by offset with `memcpy`). `audio_device_ma.c`: the analyzer saw `getenv` called twice and the
+   second call possibly returning NULL, fixed (one call). `tests/sounddriver.c`: a shift the analyzer could not bound
+   and an unaligned test buffer, fixed. `AudioLib.c` (changed, not written): its narrowing stores and dead stores are
+   retail arithmetic and stay; its remaining `-Wcast-align` casts (the WVSM encoder's input, the lip-sync table's
+   entries, the ADPCM decoder's output) point into buffers that are aligned in every caller, and UBSan reports none.
+2. **Newly reachable retail code**, under ASan and UBSan in every test: sound loading, compression, decompression,
+   lip sync, channel bookkeeping, save and restore. Found: the unaligned accesses and the lip-sync overrun (P4.8 table
+   above), the pause-time sign (P4.9), and the uninitialised mix values (P4.3 to P4.6 table).
+3. **Read-through** of `SoundDriver_mix.c`: every field the renderer reads is written under the lock; a voice leaves
+   the list under the lock before it is freed; closing the device waits for its callback before the voices are freed;
+   the engine-clock state is touched only by the game thread; the position arithmetic wraps with the 32-bit clock;
+   every DirectSound argument the game can pass is either handled or refused as DirectSound refused it.
+4. **Behaviour.** `boot` and `boot-sdl` write the same autosave, which also equals the null build's; two `boot` runs
+   print the same log and write the same save; `python3 tools/layout_audit.py` reports no difference; every test
+   passes in the apple (11), null (7) and sanitizer (11) trees, with `-Werror` and no exception but `jonesConfig.c`'s
+   narrowings (P6.24).
+
+Left open, with their phases: the by-hand checks above (listening, headphones, background mute); retail's restored
+channel handles, the hard-right pan and OpenJones3D's sound fixes (phase 8 fix series); a DirectSound 3D path, if the
+software mix ever proves wanting (phase 9).

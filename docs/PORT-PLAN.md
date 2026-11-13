@@ -19,7 +19,7 @@ confused with section numbers.
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
 | 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Complete |
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
-| 4 | Audio | 11 of 11 | Code audit next; exit test needs a listening pass by hand |
+| 4 | Audio | 11 of 11 | Code audit done; exit test needs a listening pass by hand |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
@@ -580,6 +580,21 @@ survive a save and load.
 - [x] **P4.11** (S) Delete the DirectSound part of `win32_shim_dx.h`.
       Done: and the `dsound.h` and `Mmreg.h` stand-ins.
 ## Complete Phase 4 Code Audit
+
+Done 2026-11-13; details in `docs/PORTING.md`, "Phase 4 code audit". Extra warnings and the static analyzer on the
+phase's code, the newly reachable sound code under ASan and UBSan in every test, and a read-through.
+
+- [x] Warnings and static analysis: four findings in the new code (alignment, a double `getenv`, two in the test),
+      fixed; `AudioLib.c`'s remaining reports are retail arithmetic or aligned in every caller.
+- [x] Newly reachable retail code: unaligned accesses throughout `AudioLib.c`, the lip-sync overrun, the pause-time
+      sign, the uninitialised mix values; all fixed.
+- [x] Read-through: the lock discipline between the game and device threads, voice lifetime, clock arithmetic.
+- [x] Behaviour: `boot`, `boot-sdl` and the null build write the same autosave; every test passes in the apple, null
+      and sanitizer trees.
+- Not yet run: the exit test itself, listening to the first three levels, through a save and load, by a person; and
+  headphones in and out.
+- Left open, each with its phase: retail's restored channel handles and hard-right pan, OpenJones3D's sound fixes
+  (phase 8 fix series); a DirectSound 3D path (phase 9, if ever).
 ### Phase 5: Movies
 
 Exit test: the five intro movies and every cutscene movie in the GOBs play with audio in sync and can be skipped; a
