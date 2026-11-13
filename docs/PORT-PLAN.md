@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 8 of 22 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 9 of 22 | In progress |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **50 of 146** | |
+| **All** | | **51 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -177,7 +177,7 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    ├─ apple/wkernel_sdl.c               event loop, window proc messages     exists
    ├─ apple/stdDisplay_sdl.c            display device, modes                exists
    ├─ apple/display_metal.m             back-buffer present over Metal       exists
-   ├─ std3D_metal.m                     Metal rasterizer                     phase 2
+   ├─ apple/std3D_metal.c, render_metal.m  Metal renderer                    skeleton exists (P2.9), drawing in phase 2
    ├─ stdControl_sdl.c                  keyboard to DIK, mouse, gamepads     phase 3
    ├─ SoundDriver_ma.c                  miniaudio voices, 3D listener        phase 4
    ├─ insane_os/                        timer, file I/O, audio sink, asm→C   phase 5
@@ -387,11 +387,15 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       functions as no-ops. The four `*BufferDC` functions and `FlipToGDISurface` stay null until P6.5. Done: memory
       queries report the Metal device's working set. `Refresh` also stays null (P2.19).
 
-#### 2B. Metal rasterizer (`std3D_metal.m`)
+#### 2B. Metal rasterizer (`std3D_metal.c`, `render_metal.m`)
 
-- [ ] **P2.9** (M) Skeleton: device, command queue, depth texture, one command buffer per frame; `Startup`, `Open`,
+- [x] **P2.9** (M) Skeleton: device, command queue, depth texture, one command buffer per frame; `Startup`, `Open`,
       `Close`, `StartScene`, `EndScene`, `ClearZBuffer`; device and display-environment enumeration reporting one
       Metal device; the texture-format functions (BGRA with and without alpha, as the null backend reports now).
+      Done: `std3D_metal.c` (engine side, C) over `render_metal.m` (GPU side), on a Metal context shared with the
+      presenter. Scenes draw into a scene texture that starts from the back buffer and becomes the frame's picture.
+      Checked: all tests pass; `boot-sdl` saves still match `boot`; the `present` test checks a scene's picture is
+      what gets presented (`docs/PORTING.md`, "Renderer skeleton").
 - [ ] **P2.10** (M) Shaders: the vertex stage converts pre-transformed screen coordinates and 1/w to clip space; the
       fragment stage is texture × diffuse + specular, as Direct3D 6 fixed function did.
 - [ ] **P2.11** (M) Geometry: a per-frame vertex and index buffer ring; `DrawRenderList`; `DrawLineStrip` and
@@ -626,8 +630,8 @@ j3dport/
   LICENSE, NOTICE       exists
   Jones3D/              imported; Win32 calls resolved by the shim until phase 7
   Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
-  platform/apple/       main.c, shim/, host_apple.m, wkernel_sdl.c, stdDisplay_sdl.c, display_metal.m
-                        + std3D_metal.m (2), bundle and locator (8)
+  platform/apple/       main.c, shim/, host_apple.m, wkernel_sdl.c, stdDisplay_sdl.c, display_metal.m,
+                        std3D_metal.c, render_metal.m      + bundle and locator (8)
   platform/common/      crt_posix.c, host_path.h, host_clock.h, host_dirs.c, wuRegistry_file.c,
                         stdDisplay_vbuffer.c, stdDisplay_common.c, host_screenshot.c,
                         null/ (with stdDisplay_headless.c)
@@ -701,7 +705,7 @@ guide.
 | --- | --- | --- | --- |
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
 | 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
-| 2 | Metal renderer, first level on screen | 3 to 4 weeks | 2A (window and 2D) complete: window and event loop, display device and modes, back buffer, blits, Metal present, screenshots (P2.1 to P2.8) |
+| 2 | Metal renderer, first level on screen | 3 to 4 weeks | 2A (window and 2D) complete (P2.1 to P2.8); 2B started: renderer skeleton (P2.9) |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
 | 4 | Audio complete | 2 weeks | Not started |
 | 5 | Movies complete | 2 to 3 weeks | Not started |
@@ -714,9 +718,8 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. **P2.9 to P2.12 (2B):** the Metal renderer's skeleton, shaders, geometry and textures. Everything the game draws,
-   the level-load screen included, goes through `std3D`, so this is where the first game pixels appear; the present
-   path, screenshots and the `present` test from 2A are ready for it.
+1. **P2.10 to P2.12 (2B):** shaders, geometry and textures on the P2.9 skeleton. Everything the game draws, the
+   level-load screen included, goes through `std3D`, so this is where the first game pixels appear.
 2. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 

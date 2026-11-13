@@ -616,3 +616,40 @@ that only miss NaN.
   `GetFrontBufferDC`, `ReleaseFrontBufferDC`, `GetBackBufferDC`, `ReleaseBackBufferDC` and `FlipToGDISurface` (P6.5),
   `stdDisplay_Refresh` (re-sets the mode after focus returns; P2.19) and `GetDirectDraw` (no DirectDraw).
 - `tests/harness.c` gained `harness_StartupStd`, the std host services alone, for tests that need no game data.
+
+### Renderer skeleton (P2.9)
+
+- The apple build replaces `std3D_null.c` with `platform/apple/std3D_metal.c` (the engine-facing `std3D`, in C) and
+  `platform/apple/render_metal.m` (the GPU side, behind the C header `render_metal.h`). The split keeps the Win32
+  shim's `BOOL` and Objective-C's apart and the Metal calls in Objective-C files only (strategy decision 5).
+- `platform/apple/display_metal.m` became the shared Metal context (`display_metal_internal.h`, Objective-C only): one
+  device and one command queue for the process, so all GPU work runs in commit order, and `J3DMetal_Commit`, which
+  remembers the last command buffer so `J3DMetal_WaitForGPU` can wait for everything committed so far.
+- One 3D device: the default Metal device, described as `Metal HAL: <GPU name>` (the game picks the device whose
+  description contains "HAL"), hardware, with a z-buffer, alpha textures and alpha blending, textures from 1 to
+  16384 pixels a side, and no vertex limit, so `std3D_maxVertices` takes retail's default of 512.
+- `std3D_Open` makes a scene texture (BGRA8, shared storage) and a depth texture (32-bit float) at the back buffer's
+  size, as retail made its Direct3D device and z-buffer on the back buffer surface, and needs the mode to be set
+  first, as retail did. It reports the memory figures of P2.8.
+- Frame model. Retail's Direct3D drew into the back buffer surface the CPU also locked, so CPU writes and 3D drawing
+  landed on one surface. The port keeps two: `std3D_StartScene` uploads the back buffer into the scene texture and
+  opens a render pass that keeps that colour, so what the CPU wrote before the scene (the `BackBufferFill` clears)
+  lies under the 3D; `std3D_EndScene` submits the pass and makes the scene texture the frame's picture, which the next
+  `stdDisplay_Update` presents in place of the back buffer. A frame with no scene presents the back buffer as before.
+  CPU writes after the scene (none known yet) and screenshots of a scene (`SaveScreen` reads the CPU back buffer)
+  are P2.17.
+- `std3D_ClearZBuffer` clears depth to 1.0: inside a scene by ending the pass and opening another that clears depth
+  and keeps colour, otherwise at the next `StartScene`. `std3D_Open` leaves a clear pending, as retail cleared Z when
+  it created its viewport.
+- `StartScene` waits for the GPU before uploading, since the previous scene and its present may still read the scene
+  texture. The GPU work per frame is tiny, so this costs nothing measurable; a ring of scene textures can replace it.
+- `std3D_BuildDisplayEnvironment` and `std3D_FreeDisplayEnvironment` are the retail bodies (allocated, not the null
+  backend's static storage), with allocation checks retail lacked. The texture formats are the null backend's 32 bpp
+  BGRA ones, which the material loader already converts to; `GetNumTextureFormats` reports those two.
+- Everything else keeps the null backend's behaviour until its step: drawing (P2.11), textures and the cache (P2.12),
+  render states and the mipmap filter (P2.13), fog (P2.14), the projection (P2.15), wireframe (P2.16).
+- Checked: all tests in the apple, null and sanitizer trees. `boot-sdl` now runs the Metal `std3D` (headless, the
+  scenes render offscreen); its autosave is still byte-identical to `boot`'s, and its log adds the display lines and
+  `Max vertices: 512`. The `present` test gained a scene step: a scene begins from a pattern in the back buffer, clears
+  depth and ends, the back buffer is then painted grey on the CPU, and the presented frame must show the pattern; it
+  fails when the scene picture is not handed to the presenter (tried). A windowed game run of 600 frames exits 0.

@@ -2,7 +2,11 @@
  * present (apple builds): the Metal present path (P2.6) through stdDisplay, in a real window. Four coloured quadrants
  * are drawn into the back buffer, stdDisplay_Update presents them, and the drawable is read back
  * (J3DMetal_ArmCapture) and sampled at the centre of each quadrant: once with the window at the back buffer's size,
- * once with it at twice that, so the presenter scales as it does fullscreen. Also checks that the drawable covers the window in
+ * once with it at twice that, so the presenter scales as it does fullscreen.
+ *
+ * Then the renderer skeleton (P2.9): std3D opens on the Metal device, a scene begins (taking the back buffer's
+ * pattern), clears depth and ends; the back buffer is then painted over on the CPU. The next present must show the
+ * scene's picture, the pattern, not the painted-over back buffer. Also checks that the drawable covers the window in
  * pixels and that the memory queries report the Metal device. Needs no game data.
  *
  * It needs a window server: without one (an SSH session, for example) it is skipped (exit 77), as it is when the
@@ -15,6 +19,7 @@
 #include <SDL3/SDL.h>
 
 #include <std/General/std.h>
+#include <std/Win95/std3D.h>
 #include <std/Win95/stdDisplay.h>
 #include <std/Win95/stdWin95.h>
 
@@ -46,10 +51,10 @@ static int present_Near(int a, int b)
     return abs(a - b) <= 2;
 }
 
-// Lets the window settle, presents twice (the second captured) and samples the centre of each quadrant. Returns 0, or
+// Lets the window settle, presents twice (the second captured; bOnce: only the captured one) and samples the centre of each quadrant. Returns 0, or
 // -1 when the window gave no drawable.
 static int present_CaptureAndCheck(SDL_Window* pWindow, const StdRect* aQuadrants, const uint32_t* aColors,
-    uint32_t* pWidth, uint32_t* pHeight)
+    uint32_t* pWidth, uint32_t* pHeight, int bOnce)
 {
     for ( int i = 0; i < 10; ++i )
     {
@@ -57,7 +62,10 @@ static int present_CaptureAndCheck(SDL_Window* pWindow, const StdRect* aQuadrant
         while ( SDL_PollEvent(&event) ) {}
         SDL_Delay(10);
     }
-    CHECK(stdDisplay_Update() == 0, "Update");
+    if ( !bOnce )
+    {
+        CHECK(stdDisplay_Update() == 0, "Update");
+    }
     J3DMetal_ArmCapture();
     CHECK(stdDisplay_Update() == 0, "Update");
 
@@ -141,12 +149,12 @@ int main(void)
 
     // At the back buffer's size, then with the window at twice that, so the presenter has to scale (as fullscreen does).
     uint32_t width = 0, height = 0;
-    int res = present_CaptureAndCheck(pWindow, aQuadrants, aColors, &width, &height);
+    int res = present_CaptureAndCheck(pWindow, aQuadrants, aColors, &width, &height, 0);
     if ( res == 0 )
     {
         SDL_SetWindowSize(pWindow, 2 * BB_WIDTH, 2 * BB_HEIGHT);
         uint32_t scaledWidth = 0, scaledHeight = 0;
-        res = present_CaptureAndCheck(pWindow, aQuadrants, aColors, &scaledWidth, &scaledHeight);
+        res = present_CaptureAndCheck(pWindow, aQuadrants, aColors, &scaledWidth, &scaledHeight, 0);
         CHECK(res != 0 || (scaledWidth >= 2 * width && scaledHeight >= 2 * height), "scaled drawable %ux%u", scaledWidth,
             scaledHeight);
         width = scaledWidth;
@@ -160,6 +168,24 @@ int main(void)
         SDL_DestroyWindow(pWindow);
         SDL_Quit();
         return present_numFailures ? present_numFailures : PRESENT_SKIP;
+    }
+
+    // P2.9: a scene's picture is what gets presented.
+    if ( res == 0 )
+    {
+        CHECK(std3D_Startup() == 1, "std3D_Startup");
+        CHECK(std3D_GetNumDevices() == 1 && strstr(std3D_GetAllDevices()[0].deviceDescription, "HAL") != NULL,
+            "one Metal HAL device");
+        CHECK(std3D_Open(0) == 1, "std3D_Open");
+        CHECK(std3D_StartScene() == 0, "StartScene");
+        std3D_ClearZBuffer(); // within the scene: a second pass
+        std3D_EndScene();
+        stdDisplay_BackBufferFill(0x00808080, NULL); // after the scene: must not reach this frame's picture
+        uint32_t sceneWidth = 0, sceneHeight = 0;
+        res = present_CaptureAndCheck(pWindow, aQuadrants, aColors, &sceneWidth, &sceneHeight, 1);
+        CHECK(res == 0, "the scene frame was presented");
+        std3D_Close();
+        std3D_Shutdown();
     }
 
     stdDisplay_Close();

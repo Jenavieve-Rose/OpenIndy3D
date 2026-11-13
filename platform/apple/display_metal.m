@@ -1,9 +1,9 @@
 /*
- * The present path over Metal (PORT-PLAN.md P2.6); see display_metal.h.
+ * The Metal context and the present path (PORT-PLAN.md P2.6, P2.9); see display_metal.h and display_metal_internal.h.
  *
- * The shaders are compiled from source when the presenter opens: a single triangle covering the drawable, sampling the
- * back-buffer texture. The renderer proper (std3D, P2.9 on) will have its own pipelines; how its output and the back
- * buffer are combined is P2.17.
+ * The shaders are compiled from source when the presenter opens: a single triangle covering the drawable, sampling
+ * either the back-buffer texture or, in a frame the renderer drew (std3D_metal.m), its scene texture. How the
+ * renderer's output and CPU writes to the back buffer are ordered within a frame is P2.17.
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -15,7 +15,7 @@
 
 #include <SDL3/SDL.h>
 
-#include "display_metal.h"
+#include "display_metal_internal.h"
 
 #define METAL_TEXTURE_RING 3 // textures (and command buffers) in flight
 
@@ -42,7 +42,9 @@ static SDL_Window*                metal_pWindow;
 static SDL_MetalView              metal_view;
 static CAMetalLayer*              metal_layer;
 static id<MTLDevice>              metal_device;
-static id<MTLCommandQueue>        metal_queue;
+static id<MTLCommandQueue>        metal_queue;          // the process's one queue (J3DMetal_Queue)
+static id<MTLCommandBuffer>       metal_lastCommitted;  // J3DMetal_Commit
+static id<MTLTexture>             metal_sceneTexture;   // J3DMetal_SetSceneTexture
 static id<MTLRenderPipelineState> metal_pipeline;
 static id<MTLSamplerState>        metal_sampler;
 static id<MTLTexture>             metal_aTextures[METAL_TEXTURE_RING];
@@ -53,7 +55,7 @@ static int      metal_bCaptureArmed;
 static uint8_t* metal_pCapture;
 static uint32_t metal_captureWidth, metal_captureHeight;
 
-static id<MTLDevice> metal_GetDevice(void)
+id<MTLDevice> J3DMetal_Device(void)
 {
     if ( !metal_device )
     {
@@ -62,13 +64,42 @@ static id<MTLDevice> metal_GetDevice(void)
     return metal_device;
 }
 
+id<MTLCommandQueue> J3DMetal_Queue(void)
+{
+    if ( !metal_queue && J3DMetal_Device() )
+    {
+        metal_queue = [metal_device newCommandQueue];
+    }
+    return metal_queue;
+}
+
+void J3DMetal_Commit(id<MTLCommandBuffer> commands)
+{
+    [commands commit];
+    metal_lastCommitted = commands;
+}
+
+void J3DMetal_WaitForGPU(void)
+{
+    if ( metal_lastCommitted )
+    {
+        [metal_lastCommitted waitUntilCompleted];
+        metal_lastCommitted = nil;
+    }
+}
+
+void J3DMetal_SetSceneTexture(id<MTLTexture> texture)
+{
+    metal_sceneTexture = texture;
+}
+
 int J3DMetal_OpenPresenter(SDL_Window* pWindow, int bVsync)
 {
     J3DMetal_ClosePresenter();
 
     @autoreleasepool
     {
-        id<MTLDevice> device = metal_GetDevice();
+        id<MTLDevice> device = J3DMetal_Device();
         if ( !device )
         {
             fprintf(stderr, "display_metal: no Metal device\n");
@@ -117,7 +148,6 @@ int J3DMetal_OpenPresenter(SDL_Window* pWindow, int bVsync)
         samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
         metal_sampler = [device newSamplerStateWithDescriptor:samplerDesc];
 
-        metal_queue      = [device newCommandQueue];
         metal_inFlight   = dispatch_semaphore_create(METAL_TEXTURE_RING);
         metal_curTexture = 0;
         metal_pWindow    = pWindow;
@@ -127,7 +157,7 @@ int J3DMetal_OpenPresenter(SDL_Window* pWindow, int bVsync)
 
 void J3DMetal_ClosePresenter(void)
 {
-    if ( metal_queue && metal_inFlight )
+    if ( metal_inFlight )
     {
         // Let the frames in flight finish before their textures go.
         for ( int i = 0; i < METAL_TEXTURE_RING; ++i )
@@ -144,10 +174,10 @@ void J3DMetal_ClosePresenter(void)
     {
         metal_aTextures[i] = nil;
     }
-    metal_pipeline = nil;
-    metal_sampler  = nil;
-    metal_queue    = nil;
-    metal_inFlight = nil;
+    metal_pipeline     = nil;
+    metal_sampler      = nil;
+    metal_inFlight     = nil;
+    metal_sceneTexture = nil;
     metal_layer    = nil;
     if ( metal_view )
     {
@@ -159,12 +189,12 @@ void J3DMetal_ClosePresenter(void)
 
 int J3DMetal_IsPresenterOpen(void)
 {
-    return metal_queue != nil;
+    return metal_pipeline != nil;
 }
 
 int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize)
 {
-    if ( !metal_queue || !pPixels || !width || !height )
+    if ( !metal_pipeline || !pPixels || !width || !height )
     {
         return 1;
     }
@@ -173,9 +203,15 @@ int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, si
     {
         dispatch_semaphore_wait(metal_inFlight, DISPATCH_TIME_FOREVER);
 
-        // Upload into the next texture of the ring; the semaphore guarantees the GPU is done with it.
-        id<MTLTexture> texture = metal_aTextures[metal_curTexture];
-        if ( !texture || texture.width != width || texture.height != height )
+        // The renderer's picture if it drew this frame, else the back buffer, uploaded into the next texture of the
+        // ring (the semaphore guarantees the GPU is done with it).
+        id<MTLTexture> texture = metal_sceneTexture;
+        metal_sceneTexture = nil;
+        if ( texture )
+        {
+            // nothing to upload
+        }
+        else if ( !(texture = metal_aTextures[metal_curTexture]) || texture.width != width || texture.height != height )
         {
             MTLTextureDescriptor* desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
                                                                                             width:width
@@ -186,8 +222,11 @@ int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, si
             texture = [metal_device newTextureWithDescriptor:desc];
             metal_aTextures[metal_curTexture] = texture;
         }
-        [texture replaceRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0 withBytes:pPixels bytesPerRow:rowSize];
-        metal_curTexture = (metal_curTexture + 1) % METAL_TEXTURE_RING;
+        if ( texture == metal_aTextures[metal_curTexture] )
+        {
+            [texture replaceRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0 withBytes:pPixels bytesPerRow:rowSize];
+            metal_curTexture = (metal_curTexture + 1) % METAL_TEXTURE_RING;
+        }
 
         // The drawable covers the window in pixels.
         int pixelWidth = 0, pixelHeight = 0;
@@ -212,7 +251,7 @@ int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, si
         pass.colorAttachments[0].storeAction = MTLStoreActionStore;
         pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
 
-        id<MTLCommandBuffer>        commands = [metal_queue commandBuffer];
+        id<MTLCommandBuffer>        commands = [J3DMetal_Queue() commandBuffer];
         id<MTLRenderCommandEncoder> encoder  = [commands renderCommandEncoderWithDescriptor:pass];
         [encoder setRenderPipelineState:metal_pipeline];
         [encoder setFragmentTexture:texture atIndex:0];
@@ -247,7 +286,7 @@ int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, si
             (void)buffer;
             dispatch_semaphore_signal(inFlight);
         }];
-        [commands commit];
+        J3DMetal_Commit(commands);
 
         if ( captureBuffer )
         {
@@ -267,7 +306,7 @@ int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, si
 
 void J3DMetal_GetMemory(size_t* pTotal, size_t* pFree)
 {
-    id<MTLDevice> device = metal_GetDevice();
+    id<MTLDevice> device = J3DMetal_Device();
     size_t total = device ? (size_t)device.recommendedMaxWorkingSetSize : 0;
     size_t used  = device ? (size_t)device.currentAllocatedSize : 0;
     *pTotal = total;

@@ -196,6 +196,7 @@ if(J3D_PLATFORM STREQUAL "apple")
         wkernel_null.c          # platform/apple/wkernel_sdl.c (P2.2)
         win32_msg_null.c        # the game window's message queue and timers, also wkernel_sdl.c
         stdDisplay_headless.c   # platform/apple/stdDisplay_sdl.c (P2.3)
+        std3D_null.c            # platform/apple/std3D_metal.c and render_metal.m (P2.9)
     )
     set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
     foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
