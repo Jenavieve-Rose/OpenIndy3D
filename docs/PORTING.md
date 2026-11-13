@@ -480,7 +480,7 @@ that only miss NaN.
   byte-identical.
 - `wkernel_SetWindowStyle` makes the window bordered for a style with `WS_CAPTION` (windowed mode) and borderless
   otherwise; `wkernel_SetWindowSize` sets the client size (since P2.3 not while the window is fullscreen, see "Display
-  device and modes"). Resizing, the fullscreen toggle and pause on minimize are P2.19.
+  device and modes"). Resizing, the fullscreen toggle and minimizing came with P2.19 ("Window behaviour").
 - `platform/apple/main.c`: retail returned 1 from `WinMain` for every normal quit (`WM_QUIT`). The process now exits 0
   for 0 and 1 and fails for -1 (startup failed). A `--frames` run must return 0 (its frame count reached); one that
   ends earlier, for example because a level failed to load and the game closed itself, still fails.
@@ -816,3 +816,26 @@ that only miss NaN.
 - Checked: with a temporary local change holding the up arrow from frame 30, a headless run of `16_JEP` shows Indy at
   frame 400 walked forward to the tent; the same run without it shows him where the level starts him. Keys in a real
   window are checked by hand (scripted input is Phase 3).
+
+### Window behaviour (P2.19)
+
+- Pause on focus loss, as retail: `wkernel_sdl.c` turns a change of focus into `WM_ACTIVATEAPP` and `WM_ACTIVATE`
+  (P2.2), and the game's `JonesMain_OnAppActivate` swaps its frame function for `JonesMain_ProcessWindowEvents`, which
+  blocks in `wkernel_ProcessEvents` until a window message arrives; game time stops. On reactivation it calls
+  `stdDisplay_Refresh(1)` and `std3D_ResetTextureCache`, then resumes. sithTime caps the first frame after the pause at
+  200 ms, as in retail.
+- Minimizing: a fullscreen game minimizes when another app takes focus (`SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS`), as
+  DirectDraw's exclusive mode made it. `stdDisplay_Refresh(1)` (retail: restore the cooperative level, the display mode
+  and lost surfaces) restores a minimized fullscreen window and makes it fullscreen again. A window minimizes only when
+  the player minimizes it; minimizing takes focus, so the game pauses.
+- Resizing: a windowed mode's window is resizable. The back buffer keeps the mode's size and the presenter scales it to
+  the window; mouse positions follow (P2.15). The window is not resizable in a fullscreen mode.
+- Fullscreen toggle: Alt+Return (the Windows convention) or Cmd+Ctrl+F (the Mac's) flips the "InWindow" setting,
+  saves it and asks for the game's own display restart (`JonesMain_RefreshDisplayDevice`, handled at the end of the
+  frame), as retail's display settings dialog did; the mode the settings name is kept. The key combination is not
+  passed to the game. Textures survive the restart: they are Metal textures, not surfaces of the display that closes.
+- `stdDisplay_Refresh` left the generated null file (the headless display's does nothing).
+- Checked, with temporary local changes (not committed): the toggle triggered at frame 120 of a windowed run turns the
+  640×480 window into a 2560×1440 fullscreen one, saves `InWindow=i:0` and exits 0; a focus loss posted at frame 200
+  with focus returned a second later (an SDL timer) blocks the next pass for that second with game time unchanged,
+  windowed and fullscreen. The keys themselves and real minimizing are checked by hand (scripted input is Phase 3).

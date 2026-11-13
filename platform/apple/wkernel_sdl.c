@@ -47,6 +47,7 @@
 
 #include <wkernel/wkernel.h>
 #include <Jones3D/Main/JonesMain.h>
+#include <w32util/wuRegistry.h>
 #include <std/Win95/stdWin95.h>
 
 #include <platform/apple/stdDisplay_sdl.h>
@@ -255,6 +256,32 @@ static WPARAM wkernel_GetControlChar(WPARAM vk)
         case VK_ESCAPE: return 0x1B;
         default:        return 0;
     }
+}
+
+// The fullscreen toggle (P2.19): Alt+Return, as on Windows, or Cmd+Ctrl+F, the Mac's own shortcut.
+static int wkernel_IsFullscreenToggle(const SDL_KeyboardEvent* pEvent)
+{
+    const SDL_Keymod mod = pEvent->mod;
+    if ( pEvent->scancode == SDL_SCANCODE_RETURN && (mod & SDL_KMOD_ALT) && !(mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) )
+    {
+        return 1;
+    }
+    return pEvent->scancode == SDL_SCANCODE_F && (mod & SDL_KMOD_GUI) && (mod & SDL_KMOD_CTRL);
+}
+
+// Retail switched between fullscreen and a window only through its display settings dialog, which flips "InWindow",
+// saves it and restarts the display. The toggle does the same through the game's own restart (JonesMain_Process
+// handles JonesMain_RefreshDisplayDevice at the end of the frame), so the mode the settings name is kept.
+static void wkernel_ToggleFullscreen(void)
+{
+    JonesDisplaySettings* pSettings = JonesMain_GetDisplaySettings();
+    if ( !pSettings )
+    {
+        return;
+    }
+    pSettings->bWindowMode = !pSettings->bWindowMode;
+    wuRegistry_SaveIntEx("InWindow", pSettings->bWindowMode);
+    JonesMain_RefreshDisplayDevice();
 }
 
 static void wkernel_TranslateKey(const SDL_KeyboardEvent* pEvent)
@@ -494,6 +521,14 @@ static void wkernel_TranslateEvent(const SDL_Event* pEvent)
 
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP:
+            if ( wkernel_IsFullscreenToggle(&pEvent->key) )
+            {
+                if ( pEvent->type == SDL_EVENT_KEY_DOWN && !pEvent->key.repeat )
+                {
+                    wkernel_ToggleFullscreen();
+                }
+                break; // the game never sees the combination
+            }
             wkernel_TranslateKey(&pEvent->key);
             break;
 
@@ -714,6 +749,10 @@ static int wkernel_CreateWindow(LPCSTR lpWindowName)
     // moving the window to a Space of its own: a Spaces transition is animated, and macOS ignores it for an app that
     // is not frontmost, such as one started from a script. P2.19 revisits the fullscreen toggle.
     SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
+
+    // A fullscreen game minimizes when another app takes focus, as DirectDraw's exclusive mode made it; clicking it in
+    // the Dock restores it and its activation brings fullscreen back (stdDisplay_Refresh). P2.19.
+    SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "1");
 
     if ( !SDL_Init(SDL_INIT_VIDEO) )
     {

@@ -21,10 +21,6 @@ LPDIRECTDRAW4 J3DAPI stdDisplay_GetDirectDraw(void)
     return NULL;
 }
 
-void J3DAPI stdDisplay_Refresh(int bReload)
-{
-}
-
 HDC J3DAPI stdDisplay_GetFrontBufferDC(void)
 {
     return NULL;

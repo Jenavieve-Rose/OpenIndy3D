@@ -185,7 +185,7 @@ IMPLEMENTED_ELSEWHERE = {
     'stdDisplay_SaveScreen', 'stdDisplay_CanRenderWindowed', 'stdDisplay_IsFullscreen', 'stdDisplay_LockBackBuffer',
     'stdDisplay_UnlockBackBuffer', 'stdDisplay_VBufferCopy', 'stdDisplay_EncodeFromRGB565', 'stdDisplay_CreateZBuffer',
     'stdDisplay_SetBufferClipper', 'stdDisplay_RemoveBufferClipper', 'stdDisplay_GetTextureMemory',
-    'stdDisplay_GetTotalMemory',
+    'stdDisplay_GetTotalMemory', 'stdDisplay_Refresh',
 }
 
 # Functions written to a file of their own instead of the module's null file, so an Apple backend can replace them

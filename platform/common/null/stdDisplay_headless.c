@@ -177,3 +177,8 @@ void J3DDisplay_SyncBackBuffer(int bOverwriteAll)
     (void)bOverwriteAll;
     // Nothing draws anywhere but the back buffer.
 }
+
+void J3DAPI stdDisplay_Refresh(int bReload)
+{
+    (void)bReload; // no surfaces to restore
+}

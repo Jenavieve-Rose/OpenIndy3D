@@ -178,6 +178,7 @@ static int stdDisplay_SetWindowMode(const StdVideoMode* pMode, int bFullscreen)
     if ( bFullscreen )
     {
         // NULL: fullscreen at the desktop's mode. The back buffer keeps the game's mode size (see the top of the file).
+        SDL_SetWindowResizable(pWindow, false);
         if ( !SDL_SetWindowFullscreenMode(pWindow, NULL) || !SDL_SetWindowFullscreen(pWindow, true) )
         {
             stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error %s when entering fullscreen.\n", SDL_GetError(), 0, 0, 0);
@@ -192,8 +193,10 @@ static int stdDisplay_SetWindowMode(const StdVideoMode* pMode, int bFullscreen)
         return 1;
     }
 
-    // The window's client area is the mode's size in points; on a Retina display the drawable is larger (P2.15).
+    // The window's client area is the mode's size in points; on a Retina display the drawable is larger (P2.15). The
+    // player may resize it: the back buffer keeps the mode's size and the presenter scales it (P2.19).
     SDL_SetWindowSize(pWindow, (int)pMode->rasterInfo.width, (int)pMode->rasterInfo.height);
+    SDL_SetWindowResizable(pWindow, true);
     return 0;
 }
 
@@ -430,4 +433,25 @@ void J3DApple_WindowToBackBuffer(float* pX, float* pY)
 
     *pX = *pX * (float)stdDisplay_backBuffer.rasterInfo.width / (float)width;
     *pY = *pY * (float)stdDisplay_backBuffer.rasterInfo.height / (float)height;
+}
+
+// Retail, on reactivation (bReload 1): restore the cooperative level, the fullscreen display mode and the lost surfaces.
+// Here: a fullscreen window that was minimized when the game lost focus (wkernel_sdl.c) is restored and made
+// fullscreen again. Nothing to do for a window, or on deactivation (bReload 0), as in retail.
+void J3DAPI stdDisplay_Refresh(int bReload)
+{
+    SDL_Window* pWindow = stdDisplay_GetSDLWindow();
+    if ( !stdDisplay_bOpen || !stdDisplay_bModeSet || !bReload || !stdDisplay_bFullscreen || !pWindow )
+    {
+        return;
+    }
+
+    if ( SDL_GetWindowFlags(pWindow) & SDL_WINDOW_MINIMIZED )
+    {
+        SDL_RestoreWindow(pWindow);
+    }
+    if ( !(SDL_GetWindowFlags(pWindow) & SDL_WINDOW_FULLSCREEN) )
+    {
+        SDL_SetWindowFullscreen(pWindow, true);
+    }
 }
