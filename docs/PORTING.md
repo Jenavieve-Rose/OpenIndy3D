@@ -852,3 +852,14 @@ that only miss NaN.
 - Checked: the `present` test makes the window twice as wide as tall and expects black bars, the picture centred, and
   a mouse position in the picture mapped to the right back-buffer pixel; with `J3D_REG_Pillarbox=0` those checks fail,
   as they should.
+
+### The Katmai path removed (P2.21)
+
+- The SSE "Katmai" mesh renderer (`rdModel3K.c`, `rdModel3K_cpu.c`) was excluded from the build in Phase 0 and stood
+  in as a generated null file, `rdModel3K_null.c`, whose `IsAvailable` returned 0. That file and its generator entry
+  are gone. The three files that called it keep the retail lines inside `#ifndef J3D_PORT`:
+  - `Libs/rdroid/Primitives/rdModel3.c`, `rdModel3_DrawHNode`: always the C mesh path (`rdModel3_DrawMesh`).
+  - `Jones3D/Main/JonesDevDialog.c`, `JonesDevDialog_LoadSettings`: the "Katmai" setting and the SSE startup are
+    ignored.
+  - `Jones3D/Display/JonesConsole.c`: the `katon` and `katoff` console commands do nothing.
+- The Katmai sources stay in the tree, outside the build, as the decomp's record.

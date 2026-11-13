@@ -10,7 +10,9 @@
 #include <rdroid/Engine/rdMaterial.h>
 #include <rdroid/Engine/rdLight.h>
 #include <rdroid/Engine/rdPuppet.h>
+#ifndef J3D_PORT
 #include <rdroid/Primitives/rdModel3K.h>
+#endif
 #include <rdroid/Primitives/rdPrimit3.h>
 #include <rdroid/Raster/rdCache.h>
 #include <rdroid/Raster/rdFace.h>
@@ -1978,6 +1980,10 @@ void J3DAPI rdModel3_DrawHNode(const rdModel3GeoSet* prdGeo, const rdModel3HNode
     if ( pNode->meshIdx != -1 )
     {
         rdModel3Mesh* pMesh = &prdGeo->aMeshes[pNode->meshIdx];
+#ifdef J3D_PORT
+        // Port: always the C mesh path; the SSE "Katmai" one (rdModel3K) is not in the port (PORT-PLAN.md P2.21).
+        rdModel3_DrawMesh(pMesh, &pCurThing->paJointMatrices[pNode->num]);
+#else
         if ( rdModel3K_IsEnabled() & (pMesh->someFaceFlags == 0) & (pMesh->meshColor.alpha >= 1.0f) )
         {
             rdModel3K_DrawMesh(pMesh, &pCurThing->paJointMatrices[pNode->num]);
@@ -1986,6 +1992,7 @@ void J3DAPI rdModel3_DrawHNode(const rdModel3GeoSet* prdGeo, const rdModel3HNode
         {
             rdModel3_DrawMesh(pMesh, &pCurThing->paJointMatrices[pNode->num]);
         }
+#endif
     }
 
     if ( pNode->numChildren > 0 )

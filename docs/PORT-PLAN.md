@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 20 of 22 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 21 of 22 | In progress |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **62 of 146** | |
+| **All** | | **63 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -83,7 +83,7 @@ Line counts were measured on the decomp tree for draft 1.
 | Module | Lines | Windows exposure | State in the port |
 | --- | --- | --- | --- |
 | `Libs/sith` (game logic, COG VM, AI, physics) | 104,110 | A handful of stray calls (registry, GDI thumbnail in savegame, console) | Compiles with `-Werror`. Level loaders audited and fixed; narrowing triaged; sanitizer-clean on the tested paths. |
-| `Libs/rdroid` (renderer front end, math) | 19,762 | `LPD3DTLVERTEX` in one struct, the SSE "Katmai" mesh path | Compiles with `-Werror`. Katmai sources dropped; a 5-function stub (`rdModel3K_null.c`) remains. |
+| `Libs/rdroid` (renderer front end, math) | 19,762 | `LPD3DTLVERTEX` in one struct, the SSE "Katmai" mesh path | Compiles with `-Werror`. Katmai sources dropped, and since P2.21 their null stub and call sites too. |
 | `Libs/std/General` | 5,781 | x87 inline asm, backslash paths | Done: x87 compiled out, both path separators accepted. |
 | `Libs/std/Win95` | 9,768 | `std3D` (Direct3D 6), `stdDisplay` (DirectDraw), `stdControl` (DirectInput), `stdComm` (DirectPlay), console, window store | Excluded from the build. Generated null backends stand in. `stdGob.c` kept. System-memory VBuffers are real. |
 | `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | `Driver.c` replaced by a null backend. The asm loop has a C translation that is not yet verified. Save and restore run (with no device). |
@@ -437,8 +437,9 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       and pause by temporary scripted events (game time stops while unfocused).
 - [x] **P2.20** (S) 4:3 pillarbox option; the HUD layout assumes 4:3 until the widescreen fixes in P8.9. Done: the
       `Pillarbox` setting, on by default; mouse positions follow. Checked: `present` test.
-- [ ] **P2.21** (S) Remove `rdModel3K_null.c` and the `rdModel3K_*` references (11 sites) now that nothing can enable
-      the path.
+- [x] **P2.21** (S) Remove `rdModel3K_null.c` and the `rdModel3K_*` references (11 sites) now that nothing can enable
+      the path. Done: the null file and its generator entry removed; the three calling files keep retail behind
+      `#ifndef J3D_PORT`.
 - [ ] **P2.22** (M) Visual pass: script a first-frame screenshot of all 17 levels and review each for missing
       textures, wrong alpha, z-fighting and fog errors. Fix what it shows.
 ## Complete Phase 2 Code Audit

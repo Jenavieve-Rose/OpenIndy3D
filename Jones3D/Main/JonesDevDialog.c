@@ -2,7 +2,9 @@
 #include <Jones3D/Display/JonesHudConstants.h>
 #include <Jones3D/Display/jonesConfig.h>
 
+#ifndef J3D_PORT
 #include <rdroid/Primitives/rdModel3K.h>
+#endif
 
 #include <sith/Engine/sithRender.h>
 #include <sith/World/sithModel.h>
@@ -47,12 +49,14 @@ void J3DAPI JonesDevDialog_LoadSettings(StdDisplayEnvironment* pDisplayEnv, Jone
         STD_TOWSTR(pConfig->waPlayerName, aText);
     }
 
+#ifndef J3D_PORT // Port: no SSE "Katmai" mesh path (PORT-PLAN.md P2.21); the "Katmai" setting is ignored
     if ( wuRegistry_GetIntEx("Katmai", 1) && rdModel3K_IsAvailable() )
     {
         rdModel3K_SetEnabled(1);
         rdModel3K_Startup();
         rdModel3K_SetEnabled(0);
     }
+#endif
 
     // Make sure sith has all required dirs set
     sithMakeDirs();

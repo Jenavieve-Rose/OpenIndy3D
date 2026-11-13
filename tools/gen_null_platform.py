@@ -23,7 +23,6 @@ MODULES = [
     ('Libs/std/Win95/stdControl.h',        'stdControl_null.c',  [],                         'Phase 3 (SDL3 input)'),
     ('Libs/std/Win95/stdComm.h',           'stdComm_null.c',     [],                         'never: the game has no multiplayer'),
     ('Libs/sound/Driver.h',                'SoundDriver_null.c', ['std/General/stdPlatform.h'], 'Phase 4 (miniaudio)'),
-    ('Libs/rdroid/Primitives/rdModel3K.h', 'rdModel3K_null.c',   [],                         'never: the SSE path is dropped'),
 ]
 
 # Bodies that differ from "return 0". Keyed by function name.

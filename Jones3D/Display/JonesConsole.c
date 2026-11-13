@@ -5,7 +5,9 @@
 #include <rdroid/Engine/rdCamera.h>
 #include <rdroid/Main/rdroid.h>
 #include <rdroid/Primitives/rdFont.h>
+#ifndef J3D_PORT
 #include <rdroid/Primitives/rdModel3K.h>
+#endif
 
 #include <sith/Devices/sithConsole.h>
 #include <sith/Engine/sithRender.h>
@@ -466,15 +468,21 @@ int J3DAPI JonesConsole_Sounds(const SithConsoleCommand* pFunc, const char* pArg
     return 1;
 }
 
+// Port: the SSE "Katmai" mesh path (rdModel3K) is not in the port (PORT-PLAN.md P2.21), so the console commands that
+// switched it on and off do nothing.
 int J3DAPI JonesConsole_KatOn(const SithConsoleCommand* pFunc, const char* pArg)
 {
+#ifndef J3D_PORT
     rdModel3K_SetEnabled(1);
+#endif
     return 1;
 }
 
 int J3DAPI JonesConsole_KatOff(const SithConsoleCommand* pFunc, const char* pArg)
 {
+#ifndef J3D_PORT
     rdModel3K_SetEnabled(0);
+#endif
     return 1;
 }
 
