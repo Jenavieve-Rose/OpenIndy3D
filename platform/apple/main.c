@@ -12,6 +12,9 @@
  *   --frames <n>   quit after n passes of the game loop (sets J3D_FRAMES; see wkernel_null.c and wkernel_sdl.c)
  *   --screenshot-at <n>[,<n>...]  write the back buffer after those passes (sets J3D_SCREENSHOT_AT; host_screenshot.h)
  *   --screenshot-file <path>      the screenshot file name, "{frame}" replaced (sets J3D_SCREENSHOT_FILE)
+ *   --record <file>       record the run's input and clock (sets J3D_RECORD; host_record.h)
+ *   --replay <file>       play a recording back, then quit (sets J3D_REPLAY)
+ *   --input-script <file> feed scripted input, for tests (sets J3D_INPUT_SCRIPT)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +23,7 @@
 #include <Windows.h>
 
 #include <platform/common/host_dirs.h>
+#include <platform/common/host_record.h>
 #if J3D_PLATFORM_APPLE
 #include <platform/apple/host_apple.h>
 #endif
@@ -73,16 +77,29 @@ int main(int argc, char** argv)
             continue;
         }
 
-        if ( strcmp(argv[i], "--screenshot-at") == 0 || strcmp(argv[i], "--screenshot-file") == 0 )
+        static const struct { const char* pOption; const char* pVariable; } aValueOptions[] = {
+            { "--screenshot-at", "J3D_SCREENSHOT_AT" }, { "--screenshot-file", "J3D_SCREENSHOT_FILE" },
+            { "--record", "J3D_RECORD" },               { "--replay", "J3D_REPLAY" },
+            { "--input-script", "J3D_INPUT_SCRIPT" },
+        };
+        int bTaken = 0;
+        for ( size_t opt = 0; opt < sizeof(aValueOptions) / sizeof(aValueOptions[0]); opt++ )
         {
-            if ( i + 1 >= argc )
+            if ( strcmp(argv[i], aValueOptions[opt].pOption) == 0 )
             {
-                fprintf(stderr, "%s: %s needs a value\n", argv[0], argv[i]);
-                free(pCmdLine);
-                return EXIT_FAILURE;
+                if ( i + 1 >= argc )
+                {
+                    fprintf(stderr, "%s: %s needs a value\n", argv[0], argv[i]);
+                    free(pCmdLine);
+                    return EXIT_FAILURE;
+                }
+                setenv(aValueOptions[opt].pVariable, argv[++i], 1);
+                bTaken = 1;
+                break;
             }
-            setenv(strcmp(argv[i], "--screenshot-at") == 0 ? "J3D_SCREENSHOT_AT" : "J3D_SCREENSHOT_FILE", argv[i + 1], 1);
-            ++i;
+        }
+        if ( bTaken )
+        {
             continue;
         }
 
@@ -100,12 +117,26 @@ int main(int argc, char** argv)
     // Saves, screenshots and keysets go to a folder of the user's, never the game data (host_dirs.h).
     J3DHost_PrepareUserDirs();
 
+    // Input recording, replay and scripts (PORT-PLAN.md P3.10); this also picks the clock for them.
+    if ( J3DRecord_Startup() )
+    {
+        free(pCmdLine);
+        return EXIT_FAILURE;
+    }
+
     int result = WinMain(NULL, NULL, pCmdLine, SW_SHOWNORMAL);
     free(pCmdLine);
 
+    const int bReplayFailed = J3DRecord_Failed();
+    J3DRecord_Shutdown();
+    if ( bReplayFailed )
+    {
+        return EXIT_FAILURE;
+    }
+
     // wkernel_Run returns -1 when startup fails, 1 when the game quits through its window (WM_QUIT; retail's result for
-    // every normal exit) and 0 when a --frames run reaches its count. A --frames run that ends any other way, a level
-    // that fails to load closing the game for example, has failed.
+    // every normal exit) and 0 when a --frames run reaches its count or a --replay run plays to its end. A --frames run
+    // that ends any other way, a level that fails to load closing the game for example, has failed.
     if ( result < 0 || (getenv("J3D_FRAMES") && result != 0) )
     {
         return EXIT_FAILURE;

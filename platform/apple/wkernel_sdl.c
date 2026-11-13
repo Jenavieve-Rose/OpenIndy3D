@@ -15,9 +15,8 @@
  * SDL events become these messages:
  *
  *   key down/up          WM_KEYDOWN/WM_KEYUP (WM_SYSKEYDOWN/WM_SYSKEYUP with Alt held, for Alt itself, and for F10),
- *                        wParam the VK_ code, lParam the repeat count, extended and transition bits. The scancode
- *                        field (bits 16-23) is 0 until the DIK table of Phase 3 exists; the game reads only the VK
- *                        code and the repeat bit.
+ *                        wParam the VK_ code, lParam the repeat count, the scan code (bits 16-23) and extended flag
+ *                        (bit 24) from the DIK table (host_keys.h, P3.3), and the transition bits.
  *   text input           WM_CHAR per character in the Windows-1252 range. Backspace, Tab, Return and Escape produce
  *                        their WM_CHAR from the key, as TranslateMessage did, since SDL reports no text for them.
  *   mouse                WM_MOUSEMOVE, WM_[LRM]BUTTONDOWN/UP and WM_MOUSEWHEEL, in window coordinates.
@@ -28,6 +27,15 @@
  *   exposed              WM_PAINT.
  *   close requested,     WM_CLOSE: wkernel_MainWndProc shuts the game down, destroys the window (WM_DESTROY), and
  *   quit (Cmd-Q, SIGINT) WM_DESTROY posts the quit that ends the loop.
+ *
+ * Every SDL event is also handed to stdControl (stdControl_sdl.h) first: the mouse buttons and wheel, which it reads as
+ * DirectInput's buffered data, and controllers connecting and disconnecting.
+ *
+ * Input recording and replay (host_record.h, P3.10): each pass of the pump is marked in a recording, and every message
+ * that came from outside the game (input, activation, timers, close) is recorded as it is dispatched. A replay takes
+ * those from the recording instead: SDL's input and focus events and the timers are ignored, and the recorded messages
+ * of each pass are dispatched after anything the game posted itself, as they were. An input script's vkey events are
+ * posted at the pass of their frame. When the replay ends the window is closed as a --frames run's is.
  *
  * SetTimer and KillTimer work for the game window, on the engine's millisecond clock (host_clock.h), which is what the
  * quicksave message uses. Timers on other windows belong to the dialogs of Phase 6 and are refused.
@@ -50,7 +58,10 @@
 #include <w32util/wuRegistry.h>
 #include <std/Win95/stdWin95.h>
 
+#include <platform/apple/stdControl_sdl.h>
 #include <platform/apple/stdDisplay_sdl.h>
+#include <platform/common/host_keys.h>
+#include <platform/common/host_record.h>
 #include <platform/common/host_screenshot.h>
 
 #define WKERNEL_WINDOW_WIDTH  640
@@ -79,6 +90,7 @@ static SDL_Window*    wkernel_pWindow   = NULL;
 static HWND           wkernel_hwnd      = NULL;
 
 static MSG    wkernel_aQueue[WKERNEL_QUEUESIZE];
+static int    wkernel_aQueueExternal[WKERNEL_QUEUESIZE]; // the message came from outside the game (recorded)
 static size_t wkernel_queueHead  = 0;
 static size_t wkernel_queueCount = 0;
 
@@ -93,7 +105,7 @@ static LRESULT wkernel_MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 
 /* ---- Message queue ------------------------------------------------------------------------------------------------ */
 
-static void wkernel_QueueMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static void wkernel_QueueMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, int bExternal)
 {
     if ( wkernel_queueCount == WKERNEL_QUEUESIZE )
     {
@@ -101,7 +113,9 @@ static void wkernel_QueueMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         return;
     }
 
-    MSG* pMsg     = &wkernel_aQueue[(wkernel_queueHead + wkernel_queueCount) % WKERNEL_QUEUESIZE];
+    const size_t index = (wkernel_queueHead + wkernel_queueCount) % WKERNEL_QUEUESIZE;
+    wkernel_aQueueExternal[index] = bExternal;
+    MSG* pMsg     = &wkernel_aQueue[index];
     pMsg->hwnd    = hWnd;
     pMsg->message = uMsg;
     pMsg->wParam  = wParam;
@@ -112,18 +126,20 @@ static void wkernel_QueueMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     ++wkernel_queueCount;
 }
 
+// A message from outside the game: input, activation, the window's close button.
 static void wkernel_Post(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    wkernel_QueueMessage(wkernel_hwnd, uMsg, wParam, lParam);
+    wkernel_QueueMessage(wkernel_hwnd, uMsg, wParam, lParam, 1);
 }
 
-static int wkernel_TakeQueuedMessage(MSG* pMsg)
+static int wkernel_TakeQueuedMessage(MSG* pMsg, int* pbExternal)
 {
     if ( !wkernel_queueCount )
     {
         return 0;
     }
 
+    *pbExternal = wkernel_aQueueExternal[wkernel_queueHead];
     *pMsg = wkernel_aQueue[wkernel_queueHead];
     wkernel_queueHead = (wkernel_queueHead + 1) % WKERNEL_QUEUESIZE;
     --wkernel_queueCount;
@@ -295,9 +311,12 @@ static void wkernel_TranslateKey(const SDL_KeyboardEvent* pEvent)
     const int bAlt = (pEvent->mod & SDL_KMOD_ALT) != 0;
     const int bSys = bAlt || vk == VK_MENU || vk == VK_F10;
 
-    // Bits 0-15 repeat count, 24 extended, 29 Alt held, 30 key was already down, 31 key is being released.
+    // Bits 0-15 repeat count, 16-23 scan code, 24 extended, 29 Alt held, 30 key was already down, 31 key is being
+    // released. The scan code and extended flag are the key's DirectInput code (host_keys.h).
     DWORD keyData = 1;
-    if ( wkernel_IsExtendedKey(pEvent->scancode) )
+    const uint8_t dik = J3DHost_HidToDik((uint32_t)pEvent->scancode);
+    keyData |= (DWORD)(dik & 0x7F) << 16;
+    if ( (dik & 0x80) || wkernel_IsExtendedKey(pEvent->scancode) )
     {
         keyData |= 1u << 24;
     }
@@ -454,6 +473,7 @@ static void wkernel_SetActive(int bActive)
     }
 
     wkernel_bActive = bActive;
+    J3DControl_SetWindowFocus(bActive); // the mouse is the game's only while the window has focus (P3.9)
     if ( bActive )
     {
         wkernel_Post(WM_ACTIVATEAPP, TRUE, 0);
@@ -474,11 +494,43 @@ static void wkernel_PostSize(WPARAM type)
     wkernel_Post(WM_SIZE, type, MAKELPARAM((WORD)width, (WORD)height));
 }
 
+// The events a replay takes from the recording instead.
+static int wkernel_IsRecordedEvent(Uint32 type)
+{
+    switch ( type )
+    {
+        case SDL_EVENT_WINDOW_FOCUS_GAINED:
+        case SDL_EVENT_WINDOW_FOCUS_LOST:
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_KEY_UP:
+        case SDL_EVENT_TEXT_INPUT:
+        case SDL_EVENT_MOUSE_MOTION:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+        case SDL_EVENT_MOUSE_WHEEL:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 static void wkernel_TranslateEvent(const SDL_Event* pEvent)
 {
     if ( !wkernel_pWindow )
     {
         return; // destroyed: nothing is listening any more
+    }
+
+    J3DControl_HandleEvent(pEvent);
+
+    if ( J3DRecord_IsReplaying() && wkernel_IsRecordedEvent(pEvent->type) )
+    {
+        // The fullscreen toggle still works while watching a replay; it is not game input.
+        if ( pEvent->type == SDL_EVENT_KEY_DOWN && !pEvent->key.repeat && wkernel_IsFullscreenToggle(&pEvent->key) )
+        {
+            wkernel_ToggleFullscreen();
+        }
+        return;
     }
 
     switch ( pEvent->type )
@@ -616,8 +668,9 @@ static int wkernel_TakeTimerMessage(MSG* pMsg)
 // GetMessage (bWait) or PeekMessage with PM_REMOVE (not bWait). Returns WKERNEL_MSG_OK with *pMsg filled,
 // WKERNEL_MSG_QUIT once the quit has been posted and nothing is left before it, or WKERNEL_MSG_NONE when not waiting
 // and nothing is there.
-static int wkernel_GetMessage(MSG* pMsg, int bWait)
+static int wkernel_GetMessage(MSG* pMsg, int* pbExternal, int bWait)
 {
+    *pbExternal = 0;
     while ( 1 )
     {
         SDL_Event event;
@@ -626,9 +679,26 @@ static int wkernel_GetMessage(MSG* pMsg, int bWait)
             wkernel_TranslateEvent(&event);
         }
 
-        if ( wkernel_TakeQueuedMessage(pMsg) )
+        if ( wkernel_TakeQueuedMessage(pMsg, pbExternal) )
         {
             return WKERNEL_MSG_OK;
+        }
+
+        if ( J3DRecord_IsReplaying() )
+        {
+            uint32_t msg;
+            uint64_t wParam;
+            int64_t  lParam;
+            if ( J3DRecord_NextMessage(&msg, &wParam, &lParam) )
+            {
+                memset(pMsg, 0, sizeof(*pMsg));
+                pMsg->hwnd    = wkernel_hwnd;
+                pMsg->message = msg;
+                pMsg->wParam  = (WPARAM)wParam;
+                pMsg->lParam  = (LPARAM)lParam;
+                pMsg->time    = GetTickCount();
+                return WKERNEL_MSG_OK;
+            }
         }
 
         if ( wkernel_bQuit )
@@ -646,12 +716,14 @@ static int wkernel_GetMessage(MSG* pMsg, int bWait)
             return WKERNEL_MSG_OK;
         }
 
-        if ( wkernel_TakeTimerMessage(pMsg) )
+        if ( !J3DRecord_IsReplaying() && wkernel_TakeTimerMessage(pMsg) )
         {
+            *pbExternal = 1;
             return WKERNEL_MSG_OK;
         }
 
-        if ( !bWait )
+        // A replay never waits: what the recorded pass received is already in the recording.
+        if ( !bWait || J3DRecord_IsReplaying() )
         {
             return WKERNEL_MSG_NONE;
         }
@@ -675,8 +747,20 @@ static void wkernel_DispatchMessage(const MSG* pMsg)
 // The body of retail's wkernel_PeekProcessEvents and wkernel_ProcessEvents: 1 once WM_QUIT is retrieved, else 0.
 static int wkernel_Pump(int bWait)
 {
+    J3DRecord_Pump();
+
+    // The input script's key presses due by this frame (host_record.h).
+    J3DScriptEvent event;
+    while ( J3DRecord_TakeScriptEvent(1, &event) )
+    {
+        // A single press: repeat count 1, then the release (bits 30 and 31). No scan code: the game reads the VK code.
+        wkernel_Post(WM_KEYDOWN, (WPARAM)event.a, 1);
+        wkernel_Post(WM_KEYUP, (WPARAM)event.a, (LPARAM)(1u | (3u << 30)));
+    }
+
     MSG msg;
-    int result = wkernel_GetMessage(&msg, bWait);
+    int bExternal;
+    int result = wkernel_GetMessage(&msg, &bExternal, bWait);
     while ( result != WKERNEL_MSG_NONE )
     {
         if ( result == WKERNEL_MSG_QUIT )
@@ -684,8 +768,12 @@ static int wkernel_Pump(int bWait)
             return 1;
         }
 
+        if ( bExternal && J3DRecord_IsRecording() )
+        {
+            J3DRecord_Message(msg.message, (uint64_t)msg.wParam, (int64_t)msg.lParam);
+        }
         wkernel_DispatchMessage(&msg);
-        result = wkernel_GetMessage(&msg, 0);
+        result = wkernel_GetMessage(&msg, &bExternal, 0);
     }
     return 0;
 }
@@ -808,9 +896,10 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
     while ( result == 0 )
     {
-        if ( maxFrames && numFrames == maxFrames )
+        if ( (maxFrames && numFrames == maxFrames) || J3DRecord_ShouldQuit() )
         {
-            // The window is closed as if by its close button; the run counts as complete.
+            // The window is closed as if by its close button; the run counts as complete. (A replay that went out of
+            // step also ends here; main() reports it.)
             wkernel_MainWndProc(wkernel_hwnd, WM_CLOSE, 0, 0);
             break;
         }
@@ -882,7 +971,7 @@ BOOL WINAPI PostMessageA(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     // dropped, as the null platform drops them.
     if ( hWnd == wkernel_hwnd && wkernel_pWindow )
     {
-        wkernel_QueueMessage(hWnd, uMsg, wParam, lParam);
+        wkernel_QueueMessage(hWnd, uMsg, wParam, lParam, 0); // the game's own: not recorded
     }
     return TRUE;
 }

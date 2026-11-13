@@ -1470,6 +1470,13 @@ int J3DAPI JonesMain_ProcessGame(void)
 
     if ( sith_mode.masterMode == SITH_MODE_OPENED )
     {
+#ifdef J3D_PORT
+        // Port: a controller connected into a new slot gets the controls bound to it (PORT-PLAN.md P3.6).
+        if ( stdControl_DevicesChanged() )
+        {
+            jonesConfig_RebindControls();
+        }
+#endif
         JonesMain_ProcessMenu();
         sithUpdate();
 

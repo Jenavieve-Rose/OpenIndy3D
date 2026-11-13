@@ -676,6 +676,98 @@ static const char* jonesConfig_aDfltKeySetNames[JONESCONFIG_NUMDEFAULTCONTROLSCH
     "JONES_STR_DFLT2A8B"
 };
 
+#ifdef J3D_PORT
+// Port: a default key set for a standard modern controller (PORT-PLAN.md P3.8), used when none is configured and the
+// first controller has the dual-stick layout (stdControl_IsDualStick). stdControl_sdl.c reports such a pad as
+// DirectInput showed an Xbox-style one: buttons 1-10 are A B X Y LB RB Back Start, left stick, right stick; the d-pad
+// is hat 1; the left stick is X/Y and the right stick's X is also the "twist" axis, which is all a key set can bind
+// besides the triggers. The keyboard keys are the retail keyboard set's. It is kept apart from the three retail
+// defaults so the controls dialog's handling of those (Phase 6) is unchanged; it is chosen by name like them.
+#define JONESCONFIG_PORT_DUALSTICK_NAME "Dual-Stick Controller"
+
+static size_t aPortPadStepLeft[2]     = { DIK_A, JONESCONFIG_JOYAXISKID_TWISTL };  // right stick
+static size_t aPortPadStepRight[2]    = { DIK_S, JONESCONFIG_JOYAXISKID_TWISTR };
+static size_t aPortPadCrawl[2]        = { DIK_C, STDCONTROL_JOYSTICK_GETBUTTON(0, 1) };  // B
+static size_t aPortPadRun[3]          = { DIK_LSHIFT, DIK_RSHIFT, STDCONTROL_JOYSTICK_GETBUTTON(0, 5) }; // RB
+static size_t aPortPadRoll[2]         = { DIK_Z, STDCONTROL_JOYSTICK_GETBUTTON(0, 8) };  // left stick click
+static size_t aPortPadJump[4]         = { DIK_X, DIK_LMENU, DIK_RMENU, STDCONTROL_JOYSTICK_GETBUTTON(0, 0) }; // A
+static size_t aPortPadLook[3]         = { DIK_INSERT, DIK_NUMPAD0, STDCONTROL_JOYSTICK_GETBUTTON(0, 4) }; // LB
+static size_t aPortPadActivate[3]     = { DIK_LCONTROL, DIK_RCONTROL, STDCONTROL_JOYSTICK_GETBUTTON(0, 2) }; // X
+static size_t aPortPadToggleWeapon[2] = { DIK_SPACE, STDCONTROL_JOYSTICK_GETBUTTON(0, 3) };  // Y
+static size_t aPortPadPrevWeapon[2]   = { DIK_COMMA, STDCONTROL_JOYSTICK_GETPOVLEFT(0, 0) };
+static size_t aPortPadNextWeapon[2]   = { DIK_PERIOD, STDCONTROL_JOYSTICK_GETPOVRIGHT(0, 0) };
+static size_t aPortPadToggleLight[2]  = { DIK_L, STDCONTROL_JOYSTICK_GETBUTTON(0, 9) };  // right stick click
+static size_t aPortPadMap[2]          = { DIK_M, STDCONTROL_JOYSTICK_GETBUTTON(0, 6) };  // Back
+static size_t aPortPadInterface[2]    = { DIK_I, STDCONTROL_JOYSTICK_GETBUTTON(0, 7) };  // Start
+static size_t aPortPadHealth[2]       = { DIK_H, STDCONTROL_JOYSTICK_GETPOVDOWN(0, 0) };
+static size_t aPortPadChalk[2]        = { DIK_K, STDCONTROL_JOYSTICK_GETPOVUP(0, 0) };
+
+static JonesConfigControlAction jonesConfig_aPortDualStick[JONESCONTROL_ACTION_NUMACTIONS] =
+{
+    { STD_ARRAYLEN(aActionWalkFwdKeys)    , aActionWalkFwdKeys     }, // left stick
+    { STD_ARRAYLEN(aActionWalkBackKeys)   , aActionWalkBackKeys    },
+    { STD_ARRAYLEN(aActionTurnLeftKeys)   , aActionTurnLeftKeys    },
+    { STD_ARRAYLEN(aActionTurnRightKeys)  , aActionTurnRightKeys   },
+    { STD_ARRAYLEN(aPortPadStepLeft)      , aPortPadStepLeft       },
+    { STD_ARRAYLEN(aPortPadStepRight)     , aPortPadStepRight      },
+    { STD_ARRAYLEN(aPortPadCrawl)         , aPortPadCrawl          },
+    { STD_ARRAYLEN(aPortPadRun)           , aPortPadRun            },
+    { STD_ARRAYLEN(aPortPadRoll)          , aPortPadRoll           },
+    { STD_ARRAYLEN(aPortPadJump)          , aPortPadJump           },
+    { STD_ARRAYLEN(aPortPadLook)          , aPortPadLook           },
+    { STD_ARRAYLEN(aPortPadActivate)      , aPortPadActivate       },
+    { STD_ARRAYLEN(aPortPadToggleWeapon)  , aPortPadToggleWeapon   },
+    { STD_ARRAYLEN(aPortPadPrevWeapon)    , aPortPadPrevWeapon     },
+    { STD_ARRAYLEN(aPortPadNextWeapon)    , aPortPadNextWeapon     },
+    { STD_ARRAYLEN(aPortPadToggleLight)   , aPortPadToggleLight    },
+    { STD_ARRAYLEN(aActionFistsKeys)      , aActionFistsKeys       },
+    { STD_ARRAYLEN(aActionWhipKeys)       , aActionWhipKeys        },
+    { STD_ARRAYLEN(aActionMauserKeys)     , aActionMauserKeys      },
+    { STD_ARRAYLEN(aActionPPSH41Keys)     , aActionPPSH41Keys      },
+    { STD_ARRAYLEN(aActionPistolKeys)     , aActionPistolKeys      },
+    { STD_ARRAYLEN(aActionSimonovKeys)    , aActionSimonovKeys     },
+    { STD_ARRAYLEN(aActionTokarevKeys)    , aActionTokarevKeys     },
+    { STD_ARRAYLEN(aActionToz34Keys)      , aActionToz34Keys       },
+    { STD_ARRAYLEN(aActionBazookaKeys)    , aActionBazookaKeys     },
+    { STD_ARRAYLEN(aActionMacheteKeys)    , aActionMacheteKeys     },
+    { STD_ARRAYLEN(aActionSatchelKeys)    , aActionSatchelKeys     },
+    { STD_ARRAYLEN(aActionGrenadeKeys)    , aActionGrenadeKeys     },
+    { STD_ARRAYLEN(aPortPadMap)           , aPortPadMap            },
+    { STD_ARRAYLEN(aPortPadInterface)     , aPortPadInterface      },
+    { STD_ARRAYLEN(aPortPadHealth)        , aPortPadHealth         },
+    { STD_ARRAYLEN(aActionIMP1Keys)       , aActionIMP1Keys        },
+    { STD_ARRAYLEN(aActionIMP2Keys)       , aActionIMP2Keys        },
+    { STD_ARRAYLEN(aActionIMP3Keys)       , aActionIMP3Keys        },
+    { STD_ARRAYLEN(aActionIMP4Keys)       , aActionIMP4Keys        },
+    { STD_ARRAYLEN(aActionIMP5Keys)       , aActionIMP5Keys        },
+    { STD_ARRAYLEN(aPortPadChalk)         , aPortPadChalk          }
+};
+
+// Fills pScheme with a default action table and name, as jonesConfig_SetDefaultControlScheme does for the retail ones.
+static void J3DAPI jonesConfig_FillControlScheme(JonesControlsScheme* pScheme, const char* pName, const JonesConfigControlAction* aActions)
+{
+    snprintf(pScheme->aName, sizeof(pScheme->aName), "%s", pName);
+    for ( size_t idx = 0; idx < JONESCONTROL_ACTION_NUMACTIONS; ++idx )
+    {
+        size_t* pAction = pScheme->aActions[idx];
+        *pAction = 0;
+        for ( size_t j = 1; j <= aActions[idx].numBinds; ++j )
+        {
+            pAction[j] = aActions[idx].aBindings[j - 1];
+            if ( (pAction[j] >= STDCONTROL_MAX_KEYBOARD_BUTTONS && pAction[j] <= STDCONTROL_JOYSTICK_LASTPOVCID)
+                || (pAction[j] >= JONESCONFIG_JOYAXISKID_UP && pAction[j] <= JONESCONFIG_JOYAXISKID_GROUND) )
+            {
+                JONESCONTROL_ACTION_UPDATENUMBINDINGS_CONTROLLER(pAction, +1);
+            }
+            else
+            {
+                JONESCONTROL_ACTION_UPDATENUMBINDINGS_KEYBOARD(pAction, +1);
+            }
+        }
+    }
+}
+#endif
+
 
 
 
@@ -1130,6 +1222,24 @@ int J3DAPI jonesConfig_Startup(void)
     jonesConfig_bStartup = 1;
     return 1;
 }
+
+#ifdef J3D_PORT
+void J3DAPI jonesConfig_RebindControls(void)
+{
+    JonesControlsScheme* pCfg = jonesConfig_LoadActiveControlScheme();
+    if ( pCfg )
+    {
+        jonesConfig_BindControls(pCfg);
+        jonesConfig_FreeControlScheme(pCfg);
+    }
+
+    // As JonesControl_Startup does for the controllers present at startup.
+    if ( wuRegistry_GetIntEx("Joystick Control", 0) == 1 && stdControl_GetNumJoysticks() > 0 )
+    {
+        JonesControl_EnableJoystickAxes();
+    }
+}
+#endif
 
 int J3DAPI jonesConfig_InitKeySetsPath(void)
 {
@@ -2250,8 +2360,8 @@ JonesControlsScheme* J3DAPI jonesConfig_LoadActiveControlScheme(void)
     LPSTR pFilePart;
     int i;
     char aFilename[128];
-    char aPath[128];
-    char aFilePath[128];
+    char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
+    char aFilePath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
 
     memset(aFilename, 0, sizeof(aFilename));
 
@@ -2279,6 +2389,15 @@ JonesControlsScheme* J3DAPI jonesConfig_LoadActiveControlScheme(void)
         {
             return pScheme;
         }
+
+#ifdef J3D_PORT
+        // Port: the port's controller default, by name, when no file of that name overrides it (P3.8).
+        if ( !strlen(aPath) && streq(aFilename, JONESCONFIG_PORT_DUALSTICK_NAME) )
+        {
+            jonesConfig_FillControlScheme(pScheme, JONESCONFIG_PORT_DUALSTICK_NAME, jonesConfig_aPortDualStick);
+            return pScheme;
+        }
+#endif
 
         // Load failed, try to make new scheme to default scheme based on config scheme name
         for ( i = 0; i < (int)STD_ARRAYLEN(jonesConfig_aDfltKeySetNames); )
@@ -2316,6 +2435,15 @@ JonesControlsScheme* J3DAPI jonesConfig_LoadActiveControlScheme(void)
     if ( !strlen(aFilename) || !strlen(aPath) )
     {
         // Ok we have no scheme configured, let's load default
+#ifdef J3D_PORT
+        // Port: a modern controller gets the port's default for it (P3.8); retail chose by button count below.
+        if ( stdControl_IsDualStick(0) )
+        {
+            jonesConfig_FillControlScheme(pScheme, JONESCONFIG_PORT_DUALSTICK_NAME, jonesConfig_aPortDualStick);
+            wuRegistry_SaveStr("Configuration", JONESCONFIG_PORT_DUALSTICK_NAME);
+            return pScheme;
+        }
+#endif
         switch ( stdControl_GetMaxJoystickButtons() )
         {
             case 4:
@@ -2363,11 +2491,11 @@ int J3DAPI jonesConfig_LoadControlScheme(const char* pFilePath, JonesControlsSch
     int i;
     int j;
     int bindNum;
-    int argNum;
+    size_t argNum; // Port: size_t, was int: the parsers below take a size_t* and wrote 8 bytes into a 4-byte int
     size_t* paActionBindings;
     int actionIdx;
     int numControllerBinds;
-    int prevArgNum;
+    size_t prevArgNum; // Port: size_t, was int (see argNum)
     int numKeyboardBinds;
     const char* pFaultyActionName;
     char aErrorActionName[512];
@@ -2382,7 +2510,23 @@ int J3DAPI jonesConfig_LoadControlScheme(const char* pFilePath, JonesControlsSch
     }
 
     memset(pConfig->aName, 0, sizeof(pConfig->aName));
+#ifdef J3D_PORT
+    // Port: the file's name without folder or .kfg, bounded to aName. Retail copied the whole path less its extension,
+    // which fit 128 bytes under a short Windows install folder but overruns the scheme under a macOS user folder.
+    // The controls dialog loads key sets by bare file name (cwd is the KeySets folder), so this is what it has there.
+    {
+        const char* pBase = strrchr(pFilePath, '\\');
+        const char* pSlash = strrchr(pFilePath, '/');
+        pBase = pSlash > pBase ? pSlash : pBase;
+        pBase = pBase ? pBase + 1 : pFilePath;
+        size_t nameLen = strlen(pBase);
+        nameLen = nameLen >= 4 ? nameLen - 4 : nameLen; // -4 removes .kfg extension
+        nameLen = nameLen < sizeof(pConfig->aName) - 1 ? nameLen : sizeof(pConfig->aName) - 1;
+        memcpy(pConfig->aName, pBase, nameLen);
+    }
+#else
     strncpy(pConfig->aName, pFilePath, strlen(pFilePath) - 4);// -4 removes .kfg extension
+#endif
 
     bindNum = 0;
     stdConffile_ReadArgs(); // Skip first comment line
@@ -2401,7 +2545,7 @@ int J3DAPI jonesConfig_LoadControlScheme(const char* pFilePath, JonesControlsSch
             goto error;
         }
 
-        actionIdx = jonesConfig_ParseArgumentIndex((size_t*)&argNum, &stdConffile_entry, jonesConfig_maxActionWords, jonesConfig_aJonesControlActionNames, STD_ARRAYLEN(jonesConfig_aJonesControlActionNames));
+        actionIdx = jonesConfig_ParseArgumentIndex(&argNum, &stdConffile_entry, jonesConfig_maxActionWords, jonesConfig_aJonesControlActionNames, STD_ARRAYLEN(jonesConfig_aJonesControlActionNames));
         if ( actionIdx == -1 )
         {
             goto error;
@@ -2410,17 +2554,17 @@ int J3DAPI jonesConfig_LoadControlScheme(const char* pFilePath, JonesControlsSch
         bindNum = 1; // Note, at index 0 the num of bindings state is stored
         paActionBindings = pConfig->aActions[actionIdx];
         paActionBindings[0] = 0; // Reset number of bindings state
-        while ( paActionBindings && argNum < (int)stdConffile_entry.numArgs )
+        while ( paActionBindings && argNum < stdConffile_entry.numArgs )
         {
             numControllerBinds = 0;
             numKeyboardBinds   = 0;
             prevArgNum         = argNum;
-            paActionBindings[bindNum] = jonesConfig_ParseArgumentIndex((size_t*)&argNum, &stdConffile_entry, jonesConfig_maxControlKeyWordCount, jonesConfig_aControlKeyStrings, STD_ARRAYLEN(jonesConfig_aControlKeyStrings));
+            paActionBindings[bindNum] = jonesConfig_ParseArgumentIndex(&argNum, &stdConffile_entry, jonesConfig_maxControlKeyWordCount, jonesConfig_aControlKeyStrings, STD_ARRAYLEN(jonesConfig_aControlKeyStrings));
             if ( paActionBindings[bindNum] == -1 )
             {
                 // We couldn't find control key num, try searching by control mouse button num, gamepad & joystick button num
                 argNum = prevArgNum;
-                paActionBindings[bindNum] = jonesConfig_ParseJoystickControlId((size_t*)&argNum, &stdConffile_entry);
+                paActionBindings[bindNum] = jonesConfig_ParseJoystickControlId(&argNum, &stdConffile_entry);
                 if ( paActionBindings[bindNum] == -1 )
                 {
                     goto error;

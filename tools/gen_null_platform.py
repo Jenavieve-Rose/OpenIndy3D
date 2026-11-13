@@ -190,13 +190,6 @@ IMPLEMENTED_ELSEWHERE = {
 # Functions written to a file of their own instead of the module's null file, so an Apple backend can replace them
 # whole while the rest of the module stays null: {module file: (split file, functions, what replaces it)}.
 SPLIT_FUNCTIONS = {
-    # The keyboard half of stdControl: platform/apple/stdControl_debug.c, the temporary debug input (PORT-PLAN.md
-    # P2.18), replaces it in the apple build until stdControl_sdl.c replaces the whole module (P3.2).
-    'stdControl_null.c': ('stdControl_keys_null.c', {
-        'stdControl_Open', 'stdControl_Close', 'stdControl_Reset', 'stdControl_ReadControls', 'stdControl_FinishRead',
-        'stdControl_ReadKey', 'stdControl_ReadKeyAsAxis', 'stdControl_ControlsActive', 'stdControl_SetActivation',
-        'stdControl_ControlsIdle',
-    }, 'platform/apple/stdControl_debug.c in the apple build (P2.18)'),
 }
 
 # Prototypes, with or without the J3DAPI marker (rdModel3K.h omits it). typedefs and macros never match: they start

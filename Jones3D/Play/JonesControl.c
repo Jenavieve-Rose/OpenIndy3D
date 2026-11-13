@@ -54,7 +54,14 @@ int J3DAPI JonesControl_Startup(void)
     }
     }
 
+#ifdef J3D_PORT
+    // Port: on by default. Retail's default was off and the player turned it on in the controls dialog, which the
+    // port has from Phase 6; a controller then works from the start (PORT-PLAN.md P3.6). With none connected nothing is
+    // bound to one.
+    bJoystickControl = wuRegistry_GetIntEx("Joystick Control", 1);
+#else
     bJoystickControl = wuRegistry_GetIntEx("Joystick Control", 0);
+#endif
     if ( bJoystickControl == 1 && stdControl_GetNumJoysticks() > 0 )
     {
         JonesControl_EnableJoystickAxes();

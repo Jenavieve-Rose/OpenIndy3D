@@ -197,7 +197,7 @@ if(J3D_PLATFORM STREQUAL "apple")
         win32_msg_null.c        # the game window's message queue and timers, also wkernel_sdl.c
         stdDisplay_headless.c   # platform/apple/stdDisplay_sdl.c (P2.3)
         std3D_null.c            # platform/apple/std3D_metal.c and render_metal.m (P2.9)
-        stdControl_keys_null.c  # platform/apple/stdControl_debug.c, temporary debug keys (P2.18; gone in P3.2)
+        stdControl_null.c       # platform/apple/stdControl_sdl.c (Phase 3)
     )
     set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
     foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
@@ -284,9 +284,13 @@ endforeach()
 #   display    the shared system-memory half of stdDisplay: back buffer, fills, blits, RGB565, SaveScreen (P2.4 to P2.7)
 #   present    (apple builds) the Metal present path, read back from a real window; skipped (77) with no window server
 #   render     (apple builds) the Metal renderer's shaders and fixed-function state, offscreen (P2.10)
+#   keys       the DIK tables and GetKeyNameTextA and SearchPathA built on them (P3.1, P3.7)
 j3d_executable(display platform_null ${J3D_ROOT}/tests/display.c ${J3D_ROOT}/tests/harness.c)
 add_test(NAME display COMMAND display)
 set_tests_properties(display PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
+j3d_executable(keys platform_null ${J3D_ROOT}/tests/keys.c)
+add_test(NAME keys COMMAND keys)
+set_tests_properties(keys PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
 if(J3D_PLATFORM STREQUAL "apple")
     j3d_executable(present platform_apple ${J3D_ROOT}/tests/present.c ${J3D_ROOT}/tests/harness.c)
     add_test(NAME present COMMAND present)
@@ -316,6 +320,14 @@ if(J3D_TEST_DATA AND J3D_PLATFORM STREQUAL "apple")
     set_tests_properties(boot-sdl PROPERTIES
         ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
+endif()
+
+# input (apple builds): the Phase 3 input path end to end, through scripted input, recording and replay; see
+# tests/input.sh. Its runs write under the build tree only.
+if(J3D_TEST_DATA AND J3D_PLATFORM STREQUAL "apple")
+    add_test(NAME input COMMAND sh ${J3D_ROOT}/tests/input.sh $<TARGET_FILE:jones3d> ${J3D_TEST_DATA}
+        ${CMAKE_CURRENT_BINARY_DIR}/input-out)
+    set_tests_properties(input PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
 endif()
 
 if(J3D_TEST_DATA)

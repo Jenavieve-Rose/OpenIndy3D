@@ -774,12 +774,6 @@ SHORT WINAPI GetKeyState(int p0)
     return (SHORT)0;
 }
 
-int WINAPI GetKeyNameTextA(LONG p0, LPSTR p1, int p2)
-{
-    (void)p0; (void)p1; (void)p2;
-    return (int)0;
-}
-
 UINT WINAPI MapVirtualKeyA(UINT p0, UINT p1)
 {
     (void)p0; (void)p1;
@@ -973,12 +967,6 @@ BOOL WINAPI GlobalUnlock(HGLOBAL p0)
 {
     (void)p0;
     return TRUE;
-}
-
-DWORD WINAPI SearchPathA(LPCSTR p0, LPCSTR p1, LPCSTR p2, DWORD p3, LPSTR p4, LPSTR* p5)
-{
-    (void)p0; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5;
-    return (DWORD)0;
 }
 
 BOOL WINAPI GetUserNameA(LPSTR p0, LPDWORD p1)

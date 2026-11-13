@@ -44,6 +44,7 @@
 #include <platform/apple/render_metal.h>
 #include <platform/apple/stdDisplay_sdl.h>
 #include <platform/common/host_clock.h>
+#include <platform/common/host_record.h>
 #include <platform/common/stdDisplay_common.h>
 
 // A windowed run with no presenter (it failed to open) holds each frame to this period, so the game does not spin and
@@ -382,10 +383,11 @@ int J3DAPI stdDisplay_Update(void)
         }
     }
 
+    // A present is where a real display spends a frame's time, so the clock moves here: by the fixed headless step, or
+    // to the host's time on a recording's frame clock, or to the recorded time in a replay (host_record.h, P3.10).
+    J3DRecord_Present(J3DDisplay_IsHeadless());
     if ( J3DDisplay_IsHeadless() )
     {
-        // A present is where a real display spends a frame's time, so the virtual clock moves here.
-        J3DHost_AdvanceClock(J3DDISPLAY_HEADLESS_FRAME_MSEC);
         return 0;
     }
 

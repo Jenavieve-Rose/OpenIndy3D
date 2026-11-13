@@ -17,6 +17,7 @@
 #include <std/Win95/stdDisplay.h>
 
 #include <platform/common/host_clock.h>
+#include <platform/common/host_record.h>
 #include <platform/common/stdDisplay_common.h>
 
 #define HEADLESS_WIDTH  640
@@ -150,8 +151,9 @@ int J3DAPI stdDisplay_SetMode(size_t modeNum, int bFullscreen, size_t numBackBuf
 
 int J3DAPI stdDisplay_Update(void)
 {
-    // Nothing to present. A present is where a real display spends a frame's time, so the virtual clock moves here.
-    J3DHost_AdvanceClock(J3DDISPLAY_HEADLESS_FRAME_MSEC);
+    // Nothing to present. A present is where a real display spends a frame's time, so the virtual clock moves here
+    // (or, replaying a recording, is set to the recorded time: host_record.h).
+    J3DRecord_Present(1);
     return 0;
 }
 

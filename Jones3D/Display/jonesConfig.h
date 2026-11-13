@@ -37,5 +37,11 @@ int J3DAPI jonesConfig_ShowDialogInsertCD(HWND hWnd, LPARAM dwInitParam);
 void jonesConfig_UpdateCurrentLevelNum(void); // Updates cached current level num from JonesMain module. 
                                               // Cached level num is used for statistics dialog
 
+#ifdef J3D_PORT
+// Port (PORT-PLAN.md P3.6): binds the active control scheme again, as jonesConfig_Startup does, for a controller that
+// connected after startup into a slot the game had not seen.
+void J3DAPI jonesConfig_RebindControls(void);
+#endif
+
 J3D_EXTERN_C_END
 #endif // JONES3D_JONESCONFIG_H

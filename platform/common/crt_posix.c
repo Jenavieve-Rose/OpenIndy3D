@@ -22,6 +22,7 @@
 #include <Windows.h>
 
 #include <platform/common/host_clock.h>
+#include <platform/common/host_keys.h>
 #include <platform/common/host_path.h>
 
 static DWORD crt_lastError = 0;
@@ -326,6 +327,82 @@ BOOL WINAPI SetCurrentDirectoryA(LPCSTR lpPathName)
     return chdir(aPath) == 0;
 }
 
+// The one form the game uses (jonesConfig_LoadActiveControlScheme, PORT-PLAN.md P3.7): look for lpFileName in the
+// folder lpPath, adding lpExtension when the name has none. The current directory and PATH are not searched, as they
+// would be with lpPath NULL. Returns the length of the host path written to lpBuffer, the size needed if it does not
+// fit, or 0 if there is no such file.
+DWORD WINAPI SearchPathA(LPCSTR lpPath, LPCSTR lpFileName, LPCSTR lpExtension, DWORD nBufferLength, LPSTR lpBuffer,
+                         LPSTR* lpFilePart)
+{
+    char aName[1024];
+    char aHostPath[1024];
+    if ( !lpPath || !lpFileName )
+    {
+        crt_lastError = ERROR_FILE_NOT_FOUND;
+        return 0;
+    }
+
+    const char* pBase   = strrchr(lpFileName, '\\');
+    const char* pSlash  = strrchr(lpFileName, '/');
+    pBase               = pSlash > pBase ? pSlash : pBase;
+    const int   bHasExt = strchr(pBase ? pBase : lpFileName, '.') != NULL;
+    const size_t dirLen = strlen(lpPath);
+    const char* pSep    = dirLen && (lpPath[dirLen - 1] == '\\' || lpPath[dirLen - 1] == '/') ? "" : "\\";
+    if ( (size_t)snprintf(aName, sizeof(aName), "%s%s%s%s", lpPath, pSep, lpFileName,
+                          !bHasExt && lpExtension ? lpExtension : "") >= sizeof(aName) )
+    {
+        crt_lastError = ERROR_FILE_NOT_FOUND;
+        return 0;
+    }
+
+    J3DHost_ToPosixPath(aHostPath, sizeof(aHostPath), aName);
+    struct stat st;
+    if ( stat(aHostPath, &st) != 0 || !S_ISREG(st.st_mode) )
+    {
+        crt_lastError = ERROR_FILE_NOT_FOUND;
+        return 0;
+    }
+
+    const DWORD len = (DWORD)strlen(aHostPath);
+    if ( !lpBuffer || nBufferLength <= len )
+    {
+        return len + 1;
+    }
+
+    memcpy(lpBuffer, aHostPath, len + 1);
+    if ( lpFilePart )
+    {
+        char* pFile = strrchr(lpBuffer, '/');
+        *lpFilePart = pFile ? pFile + 1 : lpBuffer;
+    }
+    return len;
+}
+
+/* ----------------------------------------------------------------------------------------------------------------
+ * Keyboard (PORT-PLAN.md P3.1)
+ * -------------------------------------------------------------------------------------------------------------- */
+// lParam as in WM_KEYDOWN: the scan code in bits 16-23 and the extended-key flag in bit 24, which together are the
+// DirectInput key code (host_keys.h). The name is the one Windows gave the key on a US English keyboard.
+int WINAPI GetKeyNameTextA(LONG lParam, LPSTR lpString, int cchSize)
+{
+    if ( !lpString || cchSize <= 0 )
+    {
+        return 0;
+    }
+
+    const uint8_t dik   = (uint8_t)(((lParam >> 16) & 0x7F) | (((lParam >> 24) & 1) << 7));
+    const char*   pName = J3DHost_DikName(dik);
+    if ( !pName )
+    {
+        lpString[0] = '\0';
+        return 0;
+    }
+
+    strncpy(lpString, pName, (size_t)cchSize - 1);
+    lpString[cchSize - 1] = '\0';
+    return (int)strlen(lpString);
+}
+
 /* ----------------------------------------------------------------------------------------------------------------
  * rand: MSVC's generator (j3d.h maps rand() and srand() here, PORT-PLAN.md P1.24)
  * -------------------------------------------------------------------------------------------------------------- */
@@ -366,9 +443,13 @@ static uint64_t crt_HostNowMsec(void)
 // backwards, and the same in every run, so savegames, which store absolute times, are reproducible (PORT-PLAN.md P1.20).
 #define CRT_VIRTUALCLOCK_START 10000000u
 
-// The virtual clock of host_clock.h: when on, time is crt_virtualMsec and only J3DHost_AdvanceClock and Sleep move it.
-static int      crt_bVirtualClock = 0;
-static uint64_t crt_virtualMsec   = 0;
+// The virtual clock of host_clock.h: when on, time is crt_virtualMsec and only J3DHost_AdvanceClock, J3DHost_SetClock,
+// J3DHost_SyncFrameClock and Sleep move it. The frame clock is the virtual clock kept in step with the host's at each
+// present: crt_frameClockOffset is the virtual time minus the host time when it started.
+static int      crt_bVirtualClock     = 0;
+static int      crt_bFrameClock       = 0;
+static uint64_t crt_virtualMsec       = 0;
+static int64_t  crt_frameClockOffset  = 0;
 
 void J3DHost_UseVirtualClock(void)
 {
@@ -393,6 +474,45 @@ void J3DHost_AdvanceClock(unsigned int msec)
     }
 }
 
+void J3DHost_UseFrameClock(void)
+{
+    if ( crt_bVirtualClock )
+    {
+        return;
+    }
+
+    J3DHost_UseVirtualClock();
+    crt_bFrameClock      = 1;
+    crt_frameClockOffset = (int64_t)crt_virtualMsec - (int64_t)crt_HostNowMsec();
+}
+
+void J3DHost_SyncFrameClock(void)
+{
+    if ( !crt_bFrameClock )
+    {
+        return;
+    }
+
+    const uint64_t now = (uint64_t)((int64_t)crt_HostNowMsec() + crt_frameClockOffset);
+    if ( now > crt_virtualMsec )
+    {
+        crt_virtualMsec = now;
+    }
+}
+
+void J3DHost_SetClock(uint64_t msec)
+{
+    if ( crt_bVirtualClock )
+    {
+        crt_virtualMsec = msec;
+    }
+}
+
+uint64_t J3DHost_GetClock(void)
+{
+    return crt_bVirtualClock ? crt_virtualMsec : crt_HostNowMsec();
+}
+
 static uint64_t crt_NowMsec(void)
 {
     return crt_bVirtualClock ? crt_virtualMsec : crt_HostNowMsec();
@@ -414,7 +534,11 @@ void WINAPI Sleep(DWORD dwMilliseconds)
     if ( crt_bVirtualClock )
     {
         crt_virtualMsec += dwMilliseconds; // the time passes without waiting for it
-        return;
+        if ( !crt_bFrameClock )
+        {
+            return;
+        }
+        // The frame clock (a recorded run) still waits: a player is watching.
     }
     usleep((useconds_t)dwMilliseconds * 1000u);
 }

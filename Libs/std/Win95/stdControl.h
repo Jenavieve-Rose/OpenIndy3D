@@ -189,6 +189,15 @@ size_t J3DAPI stdControl_GetNumJoysticks(void);
 
 int J3DAPI stdControl_IsGamePad(int joyNum);
 
+#ifdef J3D_PORT
+// Port additions (PORT-PLAN.md P3.6, P3.8). Retail enumerated controllers once, at startup; the port's come and go.
+// stdControl_DevicesChanged returns nonzero once after a controller is connected into a slot that had none, so the
+// game can bind its controls to it. stdControl_IsDualStick is nonzero for a controller with the standard modern
+// layout (two sticks, four face buttons, shoulders and a d-pad), for which the port has its own default keyset.
+int J3DAPI stdControl_DevicesChanged(void);
+int J3DAPI stdControl_IsDualStick(int joyNum);
+#endif
+
 
 J3D_EXTERN_C_END
 #endif // STD_STDCONTROL_H
