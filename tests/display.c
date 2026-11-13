@@ -8,6 +8,9 @@
  *     destination or the source on every side, against a pixel-by-pixel reference (P2.5)
  *   - EncodeFromRGB565 (P2.5)
  *   - SaveScreen: the BMP header and the pixels, at a width whose rows need padding (P2.7)
+ *   - VBufferConvertColorFormat from the materials' 16-bit formats (RGB565, ARGB1555, ARGB4444) to the renderer's
+ *     32-bit one expands each channel to full range, as the GPU sampled them in retail: an opaque 1555 texel has alpha
+ *     255, not 0x80, which the alpha test (reference 0xA0) discarded (Indy's revolver was invisible)
  *
  * Exit status: the number of failed checks.
  */
@@ -223,6 +226,68 @@ static void display_TestSaveScreen(void)
     }
 }
 
+// One 16-bit texel through the conversion to 32-bit BGRA (with alpha when the source has it).
+static uint32_t display_Convert16(uint16_t texel, int redBits, int greenBits, int blueBits, int alphaBits)
+{
+    tRasterInfo info;
+    ColorInfo dest;
+    tVBuffer* pBuf;
+    uint32_t out;
+
+    memset(&info, 0, sizeof(info));
+    info.width  = 1;
+    info.height = 1;
+    info.colorInfo.colorMode     = alphaBits ? STDCOLOR_RGBA : STDCOLOR_RGB;
+    info.colorInfo.bpp           = 16;
+    info.colorInfo.blueBPP       = blueBits;
+    info.colorInfo.greenBPP      = greenBits;
+    info.colorInfo.redBPP        = redBits;
+    info.colorInfo.alphaBPP      = alphaBits;
+    info.colorInfo.bluePosShift  = 0;
+    info.colorInfo.greenPosShift = blueBits;
+    info.colorInfo.redPosShift   = blueBits + greenBits;
+    info.colorInfo.alphaPosShift = blueBits + greenBits + redBits;
+    pBuf = stdDisplay_VBufferNew(&info, 0, 0);
+    memcpy(pBuf->pPixels, &texel, sizeof(texel));
+
+    memset(&dest, 0, sizeof(dest));
+    dest.colorMode     = alphaBits ? STDCOLOR_RGBA : STDCOLOR_RGB;
+    dest.bpp           = 32;
+    dest.redBPP        = dest.greenBPP = dest.blueBPP = 8;
+    dest.redPosShift   = 16;
+    dest.greenPosShift = 8;
+    dest.bluePosShift  = 0;
+    if ( alphaBits )
+    {
+        dest.alphaBPP      = 8;
+        dest.alphaPosShift = 24;
+    }
+
+    pBuf = stdDisplay_VBufferConvertColorFormat(&dest, pBuf, 0, 0);
+    memcpy(&out, pBuf->pPixels, sizeof(out));
+    stdDisplay_VBufferFree(pBuf);
+    return out;
+}
+
+static void display_TestConvert(void)
+{
+    uint32_t v;
+    v = display_Convert16(0xFFFF, 5, 6, 5, 0);
+    CHECK(v == 0x00FFFFFF, "565 white to 32: %08X", v);
+    v = display_Convert16(0x8410, 5, 6, 5, 0); // 16, 32, 16 of 31, 63, 31
+    CHECK(v == 0x00848284, "565 grey to 32: %08X", v);
+    v = display_Convert16(0xFFFF, 5, 5, 5, 1);
+    CHECK(v == 0xFFFFFFFF, "1555 opaque white to 32: %08X", v);
+    v = display_Convert16(0x8000, 5, 5, 5, 1);
+    CHECK(v == 0xFF000000, "1555 opaque black: %08X", v);
+    v = display_Convert16(0x7FFF, 5, 5, 5, 1);
+    CHECK(v == 0x00FFFFFF, "1555 transparent: %08X", v);
+    v = display_Convert16(0xF00F, 4, 4, 4, 4);
+    CHECK(v == 0xFF0000FF, "4444 opaque blue: %08X", v);
+    v = display_Convert16(0x8888, 4, 4, 4, 4);
+    CHECK(v == 0x88888888, "4444 half: %08X", v);
+}
+
 int main(void)
 {
     harness_InstallHandlers();
@@ -285,6 +350,9 @@ int main(void)
 
     // P2.7
     display_TestSaveScreen();
+
+    // Material textures to the renderer's format.
+    display_TestConvert();
 
     stdDisplay_Close();
     stdDisplay_Shutdown();

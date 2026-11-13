@@ -729,6 +729,18 @@ that only miss NaN.
   the rope ladder's gaps cut out by the alpha test. Frames 10 to 30 are black and frame 45 shows the title logo: the
   opening cutscene's fade, not a fault. The `render` test gained texel placement, wrap, modulation, RGB opacity,
   discarded alpha-0 texels and mip selection.
+- **Fixed after phase 4 (2026-11-13): 16-bit textures widened to full range.** The materials are RGB565, ARGB1555
+  and ARGB4444; retail's Direct3D hardware sampled them as they were, but the port's renderer takes 32 bpp, so
+  `stdDisplay_VBufferConvertColorFormat` (`platform/common/stdDisplay_vbuffer.c`) converts them. It used retail's
+  `stdColor_ColorConvertOneRow`, which widens a channel by shifting alone: 1-bit alpha 1 became `0x80`, below the
+  alpha test's reference `0xA0`, so every opaque texel of a 1-bit-alpha texture was discarded. Found when Indy's
+  revolver (`gen_4gun_rev.mat`) did not show in his hand, though the model swap that puts it there
+  (`sithThing_AddSwapEntry`, `rdModel3_SwapMesh`) worked. The same shift made 5-bit white `0xF8` (textures about 3%
+  dark) and 4-bit alpha at most `0xF0` (opaque texels of 4444 textures slightly see-through when blended). Widening
+  conversions without a colour key now expand each channel as the GPU expands a normalised value, v × 255 / (2^n − 1),
+  rounded; narrowing ones (the save thumbnail) and keyed ones keep retail's code. Checked: `display` test (565, 1555,
+  4444 to 32 bpp; it fails with the old conversion), a headless screenshot of the drawn revolver, every test in the
+  three trees, and the autosaves unchanged.
 
 ### Render state, fog, projection and wireframe (P2.13 to P2.16)
 

@@ -441,6 +441,8 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       `GetValidDimensions`, `GetMipMapCount`, `FindClosestFormat`. Done: one Metal texture per material level chain,
       referenced by the retail cache bookkeeping; RGB textures opaque by swizzle; also `SetMipmapFilter` and the
       sampler cache. Checked: `00_cyn` textured in a headless screenshot; `render` test texture cases.
+      Fixed after phase 4: 16-bit textures were widened by shifting, so 1-bit-alpha textures failed the alpha test
+      and vanished (Indy's revolver); they now expand to full range (docs/PORTING.md, "Textures"). Checked: `display`.
 - [x] **P2.13** (M) Render states: map the `SetRenderState` bitmask to sampler states (bilinear or nearest, clamp or
       wrap per axis), blending, z-write and alpha reference; `SetMipmapFilter`; a pipeline cache keyed by blend mode.
       Done: retail's one blend mode needs no cache; `SetMipmapFilter` landed with P2.12. Checked: `render` test.
