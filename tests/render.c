@@ -7,8 +7,10 @@
  *   - the alpha test (alpha 0 draws nothing) and blending (source alpha over inverse source alpha)
  *   - perspective-correct interpolation from rhw
  *   - depth outside 0 to 1 is clamped, not clipped
+ *   - a face reaching behind the eye (negative rhw) is clipped as Direct3D clipped it
  *   - line strips and points land on the pixels named
  *   - a scene larger than the per-scene vertex arena (P2.11)
+ *   - render state and fog (P2.13, P2.14): depth writes off, the 0xA0 alpha reference, linear fog by eye depth
  *   - textures (P2.12): texel placement, wrap, modulation by the vertex colour, RGB textures opaque whatever their
  *     fourth byte, alpha-0 texels discarded, mip level selection with and without a mip filter
  * Needs no game data and no window. Exit status: the number of failed checks.
@@ -178,6 +180,58 @@ int main(void)
     CHECK(render_Pixel(50, 50) == 0x00FF00 && render_Pixel(52, 50) == 0x00FF00 && render_Pixel(51, 50) == 0,
         "points at (50,50) and (52,50): %06X %06X, between %06X", render_Pixel(50, 50), render_Pixel(52, 50),
         render_Pixel(51, 50));
+
+    // A ground plane reaching behind the eye, projected as rdroid projects unclipped world faces (rdClip_FaceToPlane):
+    // sx = x f / y + cx, sy = -z f / y + cy, rhw = 1 / (32 y), y forward. The vertices behind the eye (y < 0) have
+    // negative rhw and mirrored positions; Direct3D's homogeneous clip cut that part off and drew the rest. The ground
+    // must cover the bottom of the screen and nothing above the horizon.
+    render_Begin();
+    {
+        const float f = 32.0f, c = SIZE / 2.0f;
+        const float aWorld[4][3] = { { -10, -5, -1 }, { 10, -5, -1 }, { 10, 50, -1 }, { -10, 50, -1 } }; // x, y (forward), z (up)
+        J3DRenderVertex aVerts[4];
+        for ( int i = 0; i < 4; ++i )
+        {
+            const float invY = 1.0f / aWorld[i][1];
+            aVerts[i] = render_Vertex(aWorld[i][0] * f * invY + c, -aWorld[i][2] * f * invY + c, 0.5f, invY * 0.03125f, 0xFF00FF00);
+        }
+        static const uint16_t aIndices[6] = { 0, 1, 2, 0, 2, 3 };
+        CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aVerts, 4, aIndices, 6) == 0, "Draw ground");
+    }
+    render_EndAndRead();
+    CHECK(render_Pixel(32, 60) == 0x00FF00 && render_Pixel(2, 62) == 0x00FF00 && render_Pixel(61, 50) == 0x00FF00,
+        "ground below the horizon: %06X %06X %06X", render_Pixel(32, 60), render_Pixel(2, 62), render_Pixel(61, 50));
+    CHECK(render_Pixel(32, 10) == 0 && render_Pixel(5, 30) == 0 && render_Pixel(60, 2) == 0,
+        "nothing above the horizon: %06X %06X %06X", render_Pixel(32, 10), render_Pixel(5, 30), render_Pixel(60, 2));
+
+    // Render state (P2.13) and fog (P2.14).
+    render_Begin();
+    J3DRender_SetDepthWrite(0);
+    render_Quad(0, 0, 8, 8, 0.2f, 0xFFFF0000);    // near, depth not written
+    J3DRender_SetDepthWrite(1);
+    render_Quad(0, 0, 8, 8, 0.8f, 0xFF0000FF);    // far: drawn over it
+    J3DRender_SetAlphaRef(0xA0);
+    render_Quad(16, 0, 24, 8, 0.5f, 0xA0FFFFFF);  // alpha 0xA0: not greater than the reference
+    render_Quad(24, 0, 32, 8, 0.5f, 0xA1FFFFFF);  // 0xA1: drawn
+    J3DRender_SetAlphaRef(0);
+    {
+        // Fog from depth 1 (clear) to 3 (fog colour); a quad at w = 2 is halfway.
+        J3DRender_SetFog(1, 1.0f, 0.0f, 1.0f, 1.0f, 3.0f);
+        J3DRenderVertex aVerts[4] = {
+            render_Vertex(39.5f, -0.5f, 0.5f, 0.5f, 0xFF000000), render_Vertex(47.5f, -0.5f, 0.5f, 0.5f, 0xFF000000),
+            render_Vertex(47.5f, 7.5f, 0.5f, 0.5f, 0xFF000000), render_Vertex(39.5f, 7.5f, 0.5f, 0.5f, 0xFF000000),
+        };
+        static const uint16_t aIndices[6] = { 0, 1, 2, 0, 2, 3 };
+        CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aVerts, 4, aIndices, 6) == 0, "Draw fogged");
+        J3DRender_SetFog(0, 0, 0, 0, 0, 0);
+        render_Quad(48, 0, 56, 8, 0.5f, 0xFF000000); // fog off again: black
+    }
+    render_EndAndRead();
+    CHECK(render_Pixel(4, 4) == 0x0000FF, "no depth write: %06X", render_Pixel(4, 4));
+    CHECK(render_Pixel(20, 4) == 0 && render_Near(render_Pixel(28, 4), 0xA1A1A1, 1), "alpha reference 0xA0: %06X, 0xA1 (blended over black): %06X",
+        render_Pixel(20, 4), render_Pixel(28, 4));
+    CHECK(render_Near(render_Pixel(44, 4), 0x800080, 2), "fog halfway: %06X", render_Pixel(44, 4));
+    CHECK(render_Pixel(52, 4) == 0, "fog off: %06X", render_Pixel(52, 4));
 
     // Textures (P2.12). A 2x2 texture: blue, green / red, white (texel bytes B, G, R, A), sampled nearest.
     {

@@ -13,7 +13,15 @@
  * device coordinates, shifted half a pixel because Direct3D 6 put pixel centres on whole coordinates and Metal puts
  * them at +0.5; then every component is multiplied by w = 1/rhw, so the GPU's divide by w gives the same screen
  * position and depth while interpolating colours and texture coordinates perspective-correctly, as Direct3D did with
- * TEXTUREPERSPECTIVE on. A vertex with rhw <= 0 is drawn with w = 1.
+ * TEXTUREPERSPECTIVE on.
+ *
+ * Clipping. sithRender does not clip world faces against the near plane (rdClip_FaceToPlane only rejects faces wholly
+ * outside the frustum): a face reaching behind the eye arrives with negative rhw on those vertices and their screen
+ * positions mirrored. Direct3D 6 clipped pre-transformed vertices in homogeneous space, rebuilding clip coordinates
+ * from the screen position and w = 1/rhw; with rdroid's projection (sx = x f / y + cx, rhw = 1 / (32 y)) that rebuild
+ * gives the true camera-space point, behind the eye included. The vertex stage does the same, and Metal's clip planes
+ * (-w <= x, y <= w) keep only w > 0, so the part behind the eye is cut off exactly. Depth is clamped, not clipped
+ * (render_OpenPass): Direct3D did not clip TL vertices on z. A vertex with rhw = 0 is drawn with w = 1.
  *
  * The scene texture is written by the CPU at BeginScene, so BeginScene first waits for the GPU to finish everything
  * committed so far (the previous scene and its present both read the texture). The game submits a few hundred
@@ -34,57 +42,72 @@ static NSString* const render_shaderSource =
     @"#include <metal_stdlib>\n"
      "using namespace metal;\n"
      "struct TLVertex { float sx, sy, sz, rhw; uint color, specular; float tu, tv; }; // D3DTLVERTEX, 32 bytes\n"
-     "struct Uniforms { float2 viewportSize; float alphaRef; float pad; };\n"
+     "struct Uniforms { float2 viewportSize; float alphaRef; float fogEnabled; float4 fogColor; float fogStart, fogEnd; float2 pad; };\n"
      "struct VertexOut\n"
      "{\n"
      "    float4 position [[position]];\n"
      "    float4 diffuse;\n"
      "    float4 specular;\n"
      "    float2 uv;\n"
+     "    float  eyeDepth;  // w, interpolated perspective-correctly: the depth retail's table fog used\n"
      "    float  pointSize [[point_size]];\n"
      "};\n"
      "vertex VertexOut scene_vertex(uint vid [[vertex_id]], const device TLVertex* verts [[buffer(0)]],\n"
      "                              constant Uniforms& u [[buffer(1)]])\n"
      "{\n"
      "    TLVertex v = verts[vid];\n"
-     "    float  w   = v.rhw > 0.0 ? 1.0 / v.rhw : 1.0;\n"
+     "    float  w   = v.rhw != 0.0 ? 1.0 / v.rhw : 1.0; // negative behind the eye: clipped away below\n"
      "    float2 ndc = float2((v.sx + 0.5) / u.viewportSize.x * 2.0 - 1.0, 1.0 - (v.sy + 0.5) / u.viewportSize.y * 2.0);\n"
      "    VertexOut out;\n"
      "    out.position  = float4(ndc * w, v.sz * w, w);\n"
      "    out.diffuse   = unpack_unorm4x8_to_float(v.color).zyxw;    // 0xAARRGGBB: bytes B, G, R, A\n"
      "    out.specular  = unpack_unorm4x8_to_float(v.specular).zyxw;\n"
      "    out.uv        = float2(v.tu, v.tv);\n"
+     "    out.eyeDepth  = w;\n"
      "    out.pointSize = 1.0;\n"
      "    return out;\n"
      "}\n"
      "// Direct3D's alpha test compared 8-bit alpha: GREATER passes when alpha > ref.\n"
      "static bool alpha_passes(float alpha, float ref) { return rint(alpha * 255.0) > ref; }\n"
+     "// Direct3D's linear table fog: the fog colour blended in by depth before the alpha blend.\n"
+     "static float4 apply_fog(float4 color, float depth, constant Uniforms& u)\n"
+     "{\n"
+     "    if ( u.fogEnabled == 0.0 ) return color;\n"
+     "    float f = clamp((u.fogEnd - depth) / (u.fogEnd - u.fogStart), 0.0, 1.0);\n"
+     "    return float4(mix(u.fogColor.rgb, color.rgb, f), color.a);\n"
+     "}\n"
      "fragment float4 scene_fragment_flat(VertexOut in [[stage_in]], constant Uniforms& u [[buffer(1)]])\n"
      "{\n"
      "    float4 color = in.diffuse;\n"
      "    if ( !alpha_passes(color.a, u.alphaRef) ) discard_fragment();\n"
-     "    return color;\n"
+     "    return apply_fog(color, in.eyeDepth, u);\n"
      "}\n"
      "fragment float4 scene_fragment_textured(VertexOut in [[stage_in]], constant Uniforms& u [[buffer(1)]],\n"
      "                                        texture2d<float> tex [[texture(0)]], sampler smp [[sampler(0)]])\n"
      "{\n"
      "    float4 color = tex.sample(smp, in.uv) * in.diffuse; // D3DTOP_MODULATE, colour and alpha\n"
      "    if ( !alpha_passes(color.a, u.alphaRef) ) discard_fragment();\n"
-     "    return color;\n"
+     "    return apply_fog(color, in.eyeDepth, u);\n"
      "}\n";
 
-typedef struct RenderUniforms
+typedef struct RenderUniforms // the shaders' Uniforms
 {
     float viewportSize[2];
-    float alphaRef; // 0 to 255
-    float pad;
+    float alphaRef;   // 0 to 255
+    float fogEnabled; // 0 or 1
+    float fogColor[4];
+    float fogStart, fogEnd;
+    float pad[2];
 } RenderUniforms;
+_Static_assert(sizeof(RenderUniforms) == 48, "RenderUniforms must match the shaders' Uniforms");
 
 static id<MTLRenderPipelineState> render_pipelineFlat;
 static id<MTLRenderPipelineState> render_pipelineTextured;
 static id<MTLDepthStencilState>   render_depthWrite;
 static id<MTLDepthStencilState>   render_depthNoWrite;     // STD3D_RS_ZWRITE_DISABLED, from P2.13
 static RenderUniforms             render_uniforms;
+static int                        render_bUniformsDirty;
+static int                        render_bDepthWrite = 1;
 
 #define RENDER_ARENA_SIZE ((size_t)4 << 20) // a level frame uses well under 1 MB
 static id<MTLBuffer> render_arena;
@@ -190,6 +213,8 @@ int J3DRender_Open(uint32_t width, uint32_t height)
     render_uniforms.viewportSize[0] = (float)width;
     render_uniforms.viewportSize[1] = (float)height;
     render_uniforms.alphaRef        = 0.0f; // D3DRENDERSTATE_ALPHAREF 0
+    render_uniforms.fogEnabled      = 0.0f;
+    render_bDepthWrite              = 1;
 
     render_bClearDepth = 1; // retail cleared Z when it created the viewport
     return 0;
@@ -226,9 +251,8 @@ static void render_OpenPass(void)
     // TL vertices), no culling (D3DCULL_NONE), depth test less-or-equal with writes.
     [render_encoder setDepthClipMode:MTLDepthClipModeClamp];
     [render_encoder setCullMode:MTLCullModeNone];
-    [render_encoder setDepthStencilState:render_depthWrite];
-    [render_encoder setVertexBytes:&render_uniforms length:sizeof(render_uniforms) atIndex:1];
-    [render_encoder setFragmentBytes:&render_uniforms length:sizeof(render_uniforms) atIndex:1];
+    [render_encoder setDepthStencilState:render_bDepthWrite ? render_depthWrite : render_depthNoWrite];
+    render_bUniformsDirty = 1;
 }
 
 int J3DRender_BeginScene(const uint8_t* pBackBuffer, size_t rowSize)
@@ -388,6 +412,45 @@ void J3DRender_SetSampler(int bBilinear, int bClampU, int bClampV, J3DRenderMipF
         + (size_t)mipFilter % 3;
 }
 
+void J3DRender_SetDepthWrite(int bWrite)
+{
+    bWrite = bWrite != 0;
+    if ( bWrite != render_bDepthWrite )
+    {
+        render_bDepthWrite = bWrite;
+        if ( render_encoder )
+        {
+            [render_encoder setDepthStencilState:bWrite ? render_depthWrite : render_depthNoWrite];
+        }
+    }
+}
+
+void J3DRender_SetAlphaRef(int alphaRef)
+{
+    if ( render_uniforms.alphaRef != (float)alphaRef )
+    {
+        render_uniforms.alphaRef = (float)alphaRef;
+        render_bUniformsDirty    = 1;
+    }
+}
+
+void J3DRender_SetFog(int bEnabled, float red, float green, float blue, float startDepth, float endDepth)
+{
+    RenderUniforms u = render_uniforms;
+    u.fogEnabled  = bEnabled && endDepth != startDepth ? 1.0f : 0.0f;
+    u.fogColor[0] = red;
+    u.fogColor[1] = green;
+    u.fogColor[2] = blue;
+    u.fogColor[3] = 1.0f;
+    u.fogStart    = startDepth;
+    u.fogEnd      = endDepth;
+    if ( memcmp(&u, &render_uniforms, sizeof(u)) != 0 )
+    {
+        render_uniforms       = u;
+        render_bUniformsDirty = 1;
+    }
+}
+
 // Copies size bytes into the scene's arena, 16-byte aligned; returns the offset, and the buffer in *pBuffer.
 static size_t render_Append(const void* pData, size_t size, id<MTLBuffer>* pBuffer)
 {
@@ -424,6 +487,12 @@ int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, 
     id<MTLBuffer> vertexBuffer = nil;
     size_t vertexOffset = render_Append(aVerts, numVerts * sizeof(J3DRenderVertex), &vertexBuffer);
     [render_encoder setVertexBuffer:vertexBuffer offset:vertexOffset atIndex:0];
+    if ( render_bUniformsDirty )
+    {
+        [render_encoder setVertexBytes:&render_uniforms length:sizeof(render_uniforms) atIndex:1];
+        [render_encoder setFragmentBytes:&render_uniforms length:sizeof(render_uniforms) atIndex:1];
+        render_bUniformsDirty = 0;
+    }
     if ( render_curTexture )
     {
         [render_encoder setRenderPipelineState:render_pipelineTextured];

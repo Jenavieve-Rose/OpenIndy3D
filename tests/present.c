@@ -24,6 +24,7 @@
 #include <std/Win95/stdWin95.h>
 
 #include <platform/apple/display_metal.h>
+#include <platform/apple/stdDisplay_sdl.h>
 
 #include "harness.h"
 
@@ -159,6 +160,11 @@ int main(void)
             scaledHeight);
         width = scaledWidth;
         height = scaledHeight;
+
+        // Mouse positions (P2.15): the window is now twice the back buffer, in points.
+        float mouseX = 2.0f * 100.0f, mouseY = 2.0f * 30.0f;
+        J3DApple_WindowToBackBuffer(&mouseX, &mouseY);
+        CHECK(mouseX == 100.0f && mouseY == 30.0f, "window (200,60) maps to back buffer (%g,%g), expected (100,30)", mouseX, mouseY);
     }
     if ( res < 0 )
     {

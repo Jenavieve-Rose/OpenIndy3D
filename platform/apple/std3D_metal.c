@@ -15,10 +15,10 @@
  *
  * P2.12: textures and the texture cache, the mipmap filter.
  *
- * Not yet, and doing nothing until their step: render states (P2.13), fog (P2.14), the projection
- * (P2.15) and wireframe (P2.16). Each returns what the null backend returned.
+ * P2.13 to P2.16: render states, fog, the projection's checks, the wireframe state.
  */
 #include <stddef.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -41,7 +41,7 @@ _Static_assert(offsetof(J3DRenderVertex, specular) == offsetof(D3DTLVERTEX, spec
 _Static_assert(offsetof(J3DRenderVertex, tu) == offsetof(D3DTLVERTEX, tu), "J3DRenderVertex.tu");
 _Static_assert(offsetof(J3DRenderVertex, tv) == offsetof(D3DTLVERTEX, tv), "J3DRenderVertex.tv");
 
-float  std3D_fogDensity;
+float  std3D_fogDensity = 1.0f; // retail's initial density
 size_t std3D_maxVertices;
 
 static int      std3D_bStartup = 0;
@@ -63,6 +63,14 @@ static size_t          std3D_numCachedTextures = 0;
 static void std3D_AddTextureToCacheList(tSystemTexture* pTexture);
 static void std3D_RemoveTextureFromCacheList(tSystemTexture* pCacheTexture);
 static void std3D_UpdateSampler(void);
+static void std3D_UpdateFog(void);
+
+// Fog, as retail kept it (std3D_EnableFog, std3D_SetFog).
+static int   std3D_bRenderFog    = 1;
+static int   std3D_bFogSet       = 0; // SetFog has given a colour and depths
+static float std3D_aFogColor[3]  = { 0.0f, 0.0f, 0.0f };
+static float std3D_fogStartDepth = 0.0f;
+static float std3D_fogEndDepth   = 0.0f;
 
 /* ---- Devices -------------------------------------------------------------------------------------------------------- */
 
@@ -761,37 +769,96 @@ int J3DAPI std3D_SetMipmapFilter(Std3DMipmapFilterType filter)
     return 0;
 }
 
-/* ---- Not yet: each returns what the null backend returned until its step ---------------------------------------- */
+/* ---- Render state (P2.13) ----------------------------------------------------------------------------------------- */
 
+// The retail function's mapping of the state bits, changed bits only, onto the renderer: depth writes, the sampler
+// (clamp per axis, bilinear or nearest), the alpha reference (0xA0 under STD3D_RS_ALPHAREF_SET) and, with
+// std3D_bRenderFog, fog. Blending, the depth test and the rest of retail's fixed state are constant (render_metal.m).
 void J3DAPI std3D_SetRenderState(Std3DRenderState rdflags)
 {
-    (void)rdflags; // P2.13
+    if ( std3D_renderState == rdflags )
+    {
+        return;
+    }
+
+    const Std3DRenderState changed = std3D_renderState ^ rdflags;
+    std3D_renderState = rdflags;
+
+    if ( changed & STD3D_RS_ZWRITE_DISABLED )
+    {
+        J3DRender_SetDepthWrite((rdflags & STD3D_RS_ZWRITE_DISABLED) == 0);
+    }
+    if ( changed & (STD3D_RS_TEX_CPAMP_U | STD3D_RS_TEX_CPAMP_V | STD3D_RS_TEXFILTER_BILINEAR) )
+    {
+        std3D_UpdateSampler();
+    }
+    if ( changed & STD3D_RS_FOG_ENABLED )
+    {
+        std3D_UpdateFog();
+    }
+    if ( changed & STD3D_RS_ALPHAREF_SET )
+    {
+        J3DRender_SetAlphaRef((rdflags & STD3D_RS_ALPHAREF_SET) ? 0xA0 : 0);
+    }
 }
 
+// Retail turned off fog and the two unknown bits, and unbound the texture: lines and points draw in their vertex colour.
 void J3DAPI std3D_SetWireframeRenderState(void)
 {
-    // P2.16
+    std3D_SetRenderState(std3D_renderState & ~(STD3D_RS_FOG_ENABLED | STD3D_RS_UNKNOWN_400 | STD3D_RS_UNKNOWN_200));
+    J3DRender_SetTexture(NULL);
 }
 
+/* ---- Fog (P2.14) ---------------------------------------------------------------------------------------------------- */
 
-
-
-
-
-
-int J3DAPI std3D_SetProjection(float fov, float nearPlane, float farPlane)
+// Retail used Direct3D's table fog: linear in eye depth between FOGTABLESTART and FOGTABLEEND, on draws whose state has
+// STD3D_RS_FOG_ENABLED while std3D_bRenderFog is set, and none at all when the density is 0 (D3DFOG_NONE). The renderer
+// does the same per fragment. Retail's per-vertex approximation for cards without table fog (std3D_bFogTable) is not
+// needed.
+static void std3D_UpdateFog(void)
 {
-    (void)fov; (void)nearPlane; (void)farPlane; // P2.15
+    const int bOn = std3D_bFogSet && std3D_bRenderFog && (std3D_renderState & STD3D_RS_FOG_ENABLED) != 0
+        && std3D_fogDensity != 0.0f;
+    J3DRender_SetFog(bOn, std3D_aFogColor[0], std3D_aFogColor[1], std3D_aFogColor[2], std3D_fogStartDepth, std3D_fogEndDepth);
+}
+
+// The retail body: the switch is always recorded, the density only once a device is open. (JonesDevDialog_LoadSettings
+// calls this before the display opens, so retail's saved "Fog Density" did not reach std3D at startup and the density
+// stayed 1.0 until the settings dialog changed it. Kept.)
+void J3DAPI std3D_EnableFog(int bEnabled, float density)
+{
+    std3D_bRenderFog = bEnabled;
+    if ( std3D_pCurDevice )
+    {
+        std3D_fogDensity = density;
+    }
+    std3D_UpdateFog();
+}
+
+// The retail body: the fog colour, and the start and end depths, the end pushed out by (2 - density). Retail fell off
+// the end of the function on success, returning the last Direct3D result (D3D_OK); 0 here.
+int J3DAPI std3D_SetFog(float red, float green, float blue, float startDepth, float endDepth)
+{
+    std3D_aFogColor[0]   = red;
+    std3D_aFogColor[1]   = green;
+    std3D_aFogColor[2]   = blue;
+    std3D_fogStartDepth  = startDepth;
+    std3D_fogEndDepth    = endDepth * (2.0f - std3D_fogDensity);
+    std3D_bFogSet        = 1;
+    std3D_UpdateFog();
     return 0;
 }
 
-void J3DAPI std3D_EnableFog(int bEnabled, float density)
-{
-    (void)bEnabled; (void)density; // P2.14
-}
+/* ---- Projection (P2.15) ------------------------------------------------------------------------------------------- */
 
-int J3DAPI std3D_SetFog(float red, float green, float blue, float startDepth, float endDepth)
+// Retail gave Direct3D a projection matrix only so that table fog could use eye depth (w) for pre-transformed
+// vertices; rdroid projects the vertices itself. The renderer takes w from each vertex's rhw, so only retail's checks
+// remain: DDERR_INVALIDPARAMS for a degenerate depth range or field of view, 0 otherwise.
+int J3DAPI std3D_SetProjection(float fov, float nearPlane, float farPlane)
 {
-    (void)red; (void)green; (void)blue; (void)startDepth; (void)endDepth; // P2.14
+    if ( fabsf(farPlane - nearPlane) < 0.01f || fabsf(sinf(fov / 2.0f)) < 0.01f )
+    {
+        return (int)E_INVALIDARG; // DDERR_INVALIDPARAMS
+    }
     return 0;
 }

@@ -16,14 +16,14 @@ confused with section numbers.
 | --- | --- | --- | --- |
 | 0 | Tree compiles and links on arm64 with a null platform | 12 of 12 | Complete |
 | 1 | Headless boot, every level loads, 64-bit audit closed | 30 of 30 | Complete |
-| 2 | Window, 2D back buffer and Metal renderer | 12 of 22 | In progress |
+| 2 | Window, 2D back buffer and Metal renderer | 16 of 22 | In progress |
 | 3 | Keyboard, mouse and gamepad input | 0 of 10 | Not started |
 | 4 | Audio | 0 of 11 | Not started |
 | 5 | Movies (INSANE) | 0 of 12 | Not started |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **54 of 146** | |
+| **All** | | **58 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -411,11 +411,15 @@ can be produced by script, and `stdDisplay_SaveScreen` works.
       `GetValidDimensions`, `GetMipMapCount`, `FindClosestFormat`. Done: one Metal texture per material level chain,
       referenced by the retail cache bookkeeping; RGB textures opaque by swizzle; also `SetMipmapFilter` and the
       sampler cache. Checked: `00_cyn` textured in a headless screenshot; `render` test texture cases.
-- [ ] **P2.13** (M) Render states: map the `SetRenderState` bitmask to sampler states (bilinear or nearest, clamp or
+- [x] **P2.13** (M) Render states: map the `SetRenderState` bitmask to sampler states (bilinear or nearest, clamp or
       wrap per axis), blending, z-write and alpha reference; `SetMipmapFilter`; a pipeline cache keyed by blend mode.
-- [ ] **P2.14** (S) Fog: `EnableFog` and `SetFog` as fragment uniforms using the engine's start and end depths.
-- [ ] **P2.15** (S) `SetProjection` and viewport; drawable size against the engine's mode size on Retina displays.
-- [ ] **P2.16** (S) `SetWireframeRenderState`.
+      Done: retail's one blend mode needs no cache; `SetMipmapFilter` landed with P2.12. Checked: `render` test.
+- [x] **P2.14** (S) Fog: `EnableFog` and `SetFog` as fragment uniforms using the engine's start and end depths.
+      Done: Direct3D's linear table fog by eye depth; retail's density quirk kept. Checked: `render` test, `11_PYR`.
+- [x] **P2.15** (S) `SetProjection` and viewport; drawable size against the engine's mode size on Retina displays.
+      Done: high-density window, mouse positions mapped to back-buffer pixels; homogeneous clipping of faces behind
+      the eye fixed (floors were missing in three levels). Checked: `render` and `present` tests, level screenshots.
+- [x] **P2.16** (S) `SetWireframeRenderState`. Done: retail's state change and no texture.
 
 #### 2C. Integration
 
@@ -714,7 +718,7 @@ guide.
 | --- | --- | --- | --- |
 | 0 | Tree links on arm64 with a null platform | 1 week | Reached 2026-11-12 (`2d8bbed`) |
 | 1 | Headless boot, all levels load, 64-bit audit closed | 2 to 3 weeks | Reached 2026-11-12: levels load, scripts compile, the game loop runs and saves round-trip headless, sanitizer-clean, all warnings errors; merged into `main` |
-| 2 | Metal renderer, first level on screen | 3 to 4 weeks | 2A (window and 2D) complete (P2.1 to P2.8); 2B started: renderer skeleton (P2.9), shaders (P2.10), geometry (P2.11), textures (P2.12): the first level is on screen textured |
+| 2 | Metal renderer, first level on screen | 3 to 4 weeks | 2A (window and 2D) complete (P2.1 to P2.8); 2B complete (P2.9 to P2.16): every level renders textured, lit and fogged |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Not started |
 | 4 | Audio complete | 2 weeks | Not started |
 | 5 | Movies complete | 2 to 3 weeks | Not started |
@@ -727,8 +731,8 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
 
 ## 9. Immediate next steps
 
-1. **P2.13 to P2.16 (2B):** render states, fog, projection and wireframe on the renderer that now draws the first
-   level textured (P2.12).
+1. **P2.17 to P2.22 (2C):** frame order, temporary debug input, window behaviour, the 4:3 option, `rdModel3K`
+   removal and the visual pass.
 2. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 

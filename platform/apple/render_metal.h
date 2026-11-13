@@ -85,6 +85,16 @@ typedef enum J3DRenderMipFilter
 // The sampler for the following draws: bilinear or nearest texel filtering, clamp or wrap per axis, and the mip filter.
 void J3DRender_SetSampler(int bBilinear, int bClampU, int bClampV, J3DRenderMipFilter mipFilter);
 
+/* ---- Render state and fog (P2.13, P2.14) -------------------------------------------------------------------------- */
+
+// Depth writes for the following draws (the depth test stays on). On by default.
+void J3DRender_SetDepthWrite(int bWrite);
+// The alpha test's reference, 0 to 255: a fragment draws when its 8-bit alpha is greater. 0 by default.
+void J3DRender_SetAlphaRef(int alphaRef);
+// Linear fog for the following draws, by eye depth (w = 1/rhw): full colour at startDepth and nearer, the fog colour
+// (0 to 1 per channel) at endDepth and beyond. Off by default.
+void J3DRender_SetFog(int bEnabled, float red, float green, float blue, float startDepth, float endDepth);
+
 // When the scene texture holds a scene drawn since the last BeginScene, waits for the GPU and copies it into the back
 // buffer (32 bpp, the scene's size), so the CPU side sees the frame the GPU drew. 0 when copied, 1 when there was
 // nothing newer to copy. stdDisplay uses it before a screenshot (P2.17).

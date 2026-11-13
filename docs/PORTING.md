@@ -465,7 +465,7 @@ that only miss NaN.
   the file. Keys carry `VK_` codes (letters by the layout's symbol, everything else by position) and the repeat,
   extended and transition bits; the scancode field of `lParam` stays 0 until Phase 3's DIK table. `WM_CHAR` comes from
   SDL text input converted to Windows-1252, plus Backspace, Tab, Return and Escape, which `TranslateMessage` produced
-  from the keys. Mouse messages use window coordinates (the mapping to the back buffer is P2.15).
+  from the keys. Mouse messages carry back-buffer coordinates since P2.15 (window coordinates before).
 - Activation messages are sent on a change of focus only. The window counts as active from the start, because the
   retail game installed its window procedure after the window's first activation and never saw it
   (`JonesMain_bAppActivated` starts at 0).
@@ -731,3 +731,44 @@ that only miss NaN.
   the rope ladder's gaps cut out by the alpha test. Frames 10 to 30 are black and frame 45 shows the title logo: the
   opening cutscene's fade, not a fault. The `render` test gained texel placement, wrap, modulation, RGB opacity,
   discarded alpha-0 texels and mip selection.
+
+### Render state, fog, projection and wireframe (P2.13 to P2.16)
+
+- `std3D_SetRenderState` keeps retail's mapping of the changed state bits: `STD3D_RS_ZWRITE_DISABLED` turns depth
+  writes off, `STD3D_RS_TEX_CPAMP_U`/`_V` clamp the texture per axis, `STD3D_RS_TEXFILTER_BILINEAR` chooses bilinear
+  over nearest texel filtering, `STD3D_RS_ALPHAREF_SET` raises the alpha reference from 0 to `0xA0`, and
+  `STD3D_RS_FOG_ENABLED` turns fog on for the draw (with `std3D_bRenderFog`). Retail had one blend mode (source alpha
+  over inverse source alpha, always on), so the pipeline cache keyed by blend mode the plan foresaw is not needed: two
+  pipelines (flat and textured) cover every state.
+- Fog. Retail used Direct3D's table fog: per pixel, linear in eye depth (w) between `FOGTABLESTART` and `FOGTABLEEND`,
+  and off entirely when the density is 0 (`D3DFOG_NONE`). The fragment shader does the same, by the perspective-correct
+  eye depth. `std3D_SetFog` keeps retail's end depth of `endDepth × (2 − density)`. Retail's per-vertex approximation
+  for cards without table fog (`std3D_bFogTable`, which wrote fog into the specular alpha) is not needed.
+- Fog density, a retail quirk kept: `std3D_EnableFog` records the density only once a device is open, and
+  `JonesDevDialog_LoadSettings` calls it before the display opens, so the saved "Fog Density" does not reach std3D at
+  startup; the density stays at its initial 1.0 until the settings dialog changes it. (The renderer's
+  `std3D_fogDensity` started at 0 before this step, which would have meant no fog at all; it now starts at 1.0, as
+  retail's did.)
+- `std3D_SetProjection`: retail gave Direct3D a projection matrix only so table fog could use w for pre-transformed
+  vertices; the renderer takes w from each vertex. Retail's checks remain (`DDERR_INVALIDPARAMS`, as `E_INVALIDARG`,
+  for a degenerate depth range or field of view).
+- `std3D_SetWireframeRenderState` is retail's: fog and the two unknown bits off, no texture.
+- Viewport and Retina (P2.15): the viewport is the whole scene texture, the back buffer's size, as retail's was. The
+  game window is created with `SDL_WINDOW_HIGH_PIXEL_DENSITY`, so on a Retina display the drawable has the display's
+  real pixels and a fullscreen mode at the native size (which the mode list includes) is drawn 1:1; a smaller mode, or
+  a windowed one (the window is the mode's size in points), is scaled by the presenter. Mouse positions are converted
+  from window points to back-buffer pixels (`J3DApple_WindowToBackBuffer`, `stdDisplay_sdl.h`), so the game's mouse
+  messages carry the coordinates it expects in a scaled fullscreen mode too. The development machine's display is not
+  Retina, so the 1:1 drawing is by construction, not seen.
+- A fault found by the level screenshots, and fixed: the vertex shader drew a vertex with rhw <= 0 at w = 1, which threw
+  away the information the GPU needs to clip it. sithRender does not clip world faces against the near plane
+  (`rdClip_FaceToPlane` only rejects faces wholly outside the frustum), so floors reaching behind the camera arrive
+  with negative rhw and mirrored screen positions; Direct3D 6 clipped pre-transformed vertices in homogeneous space from
+  the screen position and w = 1/rhw, which for rdroid's projection is the true camera-space point. With w = 1/rhw kept
+  negative, Metal's clip planes cut the part behind the eye off the same way. Before the fix the ground near the camera
+  was missing in `16_JEP`, `08_TEO` and `17_PRU`.
+- Checked: the `render` test gained a ground plane reaching behind the eye, projected as rdroid projects it (fails
+  under the old rule; passes now), depth writes off, the `0xA0` alpha reference, and fog halfway between its depths. The
+  `present` test checks the mouse mapping with the window at twice the back buffer's size. Headless screenshots of all
+  17 levels at frames 1 and 300 show each level textured and lit, `11_PYR`'s haze, and the near floors restored; the
+  all-black frames (`15_AET` at frame 300, `00_CYN` at 10 to 30) are cutscene fades, checked over longer runs.

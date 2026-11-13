@@ -41,6 +41,7 @@
 
 #include <platform/apple/display_metal.h>
 #include <platform/apple/render_metal.h>
+#include <platform/apple/stdDisplay_sdl.h>
 #include <platform/common/host_clock.h>
 #include <platform/common/stdDisplay_common.h>
 
@@ -417,4 +418,17 @@ void J3DDisplay_PrepareScreenshot(void)
         J3DRender_CopySceneToBackBuffer(stdDisplay_backBuffer.pPixels, stdDisplay_backBuffer.rasterInfo.width,
             stdDisplay_backBuffer.rasterInfo.height, stdDisplay_backBuffer.rasterInfo.rowSize);
     }
+}
+
+void J3DApple_WindowToBackBuffer(float* pX, float* pY)
+{
+    SDL_Window* pWindow = stdDisplay_GetSDLWindow();
+    int width = 0, height = 0;
+    if ( !stdDisplay_bModeSet || !pWindow || !SDL_GetWindowSize(pWindow, &width, &height) || width <= 0 || height <= 0 )
+    {
+        return;
+    }
+
+    *pX = *pX * (float)stdDisplay_backBuffer.rasterInfo.width / (float)width;
+    *pY = *pY * (float)stdDisplay_backBuffer.rasterInfo.height / (float)height;
 }

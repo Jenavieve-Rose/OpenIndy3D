@@ -49,6 +49,7 @@
 #include <Jones3D/Main/JonesMain.h>
 #include <std/Win95/stdWin95.h>
 
+#include <platform/apple/stdDisplay_sdl.h>
 #include <platform/common/host_screenshot.h>
 
 #define WKERNEL_WINDOW_WIDTH  640
@@ -378,8 +379,10 @@ static WPARAM wkernel_GetMouseKeyFlags(void)
     return flags;
 }
 
+// A mouse position as the game's messages carry it: back-buffer pixels (P2.15), packed as Win32 packs them.
 static LPARAM wkernel_MakePointParam(float x, float y)
 {
+    J3DApple_WindowToBackBuffer(&x, &y);
     return MAKELPARAM((WORD)(int16_t)x, (WORD)(int16_t)y);
 }
 
@@ -720,7 +723,9 @@ static int wkernel_CreateWindow(LPCSTR lpWindowName)
 
     // A Metal window, for the presenter (stdDisplay_sdl.c), on any driver that has Metal views; the dummy driver has none.
     const char*     pDriver = SDL_GetCurrentVideoDriver();
-    SDL_WindowFlags flags   = pDriver && strcmp(pDriver, "dummy") != 0 ? SDL_WINDOW_METAL : 0;
+    // High pixel density: on a Retina display the drawable has the display's real pixels, so a mode at the native size
+    // is drawn 1:1 (P2.15). Window coordinates stay in points; mouse positions are converted (stdDisplay_sdl.h).
+    SDL_WindowFlags flags   = SDL_WINDOW_HIGH_PIXEL_DENSITY | (pDriver && strcmp(pDriver, "dummy") != 0 ? SDL_WINDOW_METAL : 0);
     wkernel_pWindow = SDL_CreateWindow(lpWindowName, WKERNEL_WINDOW_WIDTH, WKERNEL_WINDOW_HEIGHT, flags);
     if ( !wkernel_pWindow )
     {
