@@ -2,8 +2,12 @@
  * The Metal renderer core (PORT-PLAN.md P2.9, P2.10); see render_metal.h.
  *
  * P2.9: the scene and depth textures and one command buffer per scene. P2.10: the shaders and pipelines that stand in
- * for Direct3D 6's fixed-function pipeline as std3D_InitRenderState configured it, and J3DRender_Draw. The per-frame
- * vertex buffer ring (P2.11), textures (P2.12), render states (P2.13) and fog (P2.14) build on these.
+ * for Direct3D 6's fixed-function pipeline as std3D_InitRenderState configured it, and J3DRender_Draw. P2.11: the
+ * per-scene vertex and index arena. Textures (P2.12), render states (P2.13) and fog (P2.14) build on these.
+ *
+ * Vertex and index data go into one shared buffer per scene, appended draw by draw (rdCache sends a few hundred small
+ * batches a frame). BeginScene waits for the GPU before anything else, so the arena can start over at every scene; a
+ * scene that outgrows it moves on to a larger buffer (the command buffer keeps the old one alive until it completes).
  *
  * The vertex stage turns a pre-transformed vertex back into clip space: x and y from back-buffer pixels to normalised
  * device coordinates, shifted half a pixel because Direct3D 6 put pixel centres on whole coordinates and Metal puts
@@ -81,6 +85,11 @@ static id<MTLRenderPipelineState> render_pipelineTextured; // used from P2.12
 static id<MTLDepthStencilState>   render_depthWrite;
 static id<MTLDepthStencilState>   render_depthNoWrite;     // STD3D_RS_ZWRITE_DISABLED, from P2.13
 static RenderUniforms             render_uniforms;
+
+#define RENDER_ARENA_SIZE ((size_t)4 << 20) // a level frame uses well under 1 MB
+static id<MTLBuffer> render_arena;
+static size_t        render_arenaOffset;
+static int           render_bSceneNewer; // the scene texture holds a scene the back buffer has not been given
 
 static id<MTLTexture>              render_sceneColor;
 static id<MTLTexture>              render_depth;
@@ -169,6 +178,11 @@ int J3DRender_Open(uint32_t width, uint32_t height)
         }
     }
 
+    if ( !render_arena )
+    {
+        render_arena = [device newBufferWithLength:RENDER_ARENA_SIZE options:MTLResourceStorageModeShared];
+    }
+
     render_uniforms.viewportSize[0] = (float)width;
     render_uniforms.viewportSize[1] = (float)height;
     render_uniforms.alphaRef        = 0.0f; // D3DRENDERSTATE_ALPHAREF 0
@@ -226,6 +240,8 @@ int J3DRender_BeginScene(const uint8_t* pBackBuffer, size_t rowSize)
 
     // The GPU may still read the scene texture (the previous scene, its present): let it finish before the upload.
     J3DMetal_WaitForGPU();
+    render_arenaOffset = 0;
+    render_bSceneNewer = 0;
     if ( pBackBuffer )
     {
         [render_sceneColor replaceRegion:MTLRegionMake2D(0, 0, render_sceneColor.width, render_sceneColor.height)
@@ -251,6 +267,7 @@ void J3DRender_EndScene(void)
     J3DMetal_Commit(render_commands);
     render_commands = nil;
     J3DMetal_SetSceneTexture(render_sceneColor);
+    render_bSceneNewer = 1;
 }
 
 void J3DRender_ClearDepth(void)
@@ -276,10 +293,31 @@ void J3DRender_GetDeviceName(char* pName, size_t size)
     pName[size - 1] = '\0';
 }
 
+// Copies size bytes into the scene's arena, 16-byte aligned; returns the offset, and the buffer in *pBuffer.
+static size_t render_Append(const void* pData, size_t size, id<MTLBuffer>* pBuffer)
+{
+    size_t offset = (render_arenaOffset + 15) & ~(size_t)15;
+    if ( offset + size > render_arena.length )
+    {
+        size_t newSize = render_arena.length * 2;
+        while ( newSize < size )
+        {
+            newSize *= 2;
+        }
+        render_arena = [J3DMetal_Device() newBufferWithLength:newSize options:MTLResourceStorageModeShared];
+        offset       = 0;
+    }
+
+    memcpy((uint8_t*)render_arena.contents + offset, pData, size);
+    render_arenaOffset = offset + size;
+    *pBuffer = render_arena;
+    return offset;
+}
+
 int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, size_t numVerts,
     const uint16_t* aIndices, size_t numIndices)
 {
-    if ( !render_encoder || !aVerts || !numVerts )
+    if ( !render_encoder || !render_arena || !aVerts || !numVerts )
     {
         return 1;
     }
@@ -288,46 +326,46 @@ int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, 
         return 1;
     }
 
-    @autoreleasepool
+    id<MTLBuffer> vertexBuffer = nil;
+    size_t vertexOffset = render_Append(aVerts, numVerts * sizeof(J3DRenderVertex), &vertexBuffer);
+    [render_encoder setVertexBuffer:vertexBuffer offset:vertexOffset atIndex:0];
+    [render_encoder setRenderPipelineState:render_pipelineFlat];
+
+    switch ( primitive )
     {
-        // Until the per-frame buffer ring (P2.11), each draw gets buffers of its own.
-        id<MTLDevice> device   = J3DMetal_Device();
-        const size_t  vertSize = numVerts * sizeof(J3DRenderVertex);
-        if ( vertSize <= 4096 )
+        case J3DRENDER_TRIANGLES:
         {
-            [render_encoder setVertexBytes:aVerts length:vertSize atIndex:0];
-        }
-        else
-        {
-            id<MTLBuffer> vertices = [device newBufferWithBytes:aVerts length:vertSize options:MTLResourceStorageModeShared];
-            [render_encoder setVertexBuffer:vertices offset:0 atIndex:0];
-        }
+            id<MTLBuffer> indexBuffer = nil;
+            size_t indexOffset = render_Append(aIndices, numIndices * sizeof(uint16_t), &indexBuffer);
+            [render_encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                                       indexCount:numIndices
+                                        indexType:MTLIndexTypeUInt16
+                                      indexBuffer:indexBuffer
+                                indexBufferOffset:indexOffset];
+        } break;
 
-        [render_encoder setRenderPipelineState:render_pipelineFlat];
+        case J3DRENDER_LINE_STRIP:
+            [render_encoder drawPrimitives:MTLPrimitiveTypeLineStrip vertexStart:0 vertexCount:numVerts];
+            break;
 
-        switch ( primitive )
-        {
-            case J3DRENDER_TRIANGLES:
-            {
-                id<MTLBuffer> indices = [device newBufferWithBytes:aIndices
-                                                            length:numIndices * sizeof(uint16_t)
-                                                           options:MTLResourceStorageModeShared];
-                [render_encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                           indexCount:numIndices
-                                            indexType:MTLIndexTypeUInt16
-                                          indexBuffer:indices
-                                    indexBufferOffset:0];
-            } break;
-
-            case J3DRENDER_LINE_STRIP:
-                [render_encoder drawPrimitives:MTLPrimitiveTypeLineStrip vertexStart:0 vertexCount:numVerts];
-                break;
-
-            case J3DRENDER_POINTS:
-                [render_encoder drawPrimitives:MTLPrimitiveTypePoint vertexStart:0 vertexCount:numVerts];
-                break;
-        }
+        case J3DRENDER_POINTS:
+            [render_encoder drawPrimitives:MTLPrimitiveTypePoint vertexStart:0 vertexCount:numVerts];
+            break;
     }
+    return 0;
+}
+
+int J3DRender_CopySceneToBackBuffer(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize)
+{
+    if ( !render_bSceneNewer || render_encoder || !render_sceneColor || render_sceneColor.width != width
+        || render_sceneColor.height != height )
+    {
+        return 1;
+    }
+
+    J3DMetal_WaitForGPU();
+    [render_sceneColor getBytes:pPixels bytesPerRow:rowSize fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
+    render_bSceneNewer = 0;
     return 0;
 }
 

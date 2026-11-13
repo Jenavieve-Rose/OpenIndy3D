@@ -58,6 +58,11 @@ typedef enum J3DRenderPrimitive
 int J3DRender_Draw(J3DRenderPrimitive primitive, const J3DRenderVertex* aVerts, size_t numVerts,
     const uint16_t* aIndices, size_t numIndices);
 
+// When the scene texture holds a scene drawn since the last BeginScene, waits for the GPU and copies it into the back
+// buffer (32 bpp, the scene's size), so the CPU side sees the frame the GPU drew. 0 when copied, 1 when there was
+// nothing newer to copy. stdDisplay uses it before a screenshot (P2.17).
+int J3DRender_CopySceneToBackBuffer(uint8_t* pPixels, uint32_t width, uint32_t height, size_t rowSize);
+
 // Waits for the GPU and copies the scene texture (BGRA, the back buffer's size) into a malloc'd buffer the caller
 // frees. 0 on success. For tests and diagnostics.
 int J3DRender_ReadScene(uint8_t** ppPixels, uint32_t* pWidth, uint32_t* pHeight);

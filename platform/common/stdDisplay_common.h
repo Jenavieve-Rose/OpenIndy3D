@@ -32,6 +32,10 @@ void J3DDisplay_InitVideoMode(StdVideoMode* pMode, uint32_t width, uint32_t heig
 // The retail sort order of the mode list: by bpp, then width, then height. qsort comparator.
 int J3DDisplay_VideoModeCompare(const void* pMode1, const void* pMode2);
 
+// Supplied by the backend: brings the back buffer up to date with the frame on screen before SaveScreen reads it.
+// The headless display has nothing to do; the SDL display copies in a scene the renderer drew (P2.17).
+void J3DDisplay_PrepareScreenshot(void);
+
 // Makes stdDisplay_backBuffer a system-memory VBuffer in pMode's format and stdDisplay_frontBuffer a description of
 // the same raster with no pixels. 0 on success, 1 when out of memory.
 int J3DDisplay_CreateBackBuffer(const StdVideoMode* pMode);

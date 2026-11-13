@@ -302,6 +302,7 @@ int J3DAPI stdDisplay_BackBufferFill(uint32_t color, const StdRect* lpRect)
 
 int J3DAPI stdDisplay_SaveScreen(const char* pFilename)
 {
+    J3DDisplay_PrepareScreenshot();
     return stdBmp_WriteVBuffer(pFilename, &stdDisplay_backBuffer);
 }
 

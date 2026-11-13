@@ -672,9 +672,7 @@ that only miss NaN.
   `TEXTUREPERSPECTIVE` on). A vertex with rhw <= 0 is drawn with w = 1. Colours are unpacked from 0xAARRGGBB.
 - Depth outside 0 to 1 is clamped, not clipped (`MTLDepthClipModeClamp`): Direct3D 6 did not clip pre-transformed
   vertices on depth. Points are one pixel.
-- `J3DRender_Draw` draws indexed triangles, line strips or points into the open scene. Until the per-frame buffer
-  ring (P2.11) each draw allocates its own buffers, and nothing in `std3D` calls it yet: `DrawRenderList`,
-  `DrawLineStrip` and `DrawPointList` are wired in P2.11. `std3D_metal.c` checks at compile time that
+- `J3DRender_Draw` draws indexed triangles, line strips or points into the open scene (wired to `std3D` in P2.11). `std3D_metal.c` checks at compile time that
   `J3DRenderVertex` has `D3DTLVERTEX`'s layout, so rdroid's vertices can go to the GPU as they are.
 - A scene keeps the previous depth unless `std3D_ClearZBuffer` asked for a clear, as retail's did.
 - `tests/render.c` (apple, no game data, no window) draws into the scene texture and reads it back
@@ -682,3 +680,24 @@ that only miss NaN.
   orders and at equal depth, a depth clear inside a scene, the alpha test and blending, perspective-correct
   interpolation against the exact formula, depth clamping, and lines and points. It fails without the half-pixel
   shift (5 checks) and without the multiply by w (3 checks); both tried.
+
+### Geometry (P2.11)
+
+- `std3D_DrawRenderList`, `std3D_DrawLineStrip` and `std3D_DrawPointList` keep the retail checks (more vertices
+  than `std3D_maxVertices` is an error and draws nothing) and order (`DrawRenderList` sets the render state first), and
+  hand rdroid's `D3DTLVERTEX` arrays to `J3DRender_Draw` unchanged. The texture argument is ignored until P2.12, so
+  everything draws with its vertex colours (rdroid's lighting).
+- Vertex and index data go into one shared buffer per scene, appended draw by draw, 16-byte aligned. rdCache flushes
+  a batch whenever it nears 512 indices, so a frame is a few hundred small draws; one allocation per draw would not
+  do. `BeginScene` already waits for the GPU, so the arena starts over at every scene. A scene that outgrows it
+  (4 MB; a level frame uses far less) continues in a buffer twice the size, and the command buffer keeps the old one
+  alive until it completes. The plan called for a ring of per-frame buffers; with the wait at `BeginScene` a single
+  arena is enough.
+- Screenshots (P2.17, needed here to look at the result): `stdDisplay_SaveScreen` first calls the backend's
+  `J3DDisplay_PrepareScreenshot`; the SDL display copies a scene drawn since the last `BeginScene` from the scene
+  texture into the back buffer (`J3DRender_CopySceneToBackBuffer`), so `--screenshot-at` and the game's own screenshot
+  key capture what the GPU drew. Headless runs render offscreen, so this works with `--headless` too.
+- Checked: frame 300 of `00_cyn` (`jones3d --headless --frames 300 --screenshot-at 300`) shows the canyon's
+  geometry, Gouraud-lit, untextured, with walls in front of each other correctly. The `render` test gained a scene of
+  50,000 draws (past the arena's 4 MB) whose last draw must land, and a scene after it. `boot-sdl`, which now draws
+  every frame, still writes the same autosave as `boot`.

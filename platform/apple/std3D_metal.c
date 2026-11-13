@@ -11,8 +11,9 @@
  *   - the texture formats: 32 bpp BGRA, with alpha for the alpha formats and without for RGB, as the null backend
  *     reported them, which the material loader already converts to
  *
- * Not yet, and doing nothing until their step: drawing (DrawRenderList, DrawLineStrip, DrawPointList; P2.11),
- * textures and the texture cache (P2.12), render states and the mipmap filter (P2.13), fog (P2.14), the projection
+ * P2.11: DrawRenderList, DrawLineStrip and DrawPointList.
+ *
+ * Not yet, and doing nothing until their step: textures and the texture cache (P2.12), render states and the mipmap filter (P2.13), fog (P2.14), the projection
  * (P2.15) and wireframe (P2.16). Each returns what the null backend returned.
  */
 #include <stddef.h>
@@ -234,6 +235,54 @@ void J3DAPI std3D_ClearZBuffer(void)
     }
 }
 
+/* ---- Drawing (P2.11) ---------------------------------------------------------------------------------------------- */
+
+// The retail functions' checks and order; the Direct3D draw becomes J3DRender_Draw. rdroid's vertices go as they are.
+void J3DAPI std3D_DrawRenderList(LPDIRECT3DTEXTURE2 pTex, Std3DRenderState rdflags, LPD3DTLVERTEX aVerts, size_t numVerts, LPWORD aIndices, size_t numIndices)
+{
+    if ( numVerts > std3D_maxVertices )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error %d > %d maxVertices.\n", (int)numVerts, (int)std3D_maxVertices, 0, 0);
+        return;
+    }
+
+    std3D_SetRenderState(rdflags);
+    (void)pTex; // the texture: P2.12
+
+    if ( J3DRender_Draw(J3DRENDER_TRIANGLES, (const J3DRenderVertex*)aVerts, numVerts, aIndices, numIndices) )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error DrawPrim.\n", 0, 0, 0, 0);
+    }
+}
+
+void J3DAPI std3D_DrawLineStrip(LPD3DTLVERTEX aVerts, size_t numVerts)
+{
+    if ( numVerts > std3D_maxVertices )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error %d > %d maxVertices.\n", (int)numVerts, (int)std3D_maxVertices, 0, 0);
+        return;
+    }
+
+    if ( J3DRender_Draw(J3DRENDER_LINE_STRIP, (const J3DRenderVertex*)aVerts, numVerts, NULL, 0) )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error DrawPrim.\n", 0, 0, 0, 0);
+    }
+}
+
+void J3DAPI std3D_DrawPointList(LPD3DTLVERTEX aVerts, size_t numVerts)
+{
+    if ( numVerts > std3D_maxVertices )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error %d > %d maxVertices.\n", (int)numVerts, (int)std3D_maxVertices, 0, 0);
+        return;
+    }
+
+    if ( J3DRender_Draw(J3DRENDER_POINTS, (const J3DRenderVertex*)aVerts, numVerts, NULL, 0) )
+    {
+        stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error DrawPrim.\n", 0, 0, 0, 0);
+    }
+}
+
 /* ---- Display environment (the retail bodies) ---------------------------------------------------------------------- */
 
 StdDisplayEnvironment* J3DAPI std3D_BuildDisplayEnvironment(void)
@@ -369,21 +418,6 @@ void J3DAPI std3D_FreeDisplayEnvironment(StdDisplayEnvironment* pEnv)
 }
 
 /* ---- Not yet: each returns what the null backend returned until its step ---------------------------------------- */
-
-void J3DAPI std3D_DrawRenderList(LPDIRECT3DTEXTURE2 pTex, Std3DRenderState rdflags, LPD3DTLVERTEX aVerts, size_t numVerts, LPWORD aIndices, size_t numIndices)
-{
-    (void)pTex; (void)rdflags; (void)aVerts; (void)numVerts; (void)aIndices; (void)numIndices; // P2.11
-}
-
-void J3DAPI std3D_DrawLineStrip(LPD3DTLVERTEX aVerts, size_t numVerts)
-{
-    (void)aVerts; (void)numVerts; // P2.11
-}
-
-void J3DAPI std3D_DrawPointList(LPD3DTLVERTEX aVerts, size_t numVerts)
-{
-    (void)aVerts; (void)numVerts; // P2.11
-}
 
 void J3DAPI std3D_SetRenderState(Std3DRenderState rdflags)
 {

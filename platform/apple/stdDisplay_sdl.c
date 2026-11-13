@@ -40,6 +40,7 @@
 #include <std/Win95/stdWin95.h>
 
 #include <platform/apple/display_metal.h>
+#include <platform/apple/render_metal.h>
 #include <platform/common/host_clock.h>
 #include <platform/common/stdDisplay_common.h>
 
@@ -405,4 +406,15 @@ int J3DAPI stdDisplay_GetTotalMemory(size_t* pTotal, size_t* pFree)
 {
     J3DMetal_GetMemory(pTotal, pFree);
     return 0;
+}
+
+void J3DDisplay_PrepareScreenshot(void)
+{
+    // Retail's renderer drew into the back buffer itself; the port's draws into a scene texture (render_metal.h), so a
+    // frame the renderer drew is copied back first.
+    if ( stdDisplay_bModeSet )
+    {
+        J3DRender_CopySceneToBackBuffer(stdDisplay_backBuffer.pPixels, stdDisplay_backBuffer.rasterInfo.width,
+            stdDisplay_backBuffer.rasterInfo.height, stdDisplay_backBuffer.rasterInfo.rowSize);
+    }
 }

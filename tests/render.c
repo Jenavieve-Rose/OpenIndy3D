@@ -8,6 +8,7 @@
  *   - perspective-correct interpolation from rhw
  *   - depth outside 0 to 1 is clamped, not clipped
  *   - line strips and points land on the pixels named
+ *   - a scene larger than the per-scene vertex arena (P2.11)
  * Needs no game data and no window. Exit status: the number of failed checks.
  */
 #include <math.h>
@@ -175,6 +176,20 @@ int main(void)
     CHECK(render_Pixel(50, 50) == 0x00FF00 && render_Pixel(52, 50) == 0x00FF00 && render_Pixel(51, 50) == 0,
         "points at (50,50) and (52,50): %06X %06X, between %06X", render_Pixel(50, 50), render_Pixel(52, 50),
         render_Pixel(51, 50));
+
+    // A scene larger than the 4 MB vertex and index arena: 50,000 draws of about 140 bytes each, the last one white.
+    // Every draw must land, and the scene after it must start over in the arena.
+    render_Begin();
+    for ( int i = 0; i < 50000; ++i )
+    {
+        render_Quad(60, 60, 64, 64, 0.5f, i == 49999 ? 0xFFFFFFFF : 0xFF000000 | (uint32_t)i);
+    }
+    render_EndAndRead();
+    CHECK(render_Pixel(62, 62) == 0xFFFFFF, "the last of 50,000 draws: %06X", render_Pixel(62, 62));
+    render_Begin();
+    render_Quad(0, 0, 4, 4, 0.5f, 0xFF123456);
+    render_EndAndRead();
+    CHECK(render_Pixel(1, 1) == 0x123456, "the scene after the overflow: %06X", render_Pixel(1, 1));
 
     free(render_pScene);
     J3DRender_Close();

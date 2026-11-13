@@ -171,3 +171,8 @@ int J3DAPI stdDisplay_GetTotalMemory(size_t* pTotal, size_t* pFree)
     *pFree  = HEADLESS_VIDEO_MEMORY;
     return 0;
 }
+
+void J3DDisplay_PrepareScreenshot(void)
+{
+    // Nothing draws anywhere but the back buffer.
+}
