@@ -66,6 +66,7 @@
 #include <w32util/wuRegistry.h>
 
 #ifdef J3D_PORT
+#include <platform/common/host_dirs.h>
 #include <platform/common/host_path.h>
 #endif
 #include <wkernel/wkernel.h>
@@ -1057,7 +1058,16 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
 
         case JONES_OUTPUTMODE_LOGFILE:
         {
+#ifdef J3D_PORT
+            // Port: in the log folder (~/Library/Logs/J3DPort/, host_dirs.h), not the current directory
+            {
+                char aLogPath[1024];
+                snprintf(aLogPath, sizeof(aLogPath), "%s%s", J3DHost_GetLogDir(), "JonesLog.txt");
+                JonesMain_pLogFile = fopen(aLogPath, "w+"); // TODO: Add check for case when fopen fails
+            }
+#else
             JonesMain_pLogFile = fopen("JonesLog.txt", "w+"); // TODO: Add check for case when fopen fails
+#endif
             switch ( JonesMain_state.logLevel )
             {
                 case JONES_LOGLEVEL_VERBOSE:
@@ -2868,12 +2878,21 @@ size_t J3DAPI JonesMain_GetCurrentLevelNum(void)
 
 void J3DAPI JonesMain_LogErrorToFile(const char* pErrorText)
 {
+#ifdef J3D_PORT
+    char curFilePath[1024]; // Port: a full host path to the log folder
+#else
     char curFilePath[128];
+#endif
     const char* pFilename = jonesString_GetString("JONES_STR_ERRORFILE");
     size_t pathLen;
     char aInstallPath[128];
 
     memset(curFilePath, 0, sizeof(curFilePath));
+#ifdef J3D_PORT
+    // Port: in the log folder (~/Library/Logs/J3DPort/, host_dirs.h). Retail wrote it into the install folder.
+    (void)pathLen; (void)aInstallPath;
+    snprintf(curFilePath, sizeof(curFilePath), "%s%s", J3DHost_GetLogDir(), pFilename ? pFilename : "JonesError.txt");
+#else
     if ( !pFilename )
     {
         sprintf(curFilePath, ".\\\\%s", "JonesError.txt");
@@ -2896,6 +2915,7 @@ void J3DAPI JonesMain_LogErrorToFile(const char* pErrorText)
             sprintf(curFilePath, "%s%s", aInstallPath, pFilename);
         }
     }
+#endif
 
     if ( pErrorText && strlen(pErrorText) > 0 )
     {

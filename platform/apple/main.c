@@ -15,6 +15,8 @@
 
 #include <Windows.h>
 
+#include <platform/common/host_dirs.h>
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd);
 
 int main(int argc, char** argv)
@@ -70,6 +72,9 @@ int main(int argc, char** argv)
         }
         strcat(pCmdLine, argv[i]);
     }
+
+    // Saves, screenshots and keysets go to a folder of the user's, never the game data (host_dirs.h).
+    J3DHost_PrepareUserDirs();
 
     int result = WinMain(NULL, NULL, pCmdLine, SW_SHOWNORMAL);
     free(pCmdLine);

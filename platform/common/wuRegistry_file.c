@@ -14,9 +14,13 @@
  * J3D_REG_Start_Mode=2), then the file, then derived defaults (below), then the caller's default.
  *
  * Game data root. "Data Root" names the folder holding RESOURCE/ (the player's install, or the DREAMM copy). It comes
- * from J3D_DATA (main.c sets it from --data), or from the file. When set, it supplies the defaults for the three path
- * values JonesMain and JonesFile read: "Source Dir" (the CD root; JonesFile appends "resource"), "User Path" and
- * "Install Path" (the install root). The defaults end in '/', as the engine concatenates onto them.
+ * from J3D_DATA (main.c sets it from --data), or from the file. When set, it supplies the defaults for the two path
+ * values JonesMain and JonesFile read from: "Source Dir" (the CD root; JonesFile appends "resource") and "User Path"
+ * (the install root). The defaults end in '/', as the engine concatenates onto them.
+ *
+ * "Install Path" is the one the engine writes under (SaveGames/, ScreenShots/, KeySets/). Retail kept it in the game
+ * folder; the port defaults it to ~/Library/Application Support/J3DPort/ (host_dirs.h), so nothing is written into the
+ * player's game data.
  *
  * Until the GUI exists (Phase 6), three values default so a headless run gets past the parts that need it:
  *   "Start Mode" = 0 (start game). The engine's default, 2, opens the developer dialog.
@@ -32,6 +36,8 @@
 #include <unistd.h>
 
 #include <w32util/wuRegistry.h>
+
+#include <platform/common/host_dirs.h>
 
 #define WUREG_APPNAME   "J3DPort"
 #define WUREG_MAXLINE   1024
@@ -138,12 +144,17 @@ static int wuRegistry_GetDefaultInt(const char* pKey, int* pValue)
 
 static const char* wuRegistry_GetDefaultStr(const char* pKey)
 {
+    if ( strcasecmp(pKey, "Install Path") == 0 )
+    {
+        return J3DHost_GetUserDir(); // where saves, screenshots and keysets are written (PORT-PLAN.md P1.19)
+    }
+
     if ( !wuRegistry_aDataRoot[0] )
     {
         return NULL;
     }
 
-    if ( strcasecmp(pKey, "Source Dir") == 0 || strcasecmp(pKey, "User Path") == 0 || strcasecmp(pKey, "Install Path") == 0 )
+    if ( strcasecmp(pKey, "Source Dir") == 0 || strcasecmp(pKey, "User Path") == 0 )
     {
         return wuRegistry_aDataRoot;
     }
