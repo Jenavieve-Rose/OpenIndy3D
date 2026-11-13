@@ -20,19 +20,6 @@ void J3DAPI stdControl_Shutdown(void)
 {
 }
 
-int J3DAPI stdControl_Open(void)
-{
-    return (int)0;
-}
-
-void J3DAPI stdControl_Close(void)
-{
-}
-
-void J3DAPI stdControl_Reset(void)
-{
-}
-
 void J3DAPI stdControl_DisableReadJoysticks(void)
 {
 }
@@ -40,14 +27,6 @@ void J3DAPI stdControl_DisableReadJoysticks(void)
 int J3DAPI stdControl_EnableAxis(size_t axis)
 {
     return (int)0;
-}
-
-void J3DAPI stdControl_ReadControls(void)
-{
-}
-
-void J3DAPI stdControl_FinishRead(void)
-{
 }
 
 float J3DAPI stdControl_ReadAxis(size_t axis)
@@ -60,32 +39,12 @@ int J3DAPI stdControl_ReadAxisRaw(size_t axis)
     return (int)0;
 }
 
-float J3DAPI stdControl_ReadKeyAsAxis(size_t keyId)
-{
-    return 0.0f;
-}
-
 int J3DAPI stdControl_ReadAxisAsKey(size_t axis, int* pbPressed)
 {
     return (int)0;
 }
 
 int J3DAPI stdControl_ReadAxisAsKeyEx(size_t axis, int* pbPressed, float lowValue)
-{
-    return (int)0;
-}
-
-int J3DAPI stdControl_ReadKey(size_t keyNum, int* pbPressed)
-{
-    return (int)0;
-}
-
-int J3DAPI stdControl_ControlsActive(void)
-{
-    return (int)0;
-}
-
-int J3DAPI stdControl_SetActivation(int bActive)
 {
     return (int)0;
 }
@@ -114,11 +73,6 @@ void J3DAPI stdControl_SetMouseSensitivity(float xSensitivity, float ySensitivit
 
 void J3DAPI stdControl_ShowMouseCursor(int bShow)
 {
-}
-
-int J3DAPI stdControl_ControlsIdle(void)
-{
-    return (int)0;
 }
 
 int J3DAPI stdControl_TestAxisFlag(size_t axis, StdControlAxisFlag flags)

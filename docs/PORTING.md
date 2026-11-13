@@ -798,3 +798,21 @@ that only miss NaN.
   frame to show the scene with the grey quadrant on it (it fails without the sync on fills). Headless screenshots
   still show the rendered frame; `boot-sdl` and `boot` saves still match (the level-start autosave is taken before
   the first scene).
+
+### Temporary debug input (P2.18)
+
+- `platform/apple/stdControl_debug.c` is the keyboard half of `stdControl` read straight from SDL's keyboard state, so a
+  level can be walked before Phase 3. It is removed in P3.2, when `stdControl_sdl.c` replaces the whole module.
+- The generator writes the ten keyboard functions (`Open`, `Close`, `Reset`, `ReadControls`, `FinishRead`, `ReadKey`,
+  `ReadKeyAsAxis`, `ControlsActive`, `SetActivation`, `ControlsIdle`) to a file of their own,
+  `stdControl_keys_null.c` (the generator's new `SPLIT_FUNCTIONS`), which the apple build leaves out
+  (`J3D_APPLE_REPLACES_NULL`); the mouse, joystick and axis functions stay null.
+- The keys follow the retail model as far as the game's bindings need: state read once a frame, `ReadKey` reports a
+  key held and counts a press on the frame it went down, `ReadKeyAsAxis` reports 1 while held (retail: the share of the
+  frame it was held), and `ControlsIdle` as retail. Only some keys exist: arrows, Ctrl, Shift, Alt, Space, Return,
+  Escape, Tab, Backspace, the editing keys, letters, digits, F1 to F12. `Open` does not require `Startup` (still
+  null).
+- Headless runs never have a key down, so they stay deterministic: `boot-sdl`'s save still matches `boot`'s.
+- Checked: with a temporary local change holding the up arrow from frame 30, a headless run of `16_JEP` shows Indy at
+  frame 400 walked forward to the tent; the same run without it shows him where the level starts him. Keys in a real
+  window are checked by hand (scripted input is Phase 3).
