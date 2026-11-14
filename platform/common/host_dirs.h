@@ -19,6 +19,10 @@ const char* J3DHost_GetUserDir(void);
 // J3D_LOGS, or "~/Library/Logs/J3DPort/". Created on first call.
 const char* J3DHost_GetLogDir(void);
 
+// The game data root ("Data Root": the folder holding RESOURCE/), ending in '/', or "" when none is set. Valid once the
+// settings module has started. (wuRegistry_file.c)
+const char* J3DHost_GetDataRoot(void);
+
 // Creates pPath and every missing folder above it. Returns 0 on success.
 int J3DHost_MakeDirs(const char* pPath);
 

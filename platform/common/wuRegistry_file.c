@@ -318,6 +318,11 @@ static int wuRegistry_Store(void)
     return 0;
 }
 
+const char* J3DHost_GetDataRoot(void)
+{
+    return wuRegistry_aDataRoot;
+}
+
 // "Data Root" from J3D_DATA or the file, normalised to end in exactly one '/'.
 static void wuRegistry_ResolveDataRoot(void)
 {

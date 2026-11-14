@@ -64,6 +64,9 @@
 #include <platform/common/host_keys.h>
 #include <platform/common/host_record.h>
 #include <platform/common/host_screenshot.h>
+#include <platform/common/j3dgui/j3dgui.h>
+#include <platform/common/stdDisplay_common.h>
+#include <std/Win95/stdDisplay.h>
 
 #define WKERNEL_WINDOW_WIDTH  640
 #define WKERNEL_WINDOW_HEIGHT 480
@@ -737,8 +740,20 @@ static int wkernel_GetMessage(MSG* pMsg, int* pbExternal, int bWait)
     }
 }
 
+static int wkernel_IsInputMessage(UINT msg)
+{
+    return (msg >= WM_KEYFIRST && msg <= WM_KEYLAST) || (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST);
+}
+
 static void wkernel_DispatchMessage(const MSG* pMsg)
 {
+    // While a dialog is open its keyboard and mouse are its own (PORT-PLAN.md Phase 6); the rest still reaches the game.
+    if ( J3DGui_IsModalActive() && pMsg->hwnd == wkernel_hwnd && wkernel_IsInputMessage(pMsg->message) )
+    {
+        J3DGui_Input(pMsg->message, pMsg->wParam, pMsg->lParam);
+        return;
+    }
+
     // A message posted to no window (PostThreadMessage) or to a destroyed one reaches no window procedure.
     if ( pMsg->hwnd && pMsg->hwnd == wkernel_hwnd && wkernel_pWindow )
     {
@@ -949,6 +964,38 @@ void J3DAPI wkernel_SetWindowProc(WKERNELWNDPROC pfProc)
     wkernel_pfWndProc = pfProc;
 }
 
+/* ---- The dialog system's host (j3dgui.h) ---------------------------------------------------------------------------- */
+
+void J3DGuiHost_GetScreenSize(int* pWidth, int* pHeight)
+{
+    uint32_t w = 0;
+    uint32_t h = 0;
+    stdDisplay_GetBackBufferSize(&w, &h);
+    *pWidth = w ? (int)w : 640;
+    *pHeight = h ? (int)h : 480;
+}
+
+int J3DGuiHost_IsInteractive(void)
+{
+    // A headless run has nobody to answer; a replay must not wait for input the recording does not hold.
+    return !J3DDisplay_IsHeadless() && !J3DRecord_IsReplaying();
+}
+
+HWND J3DGuiHost_GameWindow(void)
+{
+    return wkernel_hwnd;
+}
+
+int J3DGuiHost_Pump(int bWait)
+{
+    return wkernel_Pump(bWait) || wkernel_bQuit;
+}
+
+void J3DGuiHost_Present(void)
+{
+    stdDisplay_Update();
+}
+
 int J3DAPI wkernel_PeekProcessEvents(void)
 {
     return wkernel_Pump(0);
@@ -969,8 +1016,11 @@ BOOL WINAPI PostMessageA(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return TRUE;
     }
 
-    // Only the game window has a queue here. Messages to dialog windows are the dialog system's (Phase 6); they are
-    // dropped, as the null platform drops them.
+    // The game window's queue is here; a dialog's is the dialog system's (Phase 6).
+    if ( J3DGui_IsWindow(hWnd) )
+    {
+        return J3DGui_PostMessage(hWnd, uMsg, wParam, lParam);
+    }
     if ( hWnd == wkernel_hwnd && wkernel_pWindow )
     {
         wkernel_QueueMessage(hWnd, uMsg, wParam, lParam, 0); // the game's own: not recorded

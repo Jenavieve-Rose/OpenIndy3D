@@ -743,6 +743,10 @@ typedef const DLGTEMPLATE* LPCDLGTEMPLATE, *LPCDLGTEMPLATEA;
 #define LVS_LIST         0x0003
 #define LVS_SINGLESEL    0x0004
 #define LVS_SHOWSELALWAYS 0x0008
+#define LVS_SHAREIMAGELISTS 0x0040
+#define LVS_NOLABELWRAP  0x0080
+#define LVS_ALIGNLEFT    0x0800
+#define LVS_NOSORTHEADER 0x8000
 #define LVS_EX_GRIDLINES 0x00000001
 #define LVS_EX_FULLROWSELECT 0x00000020
 #define LVS_EX_ONECLICKACTIVATE 0x00000040
@@ -869,6 +873,9 @@ typedef const DLGTEMPLATE* LPCDLGTEMPLATE, *LPCDLGTEMPLATEA;
 #define BS_AUTORADIOBUTTON 0x00000009L
 #define BS_OWNERDRAW     0x0000000BL
 #define BS_BITMAP        0x00000080L
+#define BS_GROUPBOX      0x00000007L
+#define BS_VCENTER       0x00000C00L
+#define BS_FLAT          0x00008000L
 #define SS_LEFT          0x00000000L
 #define SS_CENTER        0x00000001L
 #define SS_RIGHT         0x00000002L
@@ -876,6 +883,22 @@ typedef const DLGTEMPLATE* LPCDLGTEMPLATE, *LPCDLGTEMPLATEA;
 #define SS_BITMAP        0x0000000EL
 #define SS_OWNERDRAW     0x0000000DL
 #define SS_NOTIFY        0x00000100L
+#define SS_BLACKFRAME    0x00000007L
+#define SS_GRAYFRAME     0x00000008L
+#define SS_CENTERIMAGE   0x00000200L
+#define SS_REALSIZEIMAGE 0x00000800L
+#define SS_SUNKEN        0x00001000L
+#define CBS_SIMPLE       0x0001L
+#define CBS_DROPDOWN     0x0002L
+#define CBS_DROPDOWNLIST 0x0003L
+#define CBS_SORT         0x0100L
+#define LBS_NOTIFY       0x0001L
+#define LBS_SORT         0x0002L
+#define LBS_NOINTEGRALHEIGHT 0x0100L
+#define SBS_HORZ         0x0000L
+#define SBS_VERT         0x0001L
+#define SBS_LEFTALIGN    0x0002L
+#define TBS_AUTOTICKS    0x0001
 #define ES_LEFT          0x0000L
 #define ES_AUTOHSCROLL   0x0080L
 #define ES_READONLY      0x0800L
@@ -883,6 +906,10 @@ typedef const DLGTEMPLATE* LPCDLGTEMPLATE, *LPCDLGTEMPLATEA;
 #define DS_MODALFRAME    0x80L
 #define DS_SETFONT       0x40L
 #define DS_CENTER        0x0800L
+#define DS_ABSALIGN      0x01L
+#define DS_3DLOOK        0x0004L
+#define DS_SETFOREGROUND 0x0200L
+#define DS_CONTROL       0x0400L
 #define ODT_BUTTON       4
 #define ODT_STATIC       5
 #define ODT_LISTBOX      2
@@ -1301,6 +1328,7 @@ BOOL     WINAPI EnableWindow(HWND, BOOL);
 BOOL     WINAPI IsWindowEnabled(HWND);
 BOOL     WINAPI IsWindowVisible(HWND);
 BOOL     WINAPI IsWindow(HWND);
+BOOL     WINAPI IsChild(HWND, HWND);
 BOOL     WINAPI IsIconic(HWND);
 BOOL     WINAPI IsZoomed(HWND);
 BOOL     WINAPI MoveWindow(HWND, int, int, int, int, BOOL);
@@ -1546,6 +1574,346 @@ HRESULT WINAPI CoCreateInstance(REFCLSID, void*, DWORD, REFIID, LPVOID*);
 
 #ifdef __cplusplus
 }
+#endif
+
+
+/* ---- Added for the dialog system (PORT-PLAN.md Phase 6, platform/common/j3dgui): values as in the Windows SDK ---- */
+#ifndef WHEEL_DELTA
+#define WHEEL_DELTA 120
+#endif
+#ifndef COLOR_SCROLLBAR
+#define COLOR_SCROLLBAR 0
+#endif
+#ifndef COLOR_BACKGROUND
+#define COLOR_BACKGROUND 1
+#endif
+#ifndef COLOR_ACTIVECAPTION
+#define COLOR_ACTIVECAPTION 2
+#endif
+#ifndef COLOR_INACTIVECAPTION
+#define COLOR_INACTIVECAPTION 3
+#endif
+#ifndef COLOR_MENU
+#define COLOR_MENU 4
+#endif
+#ifndef COLOR_WINDOW
+#define COLOR_WINDOW 5
+#endif
+#ifndef COLOR_WINDOWFRAME
+#define COLOR_WINDOWFRAME 6
+#endif
+#ifndef COLOR_MENUTEXT
+#define COLOR_MENUTEXT 7
+#endif
+#ifndef COLOR_WINDOWTEXT
+#define COLOR_WINDOWTEXT 8
+#endif
+#ifndef COLOR_CAPTIONTEXT
+#define COLOR_CAPTIONTEXT 9
+#endif
+#ifndef COLOR_ACTIVEBORDER
+#define COLOR_ACTIVEBORDER 10
+#endif
+#ifndef COLOR_INACTIVEBORDER
+#define COLOR_INACTIVEBORDER 11
+#endif
+#ifndef COLOR_APPWORKSPACE
+#define COLOR_APPWORKSPACE 12
+#endif
+#ifndef COLOR_HIGHLIGHT
+#define COLOR_HIGHLIGHT 13
+#endif
+#ifndef COLOR_HIGHLIGHTTEXT
+#define COLOR_HIGHLIGHTTEXT 14
+#endif
+#ifndef COLOR_3DFACE
+#define COLOR_3DFACE 15
+#endif
+#ifndef COLOR_3DSHADOW
+#define COLOR_3DSHADOW 16
+#endif
+#ifndef COLOR_GRAYTEXT
+#define COLOR_GRAYTEXT 17
+#endif
+#ifndef COLOR_BTNTEXT
+#define COLOR_BTNTEXT 18
+#endif
+#ifndef COLOR_INACTIVECAPTIONTEXT
+#define COLOR_INACTIVECAPTIONTEXT 19
+#endif
+#ifndef COLOR_3DHILIGHT
+#define COLOR_3DHILIGHT 20
+#endif
+#ifndef COLOR_3DDKSHADOW
+#define COLOR_3DDKSHADOW 21
+#endif
+#ifndef COLOR_3DLIGHT
+#define COLOR_3DLIGHT 22
+#endif
+#ifndef COLOR_INFOTEXT
+#define COLOR_INFOTEXT 23
+#endif
+#ifndef COLOR_INFOBK
+#define COLOR_INFOBK 24
+#endif
+#ifndef DLGC_WANTARROWS
+#define DLGC_WANTARROWS 0x0001
+#endif
+#ifndef DLGC_WANTTAB
+#define DLGC_WANTTAB 0x0002
+#endif
+#ifndef DLGC_WANTALLKEYS
+#define DLGC_WANTALLKEYS 0x0004
+#endif
+#ifndef DLGC_WANTMESSAGE
+#define DLGC_WANTMESSAGE 0x0004
+#endif
+#ifndef DLGC_HASSETSEL
+#define DLGC_HASSETSEL 0x0008
+#endif
+#ifndef DLGC_DEFPUSHBUTTON
+#define DLGC_DEFPUSHBUTTON 0x0010
+#endif
+#ifndef DLGC_UNDEFPUSHBUTTON
+#define DLGC_UNDEFPUSHBUTTON 0x0020
+#endif
+#ifndef DLGC_RADIOBUTTON
+#define DLGC_RADIOBUTTON 0x0040
+#endif
+#ifndef DLGC_WANTCHARS
+#define DLGC_WANTCHARS 0x0080
+#endif
+#ifndef DLGC_STATIC
+#define DLGC_STATIC 0x0100
+#endif
+#ifndef DLGC_BUTTON
+#define DLGC_BUTTON 0x2000
+#endif
+#ifndef CLR_INVALID
+#define CLR_INVALID 0xFFFFFFFF
+#endif
+#ifndef GDI_ERROR
+#define GDI_ERROR 0xFFFFFFFFL
+#endif
+#ifndef WM_CANCELMODE
+#define WM_CANCELMODE 0x001F
+#endif
+#ifndef WM_NEXTDLGCTL
+#define WM_NEXTDLGCTL 0x0028
+#endif
+#ifndef WM_VKEYTOITEM
+#define WM_VKEYTOITEM 0x002E
+#endif
+#ifndef WM_CHARTOITEM
+#define WM_CHARTOITEM 0x002F
+#endif
+#ifndef WM_QUERYDRAGICON
+#define WM_QUERYDRAGICON 0x0037
+#endif
+#ifndef WM_COMPAREITEM
+#define WM_COMPAREITEM 0x0039
+#endif
+#ifndef WM_CAPTURECHANGED
+#define WM_CAPTURECHANGED 0x0215
+#endif
+#ifndef SS_NOPREFIX
+#define SS_NOPREFIX 0x00000080L
+#endif
+#ifndef SS_SIMPLE
+#define SS_SIMPLE 0x0000000BL
+#endif
+#ifndef SS_LEFTNOWORDWRAP
+#define SS_LEFTNOWORDWRAP 0x0000000CL
+#endif
+#ifndef SBM_SETPOS
+#define SBM_SETPOS 0x00E0
+#endif
+#ifndef SBM_GETPOS
+#define SBM_GETPOS 0x00E1
+#endif
+#ifndef SBM_SETRANGE
+#define SBM_SETRANGE 0x00E2
+#endif
+#ifndef SBM_GETRANGE
+#define SBM_GETRANGE 0x00E3
+#endif
+#ifndef SBM_SETRANGEREDRAW
+#define SBM_SETRANGEREDRAW 0x00E6
+#endif
+#ifndef SBM_SETSCROLLINFO
+#define SBM_SETSCROLLINFO 0x00E9
+#endif
+#ifndef SBM_GETSCROLLINFO
+#define SBM_GETSCROLLINFO 0x00EA
+#endif
+#ifndef MB_DEFBUTTON1
+#define MB_DEFBUTTON1 0x00000000L
+#endif
+#ifndef MB_DEFBUTTON2
+#define MB_DEFBUTTON2 0x00000100L
+#endif
+#ifndef MB_DEFBUTTON3
+#define MB_DEFBUTTON3 0x00000200L
+#endif
+#ifndef MB_DEFMASK
+#define MB_DEFMASK 0x00000F00L
+#endif
+#ifndef LVM_HITTEST
+#define LVM_HITTEST 0x1012
+#endif
+#ifndef LVHT_NOWHERE
+#define LVHT_NOWHERE 0x0001
+#endif
+#ifndef LVHT_ONITEM
+#define LVHT_ONITEM 0x000E
+#endif
+#ifndef LPSTR_TEXTCALLBACKA
+#define LPSTR_TEXTCALLBACKA ((LPSTR)-1L)
+#endif
+#ifndef ETO_OPAQUE
+#define ETO_OPAQUE 0x0002
+#endif
+#ifndef ETO_CLIPPED
+#define ETO_CLIPPED 0x0004
+#endif
+#ifndef DSTINVERT
+#define DSTINVERT 0x00550009
+#endif
+#ifndef SRCERASE
+#define SRCERASE 0x00440328
+#endif
+#ifndef NOTSRCCOPY
+#define NOTSRCCOPY 0x00330008
+#endif
+#ifndef MERGECOPY
+#define MERGECOPY 0x00C000CA
+#endif
+#ifndef BS_3STATE
+#define BS_3STATE 0x00000005L
+#endif
+#ifndef BS_AUTO3STATE
+#define BS_AUTO3STATE 0x00000006L
+#endif
+#ifndef HORZSIZE
+#define HORZSIZE 4
+#endif
+#ifndef VERTSIZE
+#define VERTSIZE 6
+#endif
+#ifndef TMPF_FIXED_PITCH
+#define TMPF_FIXED_PITCH 0x01
+#endif
+#ifndef TMPF_TRUETYPE
+#define TMPF_TRUETYPE 0x04
+#endif
+#ifndef TBM_GETTHUMBRECT
+#define TBM_GETTHUMBRECT 0x0419
+#endif
+#ifndef TBM_GETCHANNELRECT
+#define TBM_GETCHANNELRECT 0x041A
+#endif
+#ifndef TA_LEFT
+#define TA_LEFT 0
+#endif
+#ifndef TA_RIGHT
+#define TA_RIGHT 2
+#endif
+#ifndef TA_CENTER
+#define TA_CENTER 6
+#endif
+#ifndef TA_TOP
+#define TA_TOP 0
+#endif
+#ifndef TA_BOTTOM
+#define TA_BOTTOM 8
+#endif
+#ifndef TA_BASELINE
+#define TA_BASELINE 24
+#endif
+#ifndef ANSI_VAR_FONT
+#define ANSI_VAR_FONT 12
+#endif
+#ifndef SYSTEM_FONT
+#define SYSTEM_FONT 13
+#endif
+#ifndef SM_MOUSEPRESENT
+#define SM_MOUSEPRESENT 19
+#endif
+#ifndef SM_CYVSCROLL
+#define SM_CYVSCROLL 20
+#endif
+#ifndef SM_CXHSCROLL
+#define SM_CXHSCROLL 21
+#endif
+#ifndef SM_CMOUSEBUTTONS
+#define SM_CMOUSEBUTTONS 43
+#endif
+#ifndef SM_CXEDGE
+#define SM_CXEDGE 45
+#endif
+#ifndef SM_CYEDGE
+#define SM_CYEDGE 46
+#endif
+#ifndef SM_CXMAXIMIZED
+#define SM_CXMAXIMIZED 61
+#endif
+#ifndef SM_CYMAXIMIZED
+#define SM_CYMAXIMIZED 62
+#endif
+#ifndef RC_BITBLT
+#define RC_BITBLT 0x0001
+#endif
+#ifndef RC_DI_BITMAP
+#define RC_DI_BITMAP 0x0080
+#endif
+#ifndef RC_STRETCHBLT
+#define RC_STRETCHBLT 0x0800
+#endif
+#ifndef PS_NULL
+#define PS_NULL 5
+#endif
+#ifndef LVS_NOCOLUMNHEADER
+#define LVS_NOCOLUMNHEADER 0x4000
+#endif
+#ifndef GW_HWNDFIRST
+#define GW_HWNDFIRST 0
+#endif
+#ifndef GW_HWNDLAST
+#define GW_HWNDLAST 1
+#endif
+#ifndef GW_HWNDNEXT
+#define GW_HWNDNEXT 2
+#endif
+#ifndef GW_HWNDPREV
+#define GW_HWNDPREV 3
+#endif
+#ifndef GW_OWNER
+#define GW_OWNER 4
+#endif
+#ifndef GW_CHILD
+#define GW_CHILD 5
+#endif
+#ifndef EM_REPLACESEL
+#define EM_REPLACESEL 0x00C2
+#endif
+#ifndef DM_GETDEFID
+#define DM_GETDEFID 0x0400
+#endif
+#ifndef DC_HASDEFID
+#define DC_HASDEFID 0x534B
+#endif
+#ifndef CB_SETDROPPEDWIDTH
+#define CB_SETDROPPEDWIDTH 0x0160
+#endif
+#ifndef J3D_SHIM_LVHITTESTINFO
+#define J3D_SHIM_LVHITTESTINFO
+typedef struct tagLVHITTESTINFO
+{
+    POINT pt;
+    UINT flags;
+    int iItem;
+    int iSubItem;
+} LVHITTESTINFO, *LPLVHITTESTINFO;
 #endif
 
 #endif /* J3D_PLATFORM_WIN32_SHIM_GUI_H */

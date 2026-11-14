@@ -17,6 +17,10 @@
 
 #include <platform/common/host_screenshot.h>
 
+#include <platform/common/j3dgui/j3dgui.h>
+#include <platform/common/stdDisplay_common.h>
+#include <std/Win95/stdDisplay.h>
+
 #include "null_platform.h"
 
 static const GUID wkernel_guid = { 0x82CE4DA0, 0x9CBF, 0x11D1, { 0x90, 0x85, 0x00, 0x60, 0x97, 0x76, 0x0EA, 0x02 } };
@@ -100,4 +104,42 @@ int J3DAPI wkernel_PeekProcessEvents(void)
 int J3DAPI wkernel_ProcessEvents(void)
 {
     return wkernel_PumpNull();
+}
+
+/* ---- The dialog system's host (j3dgui.h) ---------------------------------------------------------------------------- */
+
+void J3DGuiHost_GetScreenSize(int* pWidth, int* pHeight)
+{
+    uint32_t w = 0;
+    uint32_t h = 0;
+    stdDisplay_GetBackBufferSize(&w, &h);
+    *pWidth = w ? (int)w : 640;
+    *pHeight = h ? (int)h : 480;
+}
+
+int J3DGuiHost_IsInteractive(void)
+{
+    return 0; // no window and no input: a dialog is dismissed unless a test drives it
+}
+
+HWND J3DGuiHost_GameWindow(void)
+{
+    return NULL;
+}
+
+int J3DGuiHost_Pump(int bWait)
+{
+    (void)bWait;
+    return wkernel_PumpNull();
+}
+
+void J3DGuiHost_Present(void)
+{
+    uint32_t w = 0;
+    uint32_t h = 0;
+    stdDisplay_GetBackBufferSize(&w, &h);
+    if ( w && h )
+    {
+        stdDisplay_Update();
+    }
 }

@@ -172,14 +172,14 @@ j3d_library(sith
 # ---------------------------------------------------------------------------------------------------------------------
 # Platform layer, as three libraries:
 #   platform_core   real implementations every build shares (CRT names, paths, settings, VBuffers, display queries
-#                   and back buffer)
+#                   and back buffer, the sound driver, INSANE's timer and audio, and j3dgui: the Win32 dialog emulation)
 #   platform_null   the generated null backends: every Windows-facing function exists and fails or does nothing;
 #                   plus the headless display device (stdDisplay_headless.c)
 #   platform_apple  the SDL3 and Metal backends (J3D_PLATFORM=apple), plus the null backends they do not yet replace
 # The engine libraries call into the platform and the platform calls back into them, so the platform is not a
 # dependency of jones3d_game: each executable links jones3d_game and exactly one of platform_null and platform_apple.
 # ---------------------------------------------------------------------------------------------------------------------
-file(GLOB J3D_PLATFORM_CORE_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/common/*.c)
+file(GLOB J3D_PLATFORM_CORE_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/common/*.c ${J3D_ROOT}/platform/common/j3dgui/*.c)
 add_library(platform_core STATIC ${J3D_PLATFORM_CORE_SOURCES})
 target_link_libraries(platform_core PUBLIC j3d_common)
 
@@ -197,6 +197,7 @@ if(J3D_PLATFORM STREQUAL "apple")
         std3D_null.c            # platform/apple/std3D_metal.c and render_metal.m (P2.9)
         stdControl_null.c       # platform/apple/stdControl_sdl.c (Phase 3)
         audio_device_null.c     # platform/apple/audio_device_avf.m (Phase 4, decision 19)
+        gui_text_null.c         # platform/apple/gui_text_ct.m, the dialogs' text through Core Text (Phase 6)
     )
     set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
     foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
@@ -215,6 +216,8 @@ if(J3D_PLATFORM STREQUAL "apple")
         "-framework Metal"
         "-framework QuartzCore"
         "-framework AVFAudio"
+        "-framework CoreText"
+        "-framework CoreGraphics"
     )
     target_compile_definitions(platform_apple PUBLIC J3D_PLATFORM_APPLE=1)
     # Objective-C files are compiled with ARC. The C-only warning switches in j3d_common apply to them unchanged.
@@ -297,6 +300,15 @@ set_tests_properties(keys PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
 j3d_executable(sounddriver platform_null ${J3D_ROOT}/tests/sounddriver.c)
 add_test(NAME sounddriver COMMAND sounddriver)
 set_tests_properties(sounddriver PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
+# dialogs: the Win32 dialog emulation on the game's templates, driven through input (Phase 6). The apple build links the
+# apple platform, so its BMP dumps (DIALOGS_DUMP) show Core Text; with game data its icons must come from Indy3D.exe.
+j3d_executable(dialogs platform_${J3D_PLATFORM} ${J3D_ROOT}/tests/dialogs.c ${J3D_ROOT}/tests/harness.c)
+if(J3D_TEST_DATA)
+    add_test(NAME dialogs COMMAND dialogs ${J3D_TEST_DATA})
+else()
+    add_test(NAME dialogs COMMAND dialogs)
+endif()
+set_tests_properties(dialogs PROPERTIES ENVIRONMENT "J3D_SETTINGS=/dev/null;${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
 j3d_executable(insaneasm platform_null ${J3D_ROOT}/tests/insaneasm.c)
 add_test(NAME insaneasm COMMAND insaneasm)
 set_tests_properties(insaneasm PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
