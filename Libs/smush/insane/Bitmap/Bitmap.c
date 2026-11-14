@@ -31,6 +31,11 @@ static LecList bitmap_list = { { NULL, &bitmap_list.tail }, { &bitmap_list.head,
 static LecModule bitmap_module = { bitmap_Register, bitmap_Unregister, bitmap_Startup, bitmap_Shutdown };
 static BitmapInterface bitmap_interface = { bitmap_Create, bitmap_CreateEx, bitmap_Destroy };
 
+// Port: retail's block is 8 bytes, the 0x54-byte header, then the pixels at 0x5C. On 64-bit the header holds pointers
+// and is 0x58 bytes, so at offset 8 it ran 4 bytes into the pixels. The pixels now start after the header, rounded up
+// to 16 (PORT-PLAN.md P5.1).
+#define BITMAP_PIXELS (((8 + sizeof(LecBitmapHeader)) + 15) & ~(size_t)15)
+
 /* written `= 0` in retail's .bss order (VC6 emits zero-initialised statics in declaration order) */
 static MemoryDebugInterface* bitmap_pMemory = NULL;
 static LecShare* bitmap_pShare = NULL;
@@ -109,19 +114,19 @@ static int bitmap_Create(LecBitmapHeader** ppBitmap, int width, int height, int 
             break;
         }
 #line 249
-        lec_Log("%s, line %s:  Type %d not supported", INSANE_FILE, __LINE__, type);
+        lec_Log("%s, line %d:  Type %d not supported", INSANE_FILE, __LINE__, type); // Port: %d, retail passed the line number to %s
         return -1;
     default:
 #line 255
-        lec_Log("%s, line %s:  Type %d not supported", INSANE_FILE, __LINE__, type);
+        lec_Log("%s, line %d:  Type %d not supported", INSANE_FILE, __LINE__, type); // Port: %d, retail passed the line number to %s
         return -1;
     }
     pitch = pixelSize * width;
 #line 259
-    pBlock = bitmap_pMemory->Alloc(pitch * height + nColors * 4 + 0x5C, INSANE_FILE, __LINE__);
+    pBlock = bitmap_pMemory->Alloc(pitch * height + nColors * 4 + (int)BITMAP_PIXELS, INSANE_FILE, __LINE__);
     if (pBlock != NULL) {
         *ppBitmap = (LecBitmapHeader*)(pBlock + 8);
-        pPixels = pBlock + 0x5C;
+        pPixels = pBlock + BITMAP_PIXELS; // Port: was 0x5C
         (*ppBitmap)->pPixels = pPixels;
         (*ppBitmap)->width = width;
         (*ppBitmap)->pitch = pitch;
@@ -242,10 +247,10 @@ static int bitmap_CreateEx(LecBitmapHeader** ppBitmap, int width, int height, in
         nColors = ((const int*)pFormat)[1];
     }
 #line 414
-    pBlock = bitmap_pMemory->Alloc(width * height * a5 + nColors * 4 + 0x5C, INSANE_FILE, __LINE__);
+    pBlock = bitmap_pMemory->Alloc(width * height * a5 + nColors * 4 + (int)BITMAP_PIXELS, INSANE_FILE, __LINE__);
     if (pBlock != NULL) {
         *ppBitmap = (LecBitmapHeader*)(pBlock + 8);
-        pPixels = pBlock + 0x5C;
+        pPixels = pBlock + BITMAP_PIXELS; // Port: was 0x5C
         (*ppBitmap)->pPixels = pPixels;
         (*ppBitmap)->width = width;
         pitch = width * a5;

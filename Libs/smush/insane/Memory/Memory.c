@@ -37,6 +37,25 @@ static void* memory_debugRealloc(void* pBlock, int size, const char* pFile, int 
 static int memory_Track(char* pRaw, int size, const char* pFile, int line, const char* pOp);
 static int memory_Check(char* pRaw, int size, const char* pFile, int line, const char* pOp);
 
+// Port: the debug allocator printed every request, with its address, to stdout, which retail's GUI process did not
+// have; here it would fill the terminal and make every run's output differ. It prints only with J3D_INSANE_MEMLOG set.
+#include <stdarg.h>
+static void memory_Print(const char* pFormat, ...)
+{
+    static int bVerbose = -1;
+    va_list args;
+
+    if (bVerbose < 0) {
+        const char* pValue = getenv("J3D_INSANE_MEMLOG");
+        bVerbose = pValue && *pValue && *pValue != '0';
+    }
+    if (bVerbose) {
+        va_start(args, pFormat);
+        vprintf(pFormat, args);
+        va_end(args);
+    }
+}
+
 static LecModule memory_module = { memory_Register, memory_Unregister, NULL, NULL };
 static MemoryInterface memory_plain = { malloc, free, realloc, NULL };
 static MemoryDebugInterface memory_debug = { memory_debugAlloc, memory_debugFree, memory_debugRealloc };
@@ -67,11 +86,11 @@ static void memory_Unregister(void)
     memory_pServices->Unpublish("MEMORY=insane");
     memory_pServices->Unpublish("LECMODULE=insane_memory");
     if (memory_list.head.pNext != &memory_list.tail) {
-        printf("\nMaximum Usage = %d\n", memory_maxTotal);
-        printf("\nRequest Summary\n\n");
+        memory_Print("\nMaximum Usage = %d\n", memory_maxTotal);
+        memory_Print("\nRequest Summary\n\n");
         while (memory_list.head.pNext != &memory_list.tail) {
             pRecord = (MemoryRecord*)memory_list.head.pNext;
-            printf("%-16s,\tline %4d:\t%8d bytes, [%p]\tstatus = %s\n", pRecord->pFile, pRecord->line, pRecord->size, pRecord->pBlock,
+            memory_Print("%-16s,\tline %4d:\t%8d bytes, [%p]\tstatus = %s\n", pRecord->pFile, pRecord->line, pRecord->size, pRecord->pBlock,
                 pRecord->refs > 0 ? "Unfreed" : pRecord->refs == 0 ? "Freed" : "Freed Twice");
             LecList_Remove(&pRecord->link);
             free(pRecord);
@@ -99,7 +118,7 @@ static int memory_Track(char* pRaw, int size, const char* pFile, int line, const
     if (memory_total > memory_maxTotal) {
         memory_maxTotal = memory_total;
     }
-    printf("%-16s,\tline %4d:\t%s %8d [%p] (usage = %d)\n", pFile, line, pOp, size, pRaw, memory_total);
+    memory_Print("%-16s,\tline %4d:\t%s %8d [%p] (usage = %d)\n", pFile, line, pOp, size, pRaw, memory_total);
     for (pRecord = (MemoryRecord*)memory_list.head.pNext; &pRecord->link != &memory_list.tail; pRecord = (MemoryRecord*)pRecord->link.pNext) {
         if (pRaw == pRecord->pBlock) {
             pRecord->refs++;
@@ -140,16 +159,16 @@ static int memory_Check(char* pRaw, int size, const char* pFile, int line, const
     for (pRecord = (MemoryRecord*)memory_list.head.pNext; &pRecord->link != &memory_list.tail; pRecord = (MemoryRecord*)pRecord->link.pNext) {
         if (pRaw == pRecord->pBlock) {
             if (--pRecord->refs < 0) {
-                printf("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  %s FREE TWICE!!\n", pFile, line, pOp, size, pRaw, memory_total,
+                memory_Print("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  %s FREE TWICE!!\n", pFile, line, pOp, size, pRaw, memory_total,
                     bad ? "OVERWRITTEN!!" : "");
                 return -1;
             }
-            printf("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  %s \n", pFile, line, pOp, size, pRaw, memory_total,
+            memory_Print("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  %s \n", pFile, line, pOp, size, pRaw, memory_total,
                 bad ? "OVERWRITTEN!!" : "");
             return 0;
         }
     }
-    printf("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  FREEING INVALID CHUNK!\n", pFile, line, pOp, size, pRaw, memory_total);
+    memory_Print("%-16s,\tline %4d:\t%s  %8d [%p] (usage = %d)  FREEING INVALID CHUNK!\n", pFile, line, pOp, size, pRaw, memory_total);
     return -2;
 }
 

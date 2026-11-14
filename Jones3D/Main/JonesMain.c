@@ -2389,7 +2389,14 @@ int J3DAPI JonesMain_PlayIntroMovie(void)
     {
         JonesMain_introVideoMode = 3;
     }
-    else if ( 0 == memcmp(&cfBGR8888, &videoMode.rasterInfo.colorInfo, colorInfoSize) || 0 == memcmp(&cfRGB8888, &videoMode.rasterInfo.colorInfo, colorInfoSize) )
+    else if ( 0 == memcmp(&cfBGR8888, &videoMode.rasterInfo.colorInfo, colorInfoSize) || 0 == memcmp(&cfRGB8888, &videoMode.rasterInfo.colorInfo, colorInfoSize)
+#ifdef J3D_PORT
+        // Port: the port's display is 32-bit RGB with no alpha channel (stdDisplay_common.c), which matches none of
+        // the six formats above, so retail would play nothing. Any 32-bit RGB mode takes this path: the table below
+        // encodes each 565 pixel for the current mode (PORT-PLAN.md P5.10).
+        || (videoMode.rasterInfo.colorInfo.colorMode == STDCOLOR_RGB && videoMode.rasterInfo.colorInfo.bpp == 32)
+#endif
+        )
     {
         JonesMain_introVideoMode = 4;
 #line 2632
@@ -2500,6 +2507,18 @@ void J3DAPI JonesMain_IntroHandleWMKeydown(HWND hwnd, WPARAM vk, int a3, int rep
             return;
     }
 }
+
+#ifdef J3D_PORT
+// Port: the bitmap the blitters receive is INSANE's LecBitmapHeader, read through SmushBitmap; the two must agree on
+// 64-bit too (SmushBitmap's pitch was a size_t, P5.1).
+#include <smush/insane/Bitmap/Bitmap.h>
+_Static_assert(offsetof(SmushBitmap, width) == offsetof(LecBitmapHeader, width), "SmushBitmap layout");
+_Static_assert(offsetof(SmushBitmap, height) == offsetof(LecBitmapHeader, height), "SmushBitmap layout");
+_Static_assert(offsetof(SmushBitmap, pixelSize) == offsetof(LecBitmapHeader, pixelSize), "SmushBitmap layout");
+_Static_assert(offsetof(SmushBitmap, pitch) == offsetof(LecBitmapHeader, pitch), "SmushBitmap layout");
+_Static_assert(offsetof(SmushBitmap, colorMode) == offsetof(LecBitmapHeader, colorMode), "SmushBitmap layout");
+_Static_assert(offsetof(SmushBitmap, format) == offsetof(LecBitmapHeader, format), "SmushBitmap layout");
+#endif
 
 int J3DAPI JonesMain_IntroMovieBlt565(const SmushBitmap* pBitmap, int a2)
 {
@@ -2721,6 +2740,64 @@ int J3DAPI JonesMain_IntroMovieBlt32(const SmushBitmap* pBitmap, int a2)
     
 
     lockResult = stdDisplay_LockBackBuffer(&pSurface, &width, &height, &pitch);
+
+#ifdef J3D_PORT
+    // Port: the movie keeps its shape. Retail stretched it over the back buffer, which on its 4:3 modes is the same
+    // thing; on a wide mode it would be distorted, so the picture is scaled into the largest rectangle of the movie's
+    // shape, centred, with black bars (nearest neighbour, as retail). PORT-PLAN.md P5.10.
+    if ( lockResult != 0 )
+    {
+        width = height = 0; // retail went on with the unset sizes
+    }
+
+    if ( pBitmap->width && pBitmap->height && width && height )
+    {
+        const uint32_t black = ((uint32_t*)JonesMain_aIntroMovieColorTable)[0];
+        uint32_t picW = width;
+        uint32_t picH = height;
+        uint32_t x;
+        uint32_t y;
+
+        if ( (uint64_t)width * pBitmap->height > (uint64_t)height * pBitmap->width )
+        {
+            picW = (uint32_t)((uint64_t)height * pBitmap->width / pBitmap->height);
+        }
+        else
+        {
+            picH = (uint32_t)((uint64_t)width * pBitmap->height / pBitmap->width);
+        }
+
+        const uint32_t left = (width - picW) / 2;
+        const uint32_t top  = (height - picH) / 2;
+        for ( y = 0; y < height; ++y )
+        {
+            pCurPixelOut = (uint32_t*)((uint8_t*)pSurface + (size_t)y * pitch);
+            if ( y < top || y >= top + picH )
+            {
+                for ( x = 0; x < width; ++x )
+                {
+                    pCurPixelOut[x] = black;
+                }
+                continue;
+            }
+
+            pPixels = (uint8_t*)pBitmap->pPixels + (size_t)((uint64_t)(y - top) * pBitmap->height / picH) * pBitmap->pitch;
+            for ( x = 0; x < width; ++x )
+            {
+                if ( x < left || x >= left + picW )
+                {
+                    pCurPixelOut[x] = black;
+                    continue;
+                }
+
+                pCurPixelIn = pPixels + (size_t)((uint64_t)(x - left) * pBitmap->width / picW) * pBitmap->pixelSize;
+                pCurPixelOut[x] = *(uint32_t*)&JonesMain_aIntroMovieColorTable[4 * *(uint16_t*)pCurPixelIn];
+            }
+        }
+
+        height = 0; // the retail loop below has nothing left to do
+    }
+#endif
 
     pRow = (uint8_t*)pSurface;
     pPixels = (uint8_t*)pBitmap->pPixels;

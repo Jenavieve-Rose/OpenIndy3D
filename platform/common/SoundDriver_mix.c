@@ -36,6 +36,7 @@
 #include <std/General/stdMath.h>
 
 #include <platform/common/host_audio.h>
+#include <platform/common/sound_stream.h>
 
 #include <errno.h>
 #include <math.h>
@@ -43,6 +44,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <Windows.h> // timeGetTime, Sleep (crt_posix.c)
 
 #define SOUNDDRIVER_FARVOLUMETHRESHOLD 0.01
@@ -140,6 +142,18 @@ static int SoundDriver_bListenerVelGiven = 0;  // the game passed a velocity (it
 static rdVector3 SoundDriver_prevListenerPos = { 0 };
 static uint32_t SoundDriver_prevListenerTime = 0;
 static int SoundDriver_bHasPrevListener = 0;
+
+// The movie stream (sound_stream.h, P5.9). Under SoundDriver_lock.
+static struct
+{
+    int bOpen;
+    uint32_t rate;
+    uint64_t written;          // frames
+    double renderPosition;     // frames the device has consumed (with a device)
+    uint64_t openTimeNs;       // host monotonic time when opened (without one)
+    float gain;
+    int16_t aRing[J3DSOUNDSTREAM_CAPACITY * 2];
+} SoundDriver_stream;
 
 static const int SoundDriver_aDBTable[256] = {
     -9640, -4810, -4210, -3850, -3600, -3410, -3250, -3120, -3000, -2900, -2810, -2730, -2650, -2580, -2520, -2460,
@@ -1328,6 +1342,126 @@ static void SoundDriver_MixVoice(SoundVoice* pVoice, float* pLeft, float* pRight
     pVoice->renderPosition = pos;
 }
 
+/* ---- The movie stream (sound_stream.h, PORT-PLAN.md P5.9) ---------------------------------------------------------- */
+
+static uint64_t SoundDriver_HostNs(void)
+{
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (uint64_t)now.tv_sec * 1000000000u + (uint64_t)now.tv_nsec;
+}
+
+// The play cursor. Caller holds the lock.
+static uint64_t SoundDriver_StreamPlayed(void)
+{
+    if ( SoundDriver_bHasDevice )
+    {
+        return (uint64_t)SoundDriver_stream.renderPosition;
+    }
+
+    // no device: real time at the stream's rate
+    return (SoundDriver_HostNs() - SoundDriver_stream.openTimeNs) * SoundDriver_stream.rate / 1000000000u;
+}
+
+void J3DSoundStream_Open(uint32_t sampleRate)
+{
+    pthread_mutex_lock(&SoundDriver_lock);
+    SoundDriver_stream.bOpen          = 1;
+    SoundDriver_stream.rate           = sampleRate ? sampleRate : 22050;
+    SoundDriver_stream.written        = 0;
+    SoundDriver_stream.renderPosition = 0.0;
+    SoundDriver_stream.openTimeNs     = SoundDriver_HostNs();
+    SoundDriver_stream.gain           = 1.0f;
+    pthread_mutex_unlock(&SoundDriver_lock);
+}
+
+void J3DSoundStream_Close(void)
+{
+    pthread_mutex_lock(&SoundDriver_lock);
+    SoundDriver_stream.bOpen = 0;
+    pthread_mutex_unlock(&SoundDriver_lock);
+}
+
+uint64_t J3DSoundStream_GetPlayed(void)
+{
+    uint64_t played;
+    pthread_mutex_lock(&SoundDriver_lock);
+    played = SoundDriver_stream.bOpen ? SoundDriver_StreamPlayed() : 0;
+    pthread_mutex_unlock(&SoundDriver_lock);
+    return played;
+}
+
+uint64_t J3DSoundStream_GetWritten(void)
+{
+    uint64_t written;
+    pthread_mutex_lock(&SoundDriver_lock);
+    written = SoundDriver_stream.written;
+    pthread_mutex_unlock(&SoundDriver_lock);
+    return written;
+}
+
+void J3DSoundStream_Write(const int16_t* pFrames, uint32_t frameCount)
+{
+    uint64_t played;
+    uint32_t i;
+
+    pthread_mutex_lock(&SoundDriver_lock);
+    if ( SoundDriver_stream.bOpen )
+    {
+        played = SoundDriver_StreamPlayed();
+        if ( SoundDriver_stream.written < played )
+        {
+            SoundDriver_stream.written = played; // underrun: what was missed is gone, as with a looping buffer
+        }
+
+        for ( i = 0; i < frameCount; ++i )
+        {
+            size_t slot = (size_t)((SoundDriver_stream.written + i) % J3DSOUNDSTREAM_CAPACITY);
+            SoundDriver_stream.aRing[2 * slot]     = pFrames[2 * i];
+            SoundDriver_stream.aRing[2 * slot + 1] = pFrames[2 * i + 1];
+        }
+
+        SoundDriver_stream.written += frameCount;
+    }
+    pthread_mutex_unlock(&SoundDriver_lock);
+}
+
+void J3DSoundStream_SetGain(float gain)
+{
+    pthread_mutex_lock(&SoundDriver_lock);
+    SoundDriver_stream.gain = gain;
+    pthread_mutex_unlock(&SoundDriver_lock);
+}
+
+// Adds the stream to the stereo bus at the device's rate: linear interpolation between source frames, silence past
+// what was written. The cursor advances either way. Caller holds the lock.
+static void SoundDriver_MixStream(float* pLeft, float* pRight, uint32_t frameCount, float gain)
+{
+    const double step = (double)SoundDriver_stream.rate / (double)SoundDriver_outputRate;
+    const uint64_t written = SoundDriver_stream.written;
+    double pos = SoundDriver_stream.renderPosition;
+    uint32_t i;
+
+    for ( i = 0; i < frameCount; ++i )
+    {
+        uint64_t frame = (uint64_t)pos;
+        if ( frame < written && gain != 0.0f )
+        {
+            size_t a    = (size_t)(frame % J3DSOUNDSTREAM_CAPACITY);
+            size_t b    = frame + 1 < written ? (size_t)((frame + 1) % J3DSOUNDSTREAM_CAPACITY) : a;
+            float  frac = (float)(pos - (double)frame);
+            float  l    = SoundDriver_stream.aRing[2 * a] + (SoundDriver_stream.aRing[2 * b] - SoundDriver_stream.aRing[2 * a]) * frac;
+            float  r    = SoundDriver_stream.aRing[2 * a + 1] + (SoundDriver_stream.aRing[2 * b + 1] - SoundDriver_stream.aRing[2 * a + 1]) * frac;
+            pLeft[i]  += l * gain;
+            pRight[i] += r * gain;
+        }
+
+        pos += step;
+    }
+
+    SoundDriver_stream.renderPosition = pos;
+}
+
 // The stereo bus: every rendering voice without a 3D slot, with DirectSound's volume and pan as gains.
 static void SoundDriver_Render(float* pLeft, float* pRight, uint32_t frameCount, void* pUser)
 {
@@ -1356,6 +1490,11 @@ static void SoundDriver_Render(float* pLeft, float* pRight, uint32_t frameCount,
         }
 
         SoundDriver_MixVoice(pVoice, pLeft, pRight, frameCount, gainLeft, gainRight);
+    }
+
+    if ( SoundDriver_stream.bOpen )
+    {
+        SoundDriver_MixStream(pLeft, pRight, frameCount, bFocused ? SoundDriver_stream.gain * scale : 0.0f);
     }
     pthread_mutex_unlock(&SoundDriver_lock);
 }

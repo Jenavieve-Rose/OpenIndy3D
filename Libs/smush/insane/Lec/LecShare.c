@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include "../lec.h"
 #include "LecShare.h"
 
@@ -559,7 +560,20 @@ void lec_Log(const char* pFormat, ...)
     va_list args;
 
     va_start(args, pFormat);
+#ifdef J3D_PORT
+    // Port: bounded (a message with a long path overran the 200-byte slot); with J3D_INSANE_LOG set every message is
+    // also printed to stderr, the only way to see INSANE's start-up and stream errors
+    vsnprintf(lec_ring[lec_ringNext], sizeof(lec_ring[0]), pFormat, args);
+    va_end(args);
+    {
+        const char* pValue = getenv("J3D_INSANE_LOG");
+        if (pValue && *pValue && *pValue != '0') {
+            fprintf(stderr, "INSANE: %s\n", lec_ring[lec_ringNext]);
+        }
+    }
+#else
     vsprintf(lec_ring[lec_ringNext], pFormat, args);
+#endif
     if (lec_ringNext == 19) {
         lec_ringNext = 0;
     }

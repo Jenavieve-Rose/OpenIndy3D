@@ -7,6 +7,8 @@
  *
  */
 #include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include "../File/Framestream.h"
 #include "Decode.h"
 
@@ -113,7 +115,7 @@ void decode_Run(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, unsigned c
         }
         else {
             while (n--) {
-                *(unsigned long*)pDst = *(unsigned long*)pPixel;
+                memcpy(pDst, pPixel, 4); // Port: pPixel may be unaligned (a chunk field)
                 pDst += 4;
             }
         }
@@ -193,7 +195,7 @@ int decode_Convert(unsigned char* pSrc, LecBitmapHeader* pSrcBitmap, int n, void
 
 int decode_ToRGBA(unsigned char* pSrc, LecBitmapHeader* pBitmap, int n, void* pPalette, unsigned char* pDst)
 {
-    unsigned long pix;
+    uint32_t pix;
     unsigned char* pIn;
     unsigned char* pOut;
 
@@ -255,7 +257,7 @@ int decode_ToRGBA(unsigned char* pSrc, LecBitmapHeader* pBitmap, int n, void* pP
         }
         if (pBitmap->pixelSize == 3) {
             for (pIn = pSrc; n != 0; n--) {
-                pix = *(unsigned long*)pIn & 0xFFFFFF;
+                pix = pIn[0] | (pIn[1] << 8) | ((uint32_t)pIn[2] << 16); // Port: three bytes; retail read a fourth past the pixel
                 pIn += 3;
                 *pOut++ = (unsigned char)((pix >> rShift) << rShiftR) & rMask;
                 *pOut++ = (unsigned char)((pix >> gShift) << gShiftR) & gMask;
@@ -266,7 +268,7 @@ int decode_ToRGBA(unsigned char* pSrc, LecBitmapHeader* pBitmap, int n, void* pP
         }
         if (pBitmap->pixelSize == 4) {
             for (pIn = pSrc; n != 0; n--) {
-                pix = *(unsigned long*)pIn;
+                pix = *(uint32_t*)pIn;
                 pIn += 4;
                 *pOut++ = (unsigned char)((pix >> rShift) << rShiftR) & rMask;
                 *pOut++ = (unsigned char)((pix >> gShift) << gShiftR) & gMask;
@@ -317,7 +319,7 @@ int decode_ToRGBA(unsigned char* pSrc, LecBitmapHeader* pBitmap, int n, void* pP
         }
         if (pBitmap->pixelSize == 3) {
             for (pIn = pSrc; n != 0; n--) {
-                pix = *(unsigned long*)pIn & 0xFFFFFF;
+                pix = pIn[0] | (pIn[1] << 8) | ((uint32_t)pIn[2] << 16); // Port: three bytes; retail read a fourth past the pixel
                 pIn += 3;
                 *pOut++ = (unsigned char)((pix >> rShift) << rShiftR) & rMask;
                 *pOut++ = (unsigned char)((pix >> gShift) << gShiftR) & gMask;
@@ -328,7 +330,7 @@ int decode_ToRGBA(unsigned char* pSrc, LecBitmapHeader* pBitmap, int n, void* pP
         }
         if (pBitmap->pixelSize == 4) {
             for (pIn = pSrc; n != 0; n--) {
-                pix = *(unsigned long*)pIn;
+                pix = *(uint32_t*)pIn;
                 pIn += 4;
                 *pOut++ = (unsigned char)((pix >> rShift) << rShiftR) & rMask;
                 *pOut++ = (unsigned char)((pix >> gShift) << gShiftR) & gMask;
@@ -363,7 +365,7 @@ int decode_Begin(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, void* pPa
     if (pBitmap->colorMode == 1) {
         unsigned char* pIn;
         unsigned char* pOut;
-        unsigned long pix;
+        uint32_t pix;
         unsigned char rMask;
         unsigned char gMask;
         unsigned char bMask;
@@ -401,7 +403,7 @@ int decode_Begin(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, void* pPa
         else if (pBitmap->pixelSize == 3) {
             pOut = pDst;
             for (pIn = pSrc; n != 0; n--) {
-                pix = (((unsigned long)(pIn[0] & rMask) << rShift) >> rShiftR) | (((unsigned long)(pIn[2] & bMask) << bShift) >> bShiftR) | (((unsigned long)(pIn[1] & gMask) << gShift) >> gShiftR);
+                pix = (((uint32_t)(pIn[0] & rMask) << rShift) >> rShiftR) | (((uint32_t)(pIn[2] & bMask) << bShift) >> bShiftR) | (((uint32_t)(pIn[1] & gMask) << gShift) >> gShiftR);
                 *pOut++ = ((unsigned char*)&pix)[0];
                 *pOut++ = ((unsigned char*)&pix)[1];
                 *pOut++ = ((unsigned char*)&pix)[2];
@@ -411,7 +413,7 @@ int decode_Begin(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, void* pPa
         else if (pBitmap->pixelSize == 4) {
             pOut = pDst;
             for (pIn = pSrc; n != 0; n--) {
-                *(unsigned long*)pOut = (((unsigned long)(pIn[0] & rMask) << rShift) >> rShiftR) | (((unsigned long)(pIn[2] & bMask) << bShift) >> bShiftR) | (((unsigned long)(pIn[1] & gMask) << gShift) >> gShiftR);
+                *(uint32_t*)pOut = (((uint32_t)(pIn[0] & rMask) << rShift) >> rShiftR) | (((uint32_t)(pIn[2] & bMask) << bShift) >> bShiftR) | (((uint32_t)(pIn[1] & gMask) << gShift) >> gShiftR);
                 pOut += 4;
                 pIn += 4;
             }
@@ -424,7 +426,7 @@ int decode_Begin(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, void* pPa
     if (pBitmap->colorMode == 2) {
         unsigned char* pIn;
         unsigned char* pOut;
-        unsigned long pix;
+        uint32_t pix;
         unsigned char rMask;
         unsigned char gMask;
         unsigned char bMask;
@@ -461,7 +463,7 @@ int decode_Begin(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, void* pPa
         else if (pBitmap->pixelSize == 3) {
             pOut = pDst;
             for (pIn = pSrc; n != 0; n--) {
-                pix = (((unsigned long)(pIn[0] & rMask) << rShift) >> rShiftR) | (((unsigned long)(pIn[2] & bMask) << bShift) >> bShiftR) | (((unsigned long)(pIn[1] & gMask) << gShift) >> gShiftR) | (((unsigned long)(pIn[3] & aMask) << aShift) >> aShiftR);
+                pix = (((uint32_t)(pIn[0] & rMask) << rShift) >> rShiftR) | (((uint32_t)(pIn[2] & bMask) << bShift) >> bShiftR) | (((uint32_t)(pIn[1] & gMask) << gShift) >> gShiftR) | (((uint32_t)(pIn[3] & aMask) << aShift) >> aShiftR);
                 *pOut++ = ((unsigned char*)&pix)[0];
                 *pOut++ = ((unsigned char*)&pix)[1];
                 *pOut++ = ((unsigned char*)&pix)[2];
@@ -471,7 +473,7 @@ int decode_Begin(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, void* pPa
         else if (pBitmap->pixelSize == 4) {
             pOut = pDst;
             for (pIn = pSrc; n != 0; n--) {
-                *(unsigned long*)pOut = (((unsigned long)(pIn[0] & rMask) << rShift) >> rShiftR) | (((unsigned long)(pIn[2] & bMask) << bShift) >> bShiftR) | (((unsigned long)(pIn[1] & gMask) << gShift) >> gShiftR) | (((unsigned long)(pIn[3] & aMask) << aShift) >> aShiftR);
+                *(uint32_t*)pOut = (((uint32_t)(pIn[0] & rMask) << rShift) >> rShiftR) | (((uint32_t)(pIn[2] & bMask) << bShift) >> bShiftR) | (((uint32_t)(pIn[1] & gMask) << gShift) >> gShiftR) | (((uint32_t)(pIn[3] & aMask) << aShift) >> aShiftR);
                 pOut += 4;
                 pIn += 4;
             }

@@ -207,6 +207,8 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_NO_AUDIO` | `1` opens no audio output device (sound runs silently). |
 | `J3D_AUDIO_DUMP` | `<file.wav>` writes the audio mix to a WAV file and silences the speakers. |
 | `J3D_REG_Sound_3D` | `1` turns 3D sound on for the run (it is the `Sound 3D` setting). |
+| `J3D_INSANE_LOG` | `1` prints the movie player's (INSANE's) messages to stderr, including which movie it plays. |
+| `J3D_INSANE_MEMLOG` | `1` prints every allocation of the movie player's debug allocator to stdout. |
 
 ## Tests
 
@@ -232,6 +234,8 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `sounddriver` | No game data needed. The sound driver on the virtual clock: one-shots, loops, stop and resume, frequency changes; retail's volume and pan tables; the mix's gains, 8- and 16-bit input, the background mute, rendered without a device; with 3D sound on, retail's channel flags, the inverse distance law, doppler from the source's and the camera's velocity, and head-relative voices; the game's WVSM codec, and the ADPCM block decoder (retail's assembly, translated) bit for bit against an independent decoder. | under 1 s |
 | `saveload-3d` | `saveload` with 3D sound on, so 3D voices' channel state goes through the save and restore. | under 1 s |
 | `audio3d` | Apple builds only, no game data needed; skipped with no audio output device. A tone in a 3D voice at known positions around the listener, captured through `J3D_AUDIO_DUMP` (nothing is heard): right of the camera is louder on the right, left on the left, ahead and behind balanced, a turned listener and "Reverse sound" swap sides as they should. | about 3 s |
+| `insaneasm` | No game data needed. The C translations of the movie player's assembler helpers: each pixel converter against a register-level model of its assembler for every 16-bit input and every RGB triple; the copies, fills, table lookups and rectangle blit. | under 1 s |
+| `moviecheck` | Decodes every intro movie in `RESOURCE/` headlessly, as fast as it decodes: every picture frame shown, every Blocky16 codec-2 frame equal to a port of ScummVM's decoder, the audio mixed through the movie player's engine and not silent, and the frames' and audio's checksums as pinned. `MOVIECHECK_DUMP=<dir>` writes every 50th frame as a BMP and the audio as a WAV. | about 4 s |
 | `input` | Apple builds only (`tests/input.sh`). Scripted headless runs of level 2 that quicksave at frame 800: holding a key moves Indy; a recorded run replays to a byte-identical quicksave, and recording does not change the run; a scripted controller's A jumps exactly as the jump key does (the port's default key set); with the retail "Microsoft SideWinder game pad" key set its button 7 sidesteps exactly as A does; mouse motion turns Indy. Runs go to `build/input-out/`. | about 10 s |
 
 Each can be run directly, which shows its output:

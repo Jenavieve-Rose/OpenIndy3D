@@ -7,6 +7,7 @@
  */
 #include <stdarg.h>
 #include <stddef.h>
+#include <string.h>
 #include "../lec.h"
 #include "../Memory/Memory.h"
 #include "../Timer/Timer.h"
@@ -245,6 +246,13 @@ static int sound_Open(int rate, int size, ...)
     for (i = 0; i < 256; i++) {
         sound_vars[i] = 0;
     }
+#ifdef J3D_PORT
+    // Port: the timer callback's per-channel cursors outlived a close. On the next open a track starting on a channel
+    // whose previous state was "playing" faded out of the old channel's data, in a buffer sound_Close had freed (ASan,
+    // moviecheck: a second INSANE start-up in one process). Each open starts with idle channels.
+    memset(sound_channels, 0, sizeof(sound_channels));
+    sound_reset = 1;
+#endif
     va_start(args, size);
     n = va_arg(args, int);
     while (n != 0) {

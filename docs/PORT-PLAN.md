@@ -20,11 +20,11 @@ confused with section numbers.
 | 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Complete |
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
-| 5 | Movies (INSANE) | 0 of 12 | Not started |
+| 5 | Movies (INSANE) | 12 of 12 | Code complete 2026-11-13; audit open; watched and listened to by hand open |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **85 of 146** | |
+| **All** | | **97 of 146** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -34,12 +34,13 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 | Check | Result |
 | --- | --- |
 | `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 58 compiler warnings, all known: the narrowing conversions in `jonesConfig.c` (P6.24); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
-| `ctest` | `display`, `keys` and `sounddriver` pass (no game data needed), and in the apple build `render`, `present` (needs a window server) and `audio3d` (needs an audio output device). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload`, `saveload-3d` and `boot` pass, and `boot-sdl` and `input` in the apple build |
+| `ctest` | `display`, `keys`, `sounddriver` and `insaneasm` pass (no game data needed), and in the apple build `render`, `present` (needs a window server) and `audio3d` (needs an audio output device). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload`, `saveload-3d`, `moviecheck` and `boot` pass, and `boot-sdl` and `input` in the apple build |
 | The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
+| `moviecheck <data>` | All five intro movies decode headlessly in about 4 s: every picture shown, all 2,240 Blocky16 codec-2 frames equal to a port of ScummVM's decoder, audio mixed and not silent, checksums as pinned |
 | `levelload <data>` | Static world and all 17 levels load, 0 failed, section counts plausible |
 | `cogcheck <data>` | 1,132 scripts compiled, 0 failed |
 | `python3 tools/layout_audit.py` | `0 retail on-disk type(s) differ` |
-| `jones3d --data <data>` | Apple build: opens the game window (fullscreen or windowed, at the mode the settings name) and runs the game in it, rendered through Metal at the display's refresh, played with keyboard, mouse and controllers, with sound through the default output device. Null build: stops at the display enumeration (no display backend) |
+| `jones3d --data <data>` | Apple build: opens the game window (fullscreen or windowed, at the mode the settings name), plays the intro movie with its sound (Return, Escape or a click skips it), and runs the game in it, rendered through Metal at the display's refresh, played with keyboard, mouse and controllers, with sound through the default output device. Null build: stops at the display enumeration (no display backend) |
 | `jones3d ... --input-script` / `--record` / `--replay` | Scripted keyboard, mouse and controller input reaches the game; a recorded run replays to a byte-identical quicksave (`input` test) |
 | `jones3d --data <data> --headless --frames 600` | Loads `00_cyn`, writes the level-start autosave, runs 600 frames (20 s of game time) of the opening cutscene and shuts down cleanly, exit 0, in under a second. Two runs print the same log and write byte-identical saves |
 | `saveload <data>` | After 300 frames, a save restored into a fresh world matches the world that was saved (236 things, positions bit for bit, COG globals, game time), and a save of the restored game matches the first; the game then runs 300 more frames |
@@ -48,8 +49,8 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 Every level renders in a window or fullscreen through Metal: textured, lit, fogged, with the HUD, at the display's
 refresh rate, pillarboxed to 4:3 by default, and plays with the keyboard, the mouse and controllers, using the retail
 key sets or the port's controller default (phase 3), with music, ambience, effects and voices placed by the game's
-own camera-relative mix, or with "Sound 3D" on in 3D with HRTF and doppler (phase 4). Movies do not play (phase 5) and
-the menus and dialogs do not appear (phase 6); the in-game inventory menu works. `tools/level_shots.sh` screenshots
+own camera-relative mix, or with "Sound 3D" on in 3D with HRTF and doppler (phase 4). The intro movie plays with its
+sound (phase 5). The menus and dialogs do not appear (phase 6); the in-game inventory menu works. `tools/level_shots.sh` screenshots
 every level by script.
 
 All of phase 1 is on `main` (at `3c3605a`): sixteen commits made on the branch `phase1-headless`, seven for P1.8 to
@@ -69,6 +70,9 @@ passes in the apple (11 tests), null (7) and sanitizer (11) trees.
 3D sound (decision 19) followed on the branch `audio-3d`: one commit (`9c739bd`), merged into `main` by fast-forward on
 2026-11-13. At `9c739bd` everything builds and every test passes in the apple (13 tests), null (8) and sanitizer (13)
 trees.
+
+Phase 5 is on the branch `phase5-movies`, not yet merged. Everything builds and every test passes in the apple (15
+tests), null (10) and sanitizer (15) trees.
 
 ## 1. Goal
 
@@ -210,7 +214,7 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    ├─ apple/stdControl_sdl.c            keyboard to DIK, mouse, gamepads     exists
    ├─ common/SoundDriver_mix.c          voices on the engine clock, mixer    exists
    ├─ apple/audio_device_avf.m          AVAudioEngine output, 3D placement   exists
-   ├─ insane_os/                        timer, file I/O, audio sink, asm→C   phase 5
+   ├─ common/insane_timer.c, insane_dsnd.c  INSANE's timer and audio sink    exists (asm→C beside the .asm files)
    ├─ j3dgui/                           Win32 dialog emulation and widgets   phase 6
    └─ apple/ (bundle, data locator)                                          phase 8
 ```
@@ -617,22 +621,46 @@ phase's code, the newly reachable sound code under ASan and UBSan in every test,
 Exit test: the five intro movies and every cutscene movie in the GOBs play with audio in sync and can be skipped; a
 headless decode test passes for all of them.
 
-- [ ] **P5.1** (M) Packing audit: INSANE was built with 1-byte struct packing. List the structs whose layout depends
+- [x] **P5.1** (M) Packing audit: INSANE was built with 1-byte struct packing. List the structs whose layout depends
       on it, pack those explicitly and assert their sizes.
-- [ ] **P5.2** (S) `Stdfile.c` and `Stdio.c` over POSIX, going through the host path conversion.
-- [ ] **P5.3** (M) `Timer.c` over a pthread with a mutex, keeping the callback contract the player expects.
-- [ ] **P5.4** (S) `MemCopy.asm`, `MemFill.asm`, `BlitAsm.asm` to C (193 lines).
-- [ ] **P5.5** (M) `DecodeAsm.asm` to C (519 lines): the two LUT decoders and six 555/565/RGBA conversions.
-- [ ] **P5.6** (S) `MixerAsm.asm` to C (306 lines).
-- [ ] **P5.7** (L) `Bloc16Asm.asm` to C (797 lines): the Blocky16 block decoder, cross-checked against ScummVM's.
+      Done: four on-disk layouts packed with their offsets asserted (SHDR's `rate` at 0x0E is the one natural
+      alignment moves); five more 64-bit faults fixed on the way, among them `SmushBitmap`'s pitch and `Decode.c`'s
+      8-byte `unsigned long` pixels (docs/PORTING.md, "Packing audit").
+- [x] **P5.2** (S) `Stdfile.c` and `Stdio.c` over POSIX, going through the host path conversion.
+      Done: in place, with 64-bit handles and `J3DHost_fopen`.
+- [x] **P5.3** (M) `Timer.c` over a pthread with a mutex, keeping the callback contract the player expects.
+      Done: `platform/common/insane_timer.c`, 60 Hz on the monotonic clock, with a lock retail lacked so a freed
+      timer's callback is never running.
+- [x] **P5.4** (S) `MemCopy.asm`, `MemFill.asm`, `BlitAsm.asm` to C (193 lines).
+      Done: `MemCopy.c`, `MemFill.c`, `BlitAsm.c`. Checked: `insaneasm`.
+- [x] **P5.5** (M) `DecodeAsm.asm` to C (519 lines): the two LUT decoders and six 555/565/RGBA conversions.
+      Done: `DecodeAsm.c`. Checked: `insaneasm`, against a register-level model of each converter for every input.
+- [x] **P5.6** (S) `MixerAsm.asm` to C (306 lines).
+      Done: `MixerAsm.c`, all eight procedures.
+- [x] **P5.7** (L) `Bloc16Asm.asm` to C (797 lines): the Blocky16 block decoder, cross-checked against ScummVM's.
       Its frame offsets are already `ptrdiff_t` (P1.27): the three frames are separate allocations.
-- [ ] **P5.8** (M) `tests/moviecheck.c`: decode every frame of every movie with no display and checksum the frames.
+      Done: `Bloc16Asm.c`. Checked: all 2,240 codec-2 frames of the five movies equal a port of ScummVM's decoder;
+      vectors that point below the picture now read black guard rows instead of the next heap block (decision 18).
+- [x] **P5.8** (M) `tests/moviecheck.c`: decode every frame of every movie with no display and checksum the frames.
       Compare with checksums from the Windows build under DREAMM when those can be captured.
-- [ ] **P5.9** (M) `Dsnd.c`: a streaming source on the phase 4 audio device, fed by INSANE's mixer.
-- [ ] **P5.10** (S) `JonesMain_IntroMovieBlt32` into the back buffer, scaled to the window. The 555 and 565 variants
+      Done: `moviecheck`, about 4 s, with pinned checksums and ScummVM's decoder as the independent check. The DREAMM
+      checksums were not captured. It found three more retail faults (uninitialised packet bytes read as a track's
+      priority, stale channel state after a restart, unaligned accesses).
+- [x] **P5.9** (M) `Dsnd.c`: a streaming source on the phase 4 audio device, fed by INSANE's mixer.
+      Done: `platform/common/insane_dsnd.c` into a stream in the sound driver (`sound_stream.h`), 70 ms ahead of
+      the play cursor (retail ran 140 to 210 ms ahead). Checked: the intro's sound through the device for its whole
+      length (`J3D_AUDIO_DUMP`).
+- [x] **P5.10** (S) `JonesMain_IntroMovieBlt32` into the back buffer, scaled to the window. The 555 and 565 variants
       are not needed.
-- [ ] **P5.11** (S) Skip, volume (`SmushPlay_SetGlobalVolume`) and subtitle hooks.
-- [ ] **P5.12** (S) List every movie in the GOBs with `gobtool.py` and play each from its in-game trigger.
+      Done: and the 32-bit mode match without which nothing played; the movie keeps its shape. Runs on a virtual
+      clock (headless, record, replay) play no movie.
+- [x] **P5.11** (S) Skip, volume (`SmushPlay_SetGlobalVolume`) and subtitle hooks.
+      Done: skip by Return, Escape or click through the game's own intro window procedure (checked by input script);
+      volume as retail; the movies carry no subtitles and SmushPlay has no hook for them.
+- [x] **P5.12** (S) List every movie in the GOBs with `gobtool.py` and play each from its in-game trigger.
+      Done: five movies, all loose intro files, none in the GOBs. Four play from their trigger (640 or 800 wide,
+      performance level below or at least 3); `jonesopn_5.snm` needs a 512×384 mode the Mac does not offer and is
+      covered by `moviecheck`.
 ## Complete Phase 5 Code Audit
 ### Phase 6: GUI dialogs
 
@@ -849,7 +877,7 @@ guide.
 | 2 | Metal renderer, first level on screen | 3 to 4 weeks | Complete: every level renders textured, lit and fogged in a window or fullscreen; the phase audit is done |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Code complete and audited 2026-11-13; the playthrough by hand is open |
 | 4 | Audio complete | 2 weeks | Complete 2026-11-13, with 3D sound; listened to by hand in `12_sol` |
-| 5 | Movies complete | 2 to 3 weeks | Not started |
+| 5 | Movies complete | 2 to 3 weeks | Code complete 2026-11-13: the intro plays with sound; every movie decodes headlessly |
 | 6 | All dialogs, save and load in-app | 4 to 6 weeks | Not started |
 | 7 | Full playthrough verified | 2 to 3 weeks | Not started |
 | 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | Not started |
@@ -863,8 +891,8 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
    controller), and for phase 4 the remaining checks by ear: the first three levels through a save and load, and
    headphones plugged in or out while playing (the sound itself was listened to and approved in `12_sol`).
    `J3D_AUDIO_DUMP` (BUILDING.md) records what was heard, for comparing later builds.
-2. **Phase 5, movies:** INSANE's timer, file I/O and audio sink (the sink can feed the phase 4 mixer as one more
-   voice), then the six assembler files as C, `Blocky16` against ScummVM's.
+2. **Phase 5, by hand:** watch the intro for audio/video sync and listen to it (`moviecheck` measures the sound but
+   nobody has listened), fullscreen and windowed; then the phase 5 code audit.
 3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 

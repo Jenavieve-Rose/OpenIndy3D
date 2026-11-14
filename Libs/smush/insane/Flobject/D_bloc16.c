@@ -12,6 +12,7 @@
 #include "../Memory/Memory.h"
 #include "../Bitmap/Bitmap.h"
 #include "../Sound/Mixer.h"
+#include "D_bloc16.h" // Port: the glyph tables and codec 2, shared with Bloc16Asm.c
 
 
 
@@ -20,6 +21,9 @@
 #define DBLOC16_MAX(a, b) ((a) > (b) ? (a) : (b))
 
 /* the `Bl16` chunk as the decoder reads it (offsets from retail; the 16-bit fields are padded to 32) */
+// Port: packed explicitly (INSANE's /Zp1, PORT-PLAN.md P5.1). The natural layout is the same, but the chunk is only
+// 2-aligned in the stream, so rleSize must be read as an unaligned field.
+#pragma pack(push, 1)
 typedef struct Bl16Header
 {
     short x;                        /* 0x000 */
@@ -42,8 +46,16 @@ typedef struct Bl16Header
     short pad22A[3];
     unsigned char data[1];          /* 0x230 */
 } Bl16Header;
+#pragma pack(pop)
+_Static_assert(offsetof(Bl16Header, codec) == 0x12, "Bl16 layout");
+_Static_assert(offsetof(Bl16Header, params) == 0x18, "Bl16 layout");
+_Static_assert(offsetof(Bl16Header, rleSize) == 0x24, "Bl16 layout");
+_Static_assert(offsetof(Bl16Header, palette) == 0x28, "Bl16 layout");
+_Static_assert(offsetof(Bl16Header, depth) == 0x228, "Bl16 layout");
+_Static_assert(offsetof(Bl16Header, data) == 0x230, "Bl16 layout");
 
 /* the frame object's parse header */
+#pragma pack(push, 1) // Port: P5.1, read from the stream
 typedef struct Bl16Parse
 {
     short codec;
@@ -51,6 +63,8 @@ typedef struct Bl16Parse
     short height;
     short depth;
 } Bl16Parse;
+#pragma pack(pop)
+_Static_assert(sizeof(Bl16Parse) == 8, "Bl16 parse layout");
 
 typedef struct Bl16Motion
 {
@@ -58,7 +72,6 @@ typedef struct Bl16Motion
     short y;
 } Bl16Motion;
 
-/* the glyph tables: per (from-edge, to-edge) pair, the pixel offsets of the two halves of a 4x4 or 8x8 glyph */
 /* Local state of dbloc16_DecodeFrame (release-chosen aggregate). Names after ScummVM Grim Blocky16 (inferred):
    the five members before offset1/offset2 are never used here. */
 typedef struct Bl16DecodeState
@@ -74,27 +87,6 @@ typedef struct Bl16DecodeState
     ptrdiff_t offset2;
 } Bl16DecodeState;
 
-typedef struct Bl16Small
-{
-    short off1[16];                 /* 0x00 */
-    short off2[16];                 /* 0x20 */
-    unsigned char idx1[16];         /* 0x40 */
-    unsigned char idx2[16];         /* 0x50 */
-    unsigned char n1;               /* 0x60 */
-    unsigned char n2;               /* 0x61 */
-    unsigned char pad[30];
-} Bl16Small;
-
-typedef struct Bl16Big
-{
-    short off1[64];                 /* 0x000 */
-    short off2[64];                 /* 0x080 */
-    unsigned char idx1[64];         /* 0x100 */
-    unsigned char idx2[64];         /* 0x140 */
-    unsigned char n1;               /* 0x180 */
-    unsigned char n2;               /* 0x181 */
-    unsigned char pad[2];
-} Bl16Big;
 
 typedef int (*Bl16Blit)(LecBitmapHeader* pDst, MixerRect* pClip, int x, int y, LecBitmapHeader* pSrc, void* pPalette, void* pTable);
 
@@ -108,9 +100,6 @@ void decode_RleEnd(void);
 unsigned char decode_RleByte(void);
 void decode_Run(unsigned char* pDst, LecBitmapHeader* pBitmap, int n, unsigned char* pPixel);
 int decode_Convert(unsigned char* pSrc, LecBitmapHeader* pSrcBitmap, int n, void* pPalette, unsigned char* pDst, LecBitmapHeader* pDstBitmap, void* pTable);
-/* codec 2's block decoder (MASM, 0x004EDF70) */
-void dbloc16_Codec2(unsigned short* pDst, unsigned char* pSrc, ptrdiff_t offset1, ptrdiff_t offset2, int width, /* Port: ptrdiff_t offsets */ short* pMotion, unsigned char* pParams,
-                    int height, int nextLine, Bl16Small* pSmall, Bl16Big* pBig, unsigned short* pPalette);
 
 int dbloc16_Register(LecShare* pShare, void* pParam);
 int dbloc16_Configure(int tag, ...);
@@ -208,6 +197,11 @@ static LecBitmapHeader* dbloc16_pBitmap1 = NULL;
 static LecBitmapHeader* dbloc16_pBitmap2 = NULL;
 static int dbloc16_size = 0;
 static unsigned short* dbloc16_pLast = NULL;
+
+#ifdef J3D_PORT
+// Port: codec 2 is called through this pointer so tests/moviecheck.c can check it against a reference decoder.
+Bl16Codec2Func dbloc16_pfnCodec2 = dbloc16_Codec2;
+#endif
 
 /* uninitialised globals (COMMON): the two delta buffers, the motion offsets and the glyph tables codec 2 reads */
 unsigned short* dbloc16_pBuf0;
@@ -318,6 +312,31 @@ static int dbloc16_Parse(const Bl16Parse* pData, int size)
     return 0;
 }
 
+#ifdef J3D_PORT
+// Port: codec 2 copies blocks from the previous frame moved by a motion vector, and near the bottom of the picture
+// some of the movies' vectors point below it (moviecheck, ASan). Retail's three frames were separate heap blocks, so
+// those pixels came from whatever memory followed the frame: never defined. Each frame now has black guard rows above
+// and below, enough that no 16-bit pixel offset (the motion table's, or 0xF5's inline one) plus a block can leave
+// them, and such a pixel reads black (decision 18, PORT-PLAN.md P5.7). The bitmap's header describes the picture only.
+int dbloc16_GuardRows(int width) // also used by tests/moviecheck.c
+{
+    return width > 0 ? 32768 / width + 9 : 0;
+}
+
+static int dbloc16_CreateFrame(LecBitmapHeader** ppBitmap, int width, int height, int depth)
+{
+    const int guard = dbloc16_GuardRows(width);
+    int rc = dbloc16_pBitmap->Create(ppBitmap, width, height + 2 * guard, depth);
+
+    if (rc == 0) {
+        framestream_CopyB((*ppBitmap)->pPixels, 0, (*ppBitmap)->pitch * (height + 2 * guard));
+        (*ppBitmap)->pPixels = (char*)(*ppBitmap)->pPixels + (size_t)guard * (*ppBitmap)->pitch;
+        (*ppBitmap)->height = height;
+    }
+    return rc;
+}
+#endif
+
 static int dbloc16_Alloc(int width, int height, int depth)
 {
     int rc;
@@ -328,11 +347,23 @@ static int dbloc16_Alloc(int width, int height, int depth)
     dbloc16_red = 0;
     dbloc16_green = 0;
     dbloc16_blue = 0;
+#ifdef J3D_PORT
+    rc = dbloc16_CreateFrame(&dbloc16_pBitmap0, width, height, depth);
+#else
     rc = dbloc16_pBitmap->Create(&dbloc16_pBitmap0, width, height, depth);
+#endif
     if (rc == 0) {
+#ifdef J3D_PORT
+        rc = dbloc16_CreateFrame(&dbloc16_pBitmap1, width, height, depth);
+#else
         rc = dbloc16_pBitmap->Create(&dbloc16_pBitmap1, width, height, depth);
+#endif
         if (rc == 0) {
+#ifdef J3D_PORT
+            rc = dbloc16_CreateFrame(&dbloc16_pBitmap2, width, height, depth);
+#else
             rc = dbloc16_pBitmap->Create(&dbloc16_pBitmap2, width, height, depth);
+#endif
             if (rc == 0) {
                 dbloc16_depth = depth;
                 dbloc16_pBuf0 = dbloc16_pBitmap0->pPixels;
@@ -574,7 +605,7 @@ static int dbloc16_DecodeFrame(LecBitmapHeader* pBitmap, MixerRect* pClip, int x
     unsigned short* pDst;
     unsigned short* pLut;
     unsigned short* pTmp;
-    int rc;
+    int rc = 0; // Port: retail returned an unset register when nothing was shown (no frame yet, no bitmap); 0 is "no flags"
 
     width = pHdr->width;
     height = pHdr->height;
@@ -652,8 +683,13 @@ static int dbloc16_DecodeFrame(LecBitmapHeader* pBitmap, MixerRect* pClip, int x
                 return 0;
             }
             if (pHdr->seq == dbloc16_prevSeq + 1) {
+#ifdef J3D_PORT
+                dbloc16_pfnCodec2(dbloc16_pCur, pGfx, state.offset1, state.offset2, width, dbloc16_offsets, pHdr->params, height, nextLine + width,
+                               dbloc16_small, dbloc16_big, pHdr->palette);
+#else
                 dbloc16_Codec2(dbloc16_pCur, pGfx, state.offset1, state.offset2, width, dbloc16_offsets, pHdr->params, height, nextLine + width,
                                dbloc16_small, dbloc16_big, pHdr->palette);
+#endif
                 dbloc16_pLast = dbloc16_pCur;
             }
             break;

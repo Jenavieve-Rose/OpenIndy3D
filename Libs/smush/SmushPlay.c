@@ -11,6 +11,10 @@
 #include "insane/Lec/LecShare.h"
 #include "insane/Bitmap/Bitmap.h"
 #include "insane/Sound/Engine.h"
+#ifdef J3D_PORT
+#include <unistd.h>
+#include <platform/common/host_clock.h>
+#endif
 
 /* the modules' registration functions */
 extern int readauto_Register(LecShare* pShare, void* pParam);
@@ -36,7 +40,13 @@ extern int dbloc16_Configure(int tag, ...);
 int SmushPlay_SysStartup(void* hWnd, void* pDSound);
 int SmushPlay_PlayMovie(const char* pFilename, int rate, int flags, int a4, int a5, int width, int height, int a8, int a9,
                         int (*pBlit)(void* pBitmap, int frame), int count, int ringSize, int frameSize);
+#ifdef J3D_PORT
+// Port: declared as blocky16 calls it (Bl16Blit). Retail declared the first four parameters int, and a1 is a pointer.
+struct MixerRect;
+static int smushplay_Blit(LecBitmapHeader* a1, struct MixerRect* a2, int a3, int a4, LecBitmapHeader* pBitmap, void* a6, void* a7);
+#else
 static int smushplay_Blit(int a1, int a2, int a3, int a4, void* pBitmap);
+#endif
 void SmushPlay_SysShutdown(void);
 void SmushPlay_SetGlobalVolume(int volume);
 void* smushplay_GetHwnd(void);
@@ -122,7 +132,7 @@ int SmushPlay_PlayMovie(const char* pFilename, int rate, int flags, int a4, int 
     int v2 = 0;
     LecBitmapHeader* pBitmap;
     int i;
-    int rc;
+    int rc = -1; // Port: retail left it unset when count is 0 (the loop then never runs); -1 is "nothing played"
     int r;
     char aPath[260];
     unsigned char aPalette[1024];
@@ -131,6 +141,12 @@ int SmushPlay_PlayMovie(const char* pFilename, int rate, int flags, int a4, int 
     if (!smushplay_bStarted) {
         return 0; // as when the frame bitmap cannot be created: nothing was played
     }
+    // A run on a virtual clock (--headless, --record, --replay) plays no movie: INSANE paces it on the host's real
+    // time, which such a run must not depend on, and a headless run would wait the movie's length (PORT-PLAN.md P5.10).
+    if (J3DHost_IsVirtualClock()) {
+        return 0;
+    }
+    lec_Log("Playing %s", pFilename); // shown with J3D_INSANE_LOG (P5.12)
 #endif
     strcpy(aPath, pFilename);
     if (rate == 0) {
@@ -157,6 +173,11 @@ int SmushPlay_PlayMovie(const char* pFilename, int rate, int flags, int a4, int 
                     i = count;
                     break;
                 }
+#ifdef J3D_PORT
+                if (r == 6) {
+                    usleep(1000); // Port: 6 is "not time for a frame yet"; retail spun on the CPU until it was
+                }
+#endif
             } while (r >= 0 && r != 4);
             smushplay_pAnimPlay->Destroy(&smushplay_play);
         }
@@ -166,7 +187,11 @@ int SmushPlay_PlayMovie(const char* pFilename, int rate, int flags, int a4, int 
     return rc == 0;
 }
 
+#ifdef J3D_PORT
+static int smushplay_Blit(LecBitmapHeader* a1, struct MixerRect* a2, int a3, int a4, LecBitmapHeader* pBitmap, void* a6, void* a7)
+#else
 static int smushplay_Blit(int a1, int a2, int a3, int a4, void* pBitmap)
+#endif
 {
     if (smushplay_pBlit) {
         smushplay_abort = smushplay_pBlit(pBitmap, smushplay_play->frame);

@@ -11,6 +11,9 @@
 #include "../Animate/Frame.h"
 #include "../Bitmap/Blit.h"
 
+// Port: the SHDR chunk as it lies in the file. INSANE was built with /Zp1, and `rate` sits at 0x0E, which natural
+// alignment would move to 0x10; the chunk itself is only 2-aligned in the stream. Packed explicitly (PORT-PLAN.md P5.1).
+#pragma pack(push, 1)
 typedef struct FrameHeader
 {
     short version;      /* 0x00 */
@@ -20,6 +23,10 @@ typedef struct FrameHeader
     char  pad12[4];
     char  palette[0x400]; /* 0x16 */
 } FrameHeader;
+#pragma pack(pop)
+_Static_assert(offsetof(FrameHeader, rate) == 0x0E, "SHDR layout");
+_Static_assert(offsetof(FrameHeader, palette) == 0x16, "SHDR layout");
+_Static_assert(sizeof(FrameHeader) == 0x416, "SHDR layout");
 
 #define FS_NULL 'null'
 #define FS_ANNO 'ANNO'

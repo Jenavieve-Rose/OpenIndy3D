@@ -154,14 +154,13 @@ j3d_library(sound
 j3d_library(smush
     DIRS Libs/smush
     EXCLUDE
-        Libs/smush/insane/Timer/Timer.c     # Win32 thread         -> platform (Phase 5)
-        Libs/smush/insane/Sound/Dsnd.c      # DirectSound          -> platform (Phase 5)
-        Libs/smush/insane/File/Stdfile.c    # Win32 file I/O       -> platform (Phase 5)
-        Libs/smush/insane/File/Stdio.c      #                      -> platform (Phase 5)
+        Libs/smush/insane/Timer/Timer.c     # Win32 thread         -> platform/common/insane_timer.c (P5.3)
+        Libs/smush/insane/Sound/Dsnd.c      # DirectSound          -> platform/common/insane_dsnd.c (P5.9)
     DEPS zlib
 )
 # INSANE was built with /Zp1. -fpack-struct=1 is not used: it would also repack system structs (FILE, pthread types)
-# seen through its headers. Structures that depend on 1-byte packing are audited in Phase 5 (docs/PORTING.md).
+# seen through its headers. The structures that depend on 1-byte packing (the chunk layouts read from movie files) are
+# packed explicitly with their sizes asserted (P5.1, docs/PORTING.md). Its six MASM files are C beside them (P5.4-P5.7).
 
 j3d_library(sith
     DIRS Libs/sith
@@ -288,6 +287,7 @@ endforeach()
 #   audio3d    (apple builds) the audio device places 3D voices on the right side; skipped (77) with no output device
 #   keys       the DIK tables and GetKeyNameTextA and SearchPathA built on them (P3.1, P3.7)
 #   sounddriver the sound driver on the virtual clock, and its mix, rendered without a device (P4.3 to P4.6)
+#   insaneasm  the C translations of INSANE's assembler helpers against models of the assembler (P5.4 to P5.6)
 j3d_executable(display platform_null ${J3D_ROOT}/tests/display.c ${J3D_ROOT}/tests/harness.c)
 add_test(NAME display COMMAND display)
 set_tests_properties(display PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
@@ -297,6 +297,9 @@ set_tests_properties(keys PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
 j3d_executable(sounddriver platform_null ${J3D_ROOT}/tests/sounddriver.c)
 add_test(NAME sounddriver COMMAND sounddriver)
 set_tests_properties(sounddriver PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
+j3d_executable(insaneasm platform_null ${J3D_ROOT}/tests/insaneasm.c)
+add_test(NAME insaneasm COMMAND insaneasm)
+set_tests_properties(insaneasm PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
 if(J3D_PLATFORM STREQUAL "apple")
     j3d_executable(present platform_apple ${J3D_ROOT}/tests/present.c ${J3D_ROOT}/tests/harness.c)
     add_test(NAME present COMMAND present)
@@ -325,6 +328,14 @@ if(J3D_TEST_DATA)
     set_tests_properties(saveload-3d PROPERTIES
         ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Sound_3D=1;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
+endif()
+
+# moviecheck: every movie in the data decoded headlessly, every frame shown, codec 2 checked against ScummVM's
+# Blocky16, frame and audio checksums (PORT-PLAN.md P5.8). It reads only the movie files.
+j3d_executable(moviecheck platform_null ${J3D_ROOT}/tests/moviecheck.c ${J3D_ROOT}/tests/harness.c)
+if(J3D_TEST_DATA)
+    add_test(NAME moviecheck COMMAND moviecheck ${J3D_TEST_DATA})
+    set_tests_properties(moviecheck PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()
 
 # boot-sdl (apple builds): the same run through the apple jones3d, so the SDL3 event loop (wkernel_sdl.c), with SDL's

@@ -37,7 +37,7 @@ typedef struct sSmushBitmap
     uint32_t height;
     int pixelSize;
     int bpp;
-    size_t pitch;
+    int pitch; // Port: was size_t, which on 64-bit put it 4 bytes after INSANE's int pitch (the bitmap is INSANE's LecBitmapHeader, P5.1)
     int unknown6;
     int unknown7;
     tColorMode colorMode;

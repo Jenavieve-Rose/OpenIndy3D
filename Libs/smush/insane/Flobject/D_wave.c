@@ -8,6 +8,32 @@
 #include "../Memory/Memory.h"
 #include "../Sound/Engine.h"
 
+// Port: the chunk is only 2-aligned in the stream and the packet's 32-bit fields sit at odd offsets; x86 did not care.
+// These read and write the same bytes without an aligned access (PORT-PLAN.md P5.1; UBSan).
+static unsigned dwave_Rd32(const void* p)
+{
+    unsigned v;
+    memcpy(&v, p, sizeof(v));
+    return v;
+}
+
+static unsigned short dwave_Rd16(const void* p)
+{
+    unsigned short v;
+    memcpy(&v, p, sizeof(v));
+    return v;
+}
+
+static void dwave_Wr32(void* p, unsigned v)
+{
+    memcpy(p, &v, sizeof(v));
+}
+
+static void dwave_Wr16(void* p, unsigned short v)
+{
+    memcpy(p, &v, sizeof(v));
+}
+
 #define DWAVE_SWAP32(v) (((((v) & 0xFF0000) | ((v) >> 16)) >> 8) | ((((v) << 16) | ((v) & 0xFF00)) << 8))
 
 static const signed char dwave_delta2[4] = {
@@ -118,6 +144,15 @@ static int dwave_Startup(void)
 #line 114
     dwave_pPacket = dwave_pMemory->Alloc(500000, INSANE_FILE, __LINE__);
     rc = dwave_pPacket ? 0 : -1;
+#ifdef J3D_PORT
+    // Port: Decode never writes bytes 0x0E-0x0F of a packet (nor 0x12-0x15 and 0x1A-0x1D of the first), and the sound
+    // engine reads 0x0E as the track's priority flags, which choose music, effects or voice and whether it is heard.
+    // Retail read whatever its fresh heap block held, most likely zeros; here they are zeros (decision 18;
+    // moviecheck under MallocScribble).
+    if (dwave_pPacket) {
+        memset(dwave_pPacket, 0, 500000);
+    }
+#endif
     return rc;
 }
 
@@ -162,7 +197,7 @@ static void dwave_Reset(void)
 
 static int dwave_Parse(const unsigned char* pData, int size)
 {
-    unsigned total = *(const unsigned*)(pData + 8);
+    unsigned total = dwave_Rd32(pData + 8);
 
     dwave_state.packets = 0;
     dwave_total = total;
@@ -177,17 +212,17 @@ static unsigned dwave_Decode(void* a1, int a2, int a3, int a4, void* a5, const u
     unsigned short w;
     const unsigned char* src = pData;
 
-    v = DWAVE_SWAP32(*(const unsigned*)src);
+    v = DWAVE_SWAP32(dwave_Rd32(src));
     src += 4;
     if ((int)v < 0) {
-        unsigned h = DWAVE_SWAP32(*(const unsigned*)src);
+        unsigned h = DWAVE_SWAP32(dwave_Rd32(src));
 
         src += 4;
         if ((int)h != dwave_lastHeader) {
             dwave_lastHeader = h;
             dwave_state.packets = 0;
         }
-        v = DWAVE_SWAP32(*(const unsigned*)src);
+        v = DWAVE_SWAP32(dwave_Rd32(src));
         src += 4;
     }
     c = *src++;
@@ -196,12 +231,12 @@ static unsigned dwave_Decode(void* a1, int a2, int a3, int a4, void* a5, const u
         dwave_state.idx[0] = ~c;
         channels = 2;
     }
-    w = *(const unsigned short*)src;
+    w = dwave_Rd16(src);
     dwave_state.pred[0] = (w >> 8) | ((w & 0xFF) << 8);
     src += 2;
     if (channels > 1) {
         dwave_state.idx[1] = *src++;
-        w = *(const unsigned short*)src;
+        w = dwave_Rd16(src);
         dwave_state.pred[1] = (w >> 8) | ((w & 0xFF) << 8);
         src += 2;
     }
@@ -213,20 +248,20 @@ static unsigned dwave_Decode(void* a1, int a2, int a3, int a4, void* a5, const u
 
             memcpy(dwave_pPacket, "PSAD", 4);
             len = v * channels * 2 + 0x2E;
-            *(unsigned*)(dwave_pPacket + 4) = DWAVE_SWAP32(len);
-            *(short*)(dwave_pPacket + 8) = 100;
-            *(short*)(dwave_pPacket + 10) = dwave_state.packets;
-            *(short*)(dwave_pPacket + 12) = 100;
+            dwave_Wr32(dwave_pPacket + 4, DWAVE_SWAP32(len));
+            dwave_Wr16(dwave_pPacket + 8, (unsigned short)(100));
+            dwave_Wr16(dwave_pPacket + 10, (unsigned short)(dwave_state.packets));
+            dwave_Wr16(dwave_pPacket + 12, (unsigned short)(100));
             *(char*)(dwave_pPacket + 16) = 0x7F;
             *(char*)(dwave_pPacket + 17) = 0;
             len = total + 0x24;
-            *(unsigned*)(dwave_pPacket + 22) = DWAVE_SWAP32(len);
-            *(unsigned*)(dwave_pPacket + 30) = 0x0C000000;
+            dwave_Wr32(dwave_pPacket + 22, DWAVE_SWAP32(len));
+            dwave_Wr32(dwave_pPacket + 30, 0x0C000000);
             *(char*)(dwave_pPacket + 34) = 1;
             *(char*)(dwave_pPacket + 35) = 8;
-            *(unsigned*)(dwave_pPacket + 36) = 0;
+            dwave_Wr32(dwave_pPacket + 36, 0);
             len = total;
-            *(unsigned*)(dwave_pPacket + 40) = DWAVE_SWAP32(len);
+            dwave_Wr32(dwave_pPacket + 40, DWAVE_SWAP32(len));
             *(char*)(dwave_pPacket + 44) = 5;
             *(char*)(dwave_pPacket + 45) = 0;
             if (channels == 1) {
@@ -235,7 +270,7 @@ static unsigned dwave_Decode(void* a1, int a2, int a3, int a4, void* a5, const u
             else {
                 memcpy(dwave_pPacket + 46, "S6SZ", 4);
             }
-            *(unsigned*)(dwave_pPacket + 50) = DWAVE_SWAP32(len);
+            dwave_Wr32(dwave_pPacket + 50, DWAVE_SWAP32(len));
             dwave_DecodeVima((short*)(dwave_pPacket + 54), src, v, channels);
         }
         else {
@@ -243,10 +278,10 @@ static unsigned dwave_Decode(void* a1, int a2, int a3, int a4, void* a5, const u
 
             memcpy(dwave_pPacket, "PSAD", 4);
             len = v * channels * 2 + 10;
-            *(unsigned*)(dwave_pPacket + 4) = DWAVE_SWAP32(len);
-            *(short*)(dwave_pPacket + 8) = 100;
-            *(short*)(dwave_pPacket + 10) = dwave_state.packets;
-            *(short*)(dwave_pPacket + 12) = 100;
+            dwave_Wr32(dwave_pPacket + 4, DWAVE_SWAP32(len));
+            dwave_Wr16(dwave_pPacket + 8, (unsigned short)(100));
+            dwave_Wr16(dwave_pPacket + 10, (unsigned short)(dwave_state.packets));
+            dwave_Wr16(dwave_pPacket + 12, (unsigned short)(100));
             *(char*)(dwave_pPacket + 16) = 0x7F;
             *(char*)(dwave_pPacket + 17) = 0;
             dwave_DecodeVima((short*)(dwave_pPacket + 18), src, v, channels);

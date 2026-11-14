@@ -1291,3 +1291,145 @@ sanitizer trees. A scripted turn in level 2 with 3D on and off puts sounds on th
 AirPods and head tracking on, in Solomon's Mines: placement, distance and head tracking sounded right. Not checked:
 an output change while running.
 
+
+## Phase 5: movies
+
+The game has five movies, all intro movies: `RESOURCE/jonesopn.snm` and its `_3`, `_4`, `_5` and `_8` sizes, loose
+files that `JonesMain_PlayIntroMovie` picks by the display mode's width and the performance level. The GOBs hold no
+movie (`gobtool.py list` finds no `.snm`, `.znm` or `.san`); every cutscene is in-engine. They play through INSANE
+(docs/INSANE.md), now running on arm64: its six assembler files are C, its four OS modules are the port's, and the
+64-bit faults in its structures are fixed.
+
+### Packing audit (P5.1)
+
+INSANE was built with `/Zp1`. What depends on it is what is read straight out of the movie stream, where a chunk is
+only 2-aligned:
+
+| Structure | File | Why it needs packing | Now |
+| --- | --- | --- | --- |
+| `FrameHeader` (SHDR) | `File/Framestream.c` | `rate` at 0x0E; natural alignment puts it at 0x10 | `#pragma pack(1)`, offsets and size 0x416 asserted |
+| `Bl16Header` | `Flobject/D_bloc16.c` | Natural layout matches, but `rleSize` at 0x24 is read from a 2-aligned chunk | Packed, every field's offset asserted |
+| `Bl16Parse` | `Flobject/D_bloc16.c` | Read from the stream | Packed, size 8 asserted |
+| Glyph tables `Bl16Small`, `Bl16Big` | moved to `Flobject/D_bloc16.h` | Codec 2 steps through them by entry (0x80, 0x184 bytes) | Natural layout is the same; sizes asserted |
+
+The engine's per-channel cursor `SoundChannel` (0x36 bytes packed in retail) and the player and stream objects are
+in-memory only and read by name, so their natural layout is used. The other 64-bit faults found in the same pass:
+
+| Where | Retail | Now |
+| --- | --- | --- |
+| `SmushPlay.h`, `SmushBitmap` | The game's view of INSANE's bitmap had `size_t pitch`, 4 bytes after INSANE's `int pitch` on 64-bit, so the intro blitters stepped rows by the wrong field | `int`; `JonesMain.c` asserts every shared field's offset against `LecBitmapHeader` |
+| `Bitmap/Bitmap.c` | Header (0x54 bytes in retail) at block + 8, pixels at block + 0x5C; on 64-bit the header is 0x58 bytes and ran 4 bytes into the pixels | Pixels after the header, rounded up to 16 |
+| `Decode/Decode.c` | 32-bit pixels read and written as `unsigned long`, 8 bytes on arm64: every 4-byte copy overran by 4 | `uint32_t`; the 3-byte pixel read takes 3 bytes, not 4 |
+| `Flobject/D_wave.c` | 32-bit fields of the chunk and of the packets it builds read and written at odd offsets | Byte copies (UBSan) |
+| `Bitmap/Bitmap.c` | `lec_Log("%s, line %s", file, __LINE__)`: an int printed as a string | `%d` |
+
+### File I/O (P5.2)
+
+`File/Stdio.c` and `File/Stdfile.c` are back in the build, ported in place: handles are `FilioHandle` (a `FILE*`,
+which an int truncated), `Stdio` opens through `J3DHost_fopen` (the host path conversion, so `resource\jonesopn.snm`
+finds `RESOURCE/JONESOPN.SNM`), and `Stdfile`'s `getc` reads into a byte instead of into its handle parameter. zlib's
+`gzio.c` reaches the same table; a `.snm` is not gzip, so `gzopen` declines it and `Zfilio` reads it plainly.
+
+### Timer (P5.3)
+
+`platform/common/insane_timer.c` replaces retail `Timer/Timer.c` (excluded): the 19 software timers and the
+callback contract unchanged (periodic, second-pass, deferred, one-shot, and Sync for the frame pacer, which is
+INSANE's audio/video sync), driven by a pthread at the user-interactive QoS class that ticks at 60 Hz on the host's
+monotonic clock with absolute deadlines. It never reads the engine's clock, which a headless or recorded run makes
+virtual. A recursive mutex is held for each tick and by Alloc, Free, SetInterval and Sync: retail entered a critical
+section that was a local of the thread and so excluded nothing, and a player that freed its timers and then its state
+could race a running callback. Now once Free returns, no callback of that timer runs. `timer_Poll`'s setjmp/longjmp
+pair, whose only reachable jump returned to its own setjmp, is straight-line code. A callback that frees its own timer
+ends its loop instead of calling through the freed slot.
+
+### The assembler files (P5.4 to P5.7)
+
+Each `.asm` stays in the tree as the decomp's record; a C file beside it replaces it in the port (`smush_os_null.c`,
+whose stubs aborted, is gone):
+
+| C file | Assembler | Notes |
+| --- | --- | --- |
+| `Bitmap/MemCopy.c`, `Bitmap/MemFill.c` | `MemCopy.asm`, `MemFill.asm` | `memcpy`/`memset` (an overlapping copy, which no caller makes, stays ascending) |
+| `Bitmap/BlitAsm.c` | `BlitAsm.asm` | The start offsets keep the 16 × 16-bit multiply; a height of 0 still copies one row (`dec; jg`) |
+| `Decode/DecodeAsm.c` | `DecodeAsm.asm` | Each converter stated as its formula; the table lookups byte-exact |
+| `Sound/MixerAsm.c` | `MixerAsm.asm` | All eight procedures; `mixer_FillB`'s inverted test kept; `_TEXT16` (a real-mode `int 1Bh` stub nothing references) not translated |
+| `Flobject/Bloc16Asm.c` | `Bloc16Asm.asm` | Codec 2's 8×8, 4×4 and 2×2 block decoders; frame offsets `ptrdiff_t`; the unused 2× upscaler not translated |
+
+Where the assembler wrote or read outside the caller's buffers, the C does not, with the same result in every pixel
+asked for: the RGBA converters' pair loop ran once with no pair left, so a count of 1 (`blit_Fill`) converted a
+garbage second pair past both buffers; the 3-byte table lookups wrote a dword per pixel. A glyph list with no
+pixels still writes one, at its first offset, as the assembler did (ScummVM's decoder notes the same).
+
+Codec 2 near the frame's edges. Some of the movies' motion vectors, at the bottom of the picture, point below it
+(ASan). Retail's three frames were separate heap blocks, so those pixels came from whatever memory followed: never
+defined. Each frame now has black guard rows above and below, enough that no 16-bit pixel offset can leave them
+(`dbloc16_GuardRows`), so such a pixel is black (decision 18). It touches a handful of pixels in the bottom row of a
+few frames.
+
+`D_bloc16.c` calls codec 2 through `dbloc16_pfnCodec2` so the test can put a reference beside it, and
+`dbloc16_DecodeFrame` returns 0 where retail returned an unset register (no frame to show yet).
+
+### Checks (P5.8)
+
+- `insaneasm` (no game data): each pixel converter's instruction sequence written out from `DecodeAsm.asm` as register
+  operations (sub-registers, shifts, rotates, upper bits holding random garbage) and compared with the C for every
+  16-bit input and every RGB triple; the copies, fills, lookups and rectangle blit against what their instructions do.
+- `moviecheck <data root>`: every movie decoded headlessly, as fast as it decodes, with a sound driver that mixes one
+  frame of audio (1470 sample frames) through the real sound engine and mixer after each frame. Every picture frame is
+  shown (`jonesopn_5.snm` has four frames that carry only sound), the stream ends cleanly, every codec-2 frame (2,240
+  of them) equals a C port of ScummVM's Blocky16 (`engines/grim/movie/codecs/blocky16.cpp`, GPLv3+, its notice kept
+  in the test) run on copies of the same frames, the audio is not silent, and the video and audio checksums match
+  values pinned after looking at the frames (`MOVIECHECK_DUMP=<dir>` writes every 50th as a BMP and the audio as a WAV;
+  the audio has been measured, not yet listened to). About 4 s. The Windows build's checksums under DREAMM, which the plan names as
+  the reference, could not be captured here; ScummVM's decoder stands in as the independent check.
+- The same under ASan and UBSan, and with `MallocScribble`, which found:
+
+| Where | Retail | Now |
+| --- | --- | --- |
+| `Flobject/D_wave.c` | Never writes bytes 0x0E-0x0F of its sound packets; the engine reads them as the track's priority flags (music, effects or voice, and whether it is heard). Retail's fresh heap block was most likely zeros | The packet buffer is zeroed when allocated |
+| `Sound/Engine.c` | The callback's per-channel cursors outlived `sound_Close`; the next open faded a new track out of a freed buffer (a second INSANE start-up in one process) | Each open starts with idle channels |
+| `Memory/Memory.c` | The debug allocator printed every request, with its address, to stdout | Only with `J3D_INSANE_MEMLOG` set |
+| `Lec/LecShare.c` | `lec_Log` formatted into 200-byte slots with `vsprintf` | Bounded; `J3D_INSANE_LOG` also prints each message to stderr |
+
+### Audio (P5.9)
+
+`platform/common/insane_dsnd.c` replaces retail's DirectSound driver `Sound/Dsnd.c` (excluded). Retail kept a looping
+buffer of three 0x600-frame blocks at 22,050 Hz and mixed the next block, through the mixer and the sound engine,
+whenever the play cursor left it. The port mixes 0x200-frame blocks on every timer tick and keeps three of them (70 ms)
+ahead of the play cursor of a stream in the phase 4 driver (`platform/common/sound_stream.h`, in `SoundDriver_mix.c`),
+which resamples it into the stereo bus. The engine syncs INSANE's frame pacer to what it has mixed, so the lead of
+mixing over hearing is how far the picture leads the sound: two to three 70 ms blocks in retail, about 50 to 70 ms
+here. The stream's cursor moves on its own, as DirectSound's did: with a device it is what the device has rendered
+(silence past what was written), with none it is real time. It is muted while the window is in the background, as a
+buffer without global focus was. The volume table is retail's, applied as the stream's gain.
+
+### The game side (P5.10 to P5.12)
+
+- **Which blitter.** `JonesMain_PlayIntroMovie` compares the mode's colour format with six retail formats; the port's
+  32-bit display has no alpha channel and matched none, so nothing played. Any 32-bit RGB mode now takes the 32-bit
+  path (`JonesMain_IntroMovieBlt32`); its table encodes each 565 pixel for the mode. The 555 and 565 blitters are
+  unreachable on the Mac and unchanged.
+- **Scaling.** `JonesMain_IntroMovieBlt32` keeps the movie's shape: the largest rectangle of it that fits the back
+  buffer, centred, black around (nearest neighbour, as retail). On retail's 4:3 modes that is what it did; on a wide
+  mode retail would have stretched. The presenter then pillarboxes the back buffer as for the game (P2.20). A failed
+  back-buffer lock no longer runs the loop with unset sizes.
+- **Pacing and runs on a virtual clock.** INSANE paces a movie in real time. `SmushPlay_PlayMovie` plays nothing while
+  a virtual clock is on (`--headless`, `--record`, `--replay`), so those runs neither wait the movie's length nor
+  depend on the host's timing, and the `boot` tests are unchanged. While waiting for the next frame the player sleeps
+  1 ms where retail spun.
+- **Skip, volume, subtitles (P5.11).** Return, Escape and a click skip, through the game's own intro window procedure
+  (checked by script: `vkey ESCAPE` at the 30th movie frame ends the intro 3 s after launch instead of 33).
+  `SmushPlay_SetGlobalVolume` sets the sound engine's master volume from the game's, as retail. The intro movies carry
+  no text, and SmushPlay has no subtitle hook; none is added.
+- **Every movie from its trigger (P5.12).** With `J3D_INSANE_LOG=1` the player names the file it plays: width 640
+  plays `jonesopn.snm` at performance level 3 and up and `jonesopn_3.snm` below; width 800 plays `jonesopn_8.snm` and
+  `jonesopn_4.snm`. `jonesopn_5.snm` belongs to a 512×384 mode, which the Mac's mode list does not offer (a 512-wide
+  setting falls back to 640); `moviecheck` decodes it.
+- Other changes in `SmushPlay.c`: `smushplay_Blit` is declared as blocky16 calls it (retail's took a pointer as an
+  int); `PlayMovie`'s result is defined when the loop does not run.
+- Kept as retail: `SmushPlay_SysShutdown` unregisters the modules before unsubscribing, so `BatchUnsubscribe` reports
+  that it could not unsubscribe from `ANIMPLAY.app` (a line in INSANE's log ring, shown with `J3D_INSANE_LOG`).
+
+Checked in the game: the intro plays fullscreen and windowed, with its sound through the output device for its whole
+32.6 s (`J3D_AUDIO_DUMP`), and under ASan and UBSan. Not checked by machine: lip sync and audio/video sync by eye and
+ear.
