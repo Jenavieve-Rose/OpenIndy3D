@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
+| 6 | Launcher and Options (SwiftUI), in-game dialogs: save and load, store, controls | 10 of 41 | Replanned 2026-11-14 (decision 20); the dialog foundation is committed on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **97 of 146** | |
+| **All** | | **107 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -50,7 +50,7 @@ Every level renders in a window or fullscreen through Metal: textured, lit, fogg
 refresh rate, pillarboxed to 4:3 by default, and plays with the keyboard, the mouse and controllers, using the retail
 key sets or the port's controller default (phase 3), with music, ambience, effects and voices placed by the game's
 own camera-relative mix, or with "Sound 3D" on in 3D with HRTF and doppler (phase 4). The intro movie plays with its
-sound (phase 5). The menus and dialogs do not appear (phase 6); the in-game inventory menu works. `tools/level_shots.sh` screenshots
+sound (phase 5). There is no launcher yet and the dialogs do not appear on `main` (phase 6); the in-game inventory menu works. `tools/level_shots.sh` screenshots
 every level by script.
 
 All of phase 1 is on `main` (at `3c3605a`): sixteen commits made on the branch `phase1-headless`, seven for P1.8 to
@@ -155,8 +155,9 @@ Decisions 1 to 11 are unchanged from draft 1. Their status is noted where work h
    rendering and supports head tracking (decision 19). The mixing is the port's own; OpenAL Soft is not needed.
 8. **Movies: port INSANE, do not swap in ScummVM.** The six assembler files become C. ScummVM's `Blocky16` codec
    (GPLv2+) is the reference for the hardest one.
-9. **GUI: emulate the slice of the Win32 dialog API that `jonesConfig.c` uses**, backed by our own widgets drawn with
-   the engine's font and 2D primitives, so ~10k lines of dialog logic stay intact.
+9. **GUI: emulate the slice of the Win32 dialog API that `jonesConfig.c` uses**, backed by our own widgets, so ~10k
+   lines of dialog logic stay intact. Narrowed by decision 20: this covers the dialogs the game raises while it
+   runs, not the launcher, and not the Windows look.
 10. **Build with CMake; generate the Xcode project from it.** In place (`build/` with Ninja, `build-xcode/`).
 11. **Bring over OpenJones3D's fixes as a curated patch series, after the game runs**, so "port bug" and "behaviour
     change" stay distinguishable.
@@ -191,6 +192,16 @@ Decisions made while doing phases 0 and 1:
     engine clock, never from the device, so headless, recorded and replayed runs keep byte-identical saves and the
     null build runs the same driver silently (docs/PORTING.md, "The sound driver" and "3D sound").
 
+Decision made while replanning phase 6 (2026-11-14):
+
+20. **Two interfaces: a SwiftUI launcher, and the game's dialogs redrawn.** The launcher and its Options window are
+    SwiftUI, in windows of their own, modelled on the Steam release's launcher; they change settings only through
+    `settings.ini` and hold no game logic. The dialogs the game raises while it runs keep `jonesConfig.c`'s logic
+    over the Win32 emulation (decision 9) but are drawn in the launcher's look, with the system font, instead of
+    Windows 98's. Rewriting those dialogs in SwiftUI was weighed and set aside: it would mean rewriting the logic of
+    each one, not only its drawing. Original art (the launch picture, the dialog icons) is read from the player's
+    copy at run time and never shipped.
+
 ## 4. Target architecture
 
 ```
@@ -216,7 +227,8 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    ├─ common/SoundDriver_mix.c          voices on the engine clock, mixer    exists
    ├─ apple/audio_device_avf.m          AVAudioEngine output, 3D placement   exists
    ├─ common/insane_timer.c, insane_dsnd.c  INSANE's timer and audio sink    exists (asm→C beside the .asm files)
-   ├─ j3dgui/                           Win32 dialog emulation and widgets   phase 6
+   ├─ common/j3dgui/                    Win32 dialog emulation and widgets   exists (6A), new look in 6C
+   ├─ apple/launcher/                   SwiftUI launcher and Options         phase 6 (6B)
    └─ apple/ (bundle, data locator)                                          phase 8
 ```
 
@@ -678,35 +690,119 @@ phase's code, the whole player under ASan, UBSan and `MallocScribble`, a read-th
 - Not yet done by hand: watching and listening to the intro (audio/video sync), fullscreen and windowed.
 - Left open, each with its phase: the intro movie chosen only for 640- and 800-wide modes (phase 8 fix series);
   `jonesopn_5.snm` unreachable without a 512×384 mode; the DREAMM checksums.
-### Phase 6: GUI dialogs
+### Phase 6: Launcher, options and dialogs
 
-Exit test: every dialog reachable in a playthrough works; the game can be configured, saved and loaded in-app.
+Rethought on 2026-11-14 (decision 20). The first pass drew every dialog in Windows 98's classic look inside the game
+window. That look is dropped: the text was small and hard to read, and the launcher belongs in a window of its own.
+The phase now has two kinds of interface:
 
-The game is playable without dialogs from phase 3 on, so this phase can overlap phases 4 and 5.
+- **The launcher and its Options window are SwiftUI**, in their own windows, shown before the game window exists.
+  They follow the Steam release's launcher (`Jones3D.exe`): its Launch dialog and its Display, Game Play, Sound and
+  Control Options dialogs. A mockup of both is in `../launcher-mockup/` (outside this repository because it holds a
+  copy of the retail launch picture).
+- **The dialogs the game raises while it runs stay on `j3dgui`** (6A), so `jonesConfig.c`'s logic is untouched, but
+  are drawn in the launcher's look instead of Windows 98's.
 
-#### 6A. Foundation (`platform/common/j3dgui/`)
+Original art is used wherever the player's copy holds it: the launch picture and the dialog icons. Text is drawn
+with the system font at a size that reads on a Retina display, never with the bitmap fonts of the Windows build.
 
-- [ ] **P6.1** (S) Classify the 254 stubs in `win32_null.c`: dialog API to implement, GDI to replace, dead. The
-      result is the shim's scope.
-- [ ] **P6.2** (S) `tools/rc2table.py`: generate C tables from `Indy3D.rc` (26 dialog templates, control IDs, classes,
+Exit test: the launcher starts and resumes the game; every setting can be changed in Options and the game obeys it;
+every dialog reachable in a playthrough works and reads clearly; the game can be saved and loaded in-app.
+
+State on 2026-11-14: 6A is committed on the branch `phase6-dialogs` (`0f51db5`) and its test (`dialogs`) passes.
+Uncommitted work on that branch wires the game's own dialogs: the `gamedialogs` test brings twelve of them up and
+fails on two, save and load (P6.17). Nothing of 6B or 6C exists in the tree yet.
+
+#### 6A. Foundation (`platform/common/j3dgui/`) (complete, committed)
+
+- [x] **P6.1** Classify the 254 stubs in `win32_null.c`: dialog API to implement, GDI to replace, dead. The result is
+      the shim's scope.
+- [x] **P6.2** `tools/rc2table.py`: generate C tables from `Indy3D.rc` (26 dialog templates, control IDs, classes,
       positions in dialog units, strings).
-- [ ] **P6.3** (M) Window objects: an `HWND` tree with IDs, text, rectangle, enabled, visible and focus state;
+- [x] **P6.3** Window objects: an `HWND` tree with IDs, text, rectangle, enabled, visible and focus state;
       `GetDlgItem`, `SetDlgItemTextA`, `EnableWindow`, `ShowWindow`, `SetFocus`, `MoveWindow`, `GetWindowRect`,
       `InvalidateRect`.
-- [ ] **P6.4** (M) Modal loop: `DialogBoxParamA` and `EndDialog`, `WM_INITDIALOG`, `WM_COMMAND`, `WM_NOTIFY` and
+- [x] **P6.4** Modal loop: `DialogBoxParamA` and `EndDialog`, `WM_INITDIALOG`, `WM_COMMAND`, `WM_NOTIFY` and
       `WM_CLOSE` dispatch, a nested loop that pumps SDL events and presents, as `DialogBoxParam` nested a message loop.
-- [ ] **P6.5** (M) Renderer: draw the dialog over the captured game frame in the back buffer with `rdFont`, replacing
-      `JonesDialog.c`'s GDI compositing (52 device-context and blit call sites in `Jones3D/`).
-- [ ] **P6.6** (M) Controls 1: static text, push button, check box, radio button, group box, with keyboard (Tab,
-      Return, Escape), mouse and controller navigation.
-- [ ] **P6.7** (M) Controls 2: list box and combo box with item data (`LB_*`, `CB_*`).
-- [ ] **P6.8** (M) Controls 3: trackbar (`TBM_*`, the most used message family), the list view, the edit control and
-      the scroll bar.
-- [ ] **P6.9** (S) Subclassing: `JonesDialog_SubclassDialogProc` and the stored `WNDPROC` chain in `jonesConfig.c`.
-- [ ] **P6.10** (M) Icons and bitmaps: `Indy3D.rc` names 43 image files that exist only inside the retail executable.
-      Read them from the player's `INDY3D.EXE` resource section at run time, with a plain fallback when it is absent.
+- [x] **P6.5** Renderer: draw the dialog over the captured game frame in the back buffer, replacing
+      `JonesDialog.c`'s GDI compositing. Done with a GDI over 32-bit surfaces and Core Text, in the Windows 98 look
+      that P6.38 replaces.
+- [x] **P6.6** Controls 1: static text, push button, check box, radio button, group box, with keyboard (Tab,
+      Return, Escape) and mouse. Controller navigation, which this step also named, was not done: P6.41.
+- [x] **P6.7** Controls 2: list box and combo box with item data (`LB_*`, `CB_*`).
+- [x] **P6.8** Controls 3: trackbar (`TBM_*`), the list view, the edit control and the scroll bar.
+- [x] **P6.9** Subclassing: `JonesDialog_SubclassDialogProc` and the stored `WNDPROC` chain in `jonesConfig.c`.
+- [x] **P6.10** Icons and bitmaps: `Indy3D.rc` names 43 image files that exist only inside the retail executable.
+      Read from the player's `Indy3D.exe` resource section at run time, with a plain fallback when it is absent.
 
-#### 6B. Dialogs, in order of how early the game needs them
+#### 6B. Launcher and Options (SwiftUI, `platform/apple/launcher/`)
+
+The launcher writes the same settings the Steam launcher wrote to the registry, through `wuRegistry`'s
+`settings.ini`, and the game reads them as it does today. The launcher holds no game logic.
+
+- [ ] **P6.26** (S) Decide how the launcher hands over to the game, by trying both: replace the process with the game
+      executable (`execv`, as retail's launcher started `Indy3D.exe`; preferred, because the game target stays free
+      of Swift and its tests are unaffected), or run the game loop in the launcher's process. Record the choice in
+      `docs/PORTING.md`. Hold the SwiftUI code to what macOS 13 offers (the deployment target, P8.14); the mockup's
+      `dismissWindow` is macOS 14 and must go.
+- [ ] **P6.27** (M) Swift in the build: `enable_language(Swift)` for `J3D_PLATFORM=apple` only, a `launcher` target
+      built from the mockup's two files, in both the Ninja and Xcode trees. The null and sanitizer trees do not build
+      it. The launcher window: the picture, then Start New Game, Resume Play, Help, Options and Quit in the
+      original's order, the title bar hidden, fixed size.
+- [ ] **P6.28** (S) The launch picture: bitmap 141 (320×240, 8-bit) in the Steam release's `Jones3D.exe`, read from
+      the player's copy at run time through the reader P6.10 wrote; nothing is copied into the repository or the
+      bundle. The CD-era launcher (`Jones3D_CD.exe`) loads a `.bmp` from disk instead: find where the GOG and CD
+      releases keep it. The plain title card when none is found.
+- [ ] **P6.29** (M) Settings bridge: Swift reads and writes `settings.ini` through `wuRegistry`'s C functions (a
+      bridging header), under the names the Steam launcher used: `Start Mode`, `Width`, `Height`, `BPP`,
+      `Buffering`, `Filter`, `Performance Level`, `Fog`, `Fog Density`, `Mouse Control`, `Joystick Control`,
+      `Difficulty`, `Show Hints`, `Default Run`, `Show Text`, `Map Rotation`, `Sound Volume`, `Sound 3D`,
+      `Configuration`. Values use the game's encodings (`Sound Volume` is a float stored as four bytes). Options
+      writes only on OK.
+- [ ] **P6.30** (S) Start New Game and Resume Play: set what the game needs to start a new game or load
+      `Last Save Game`, then hand over (P6.26). Resume Play is the default button and names the latest save when one
+      exists, and is disabled when none does; the save's level and date come from its header.
+- [ ] **P6.31** (M) Options, Display: the resolution list from the port's display modes (P2.3). Find out which of
+      Buffering, Performance Level and Mip Mapping the Metal renderer honours; keep those, drop the others, and put
+      P8.7's window or fullscreen, vsync and frame limiter here in their place. Fog and its density. Default
+      Settings.
+- [ ] **P6.32** (S) Options, Game Play and Sound: the difficulty slider with the game's level names (confirm the
+      full set against `jonesConfig.c`; the Steam launcher shows Freshman to Senior), Show Map Hints, Map Rotation,
+      Default to Run, Show Text; volume and 3D Sound.
+- [ ] **P6.33** (M) Options, Controls: the control sets in the user's and the retail `KeySets` folders, the chosen
+      one stored as `Configuration`; view a set as one table of action, keys and controller buttons (the original's
+      two lists merged); delete a user set; Enable Mouse and Enable Gamepad/Joystick.
+- [ ] **P6.34** (L) Create and edit a control set in the launcher, written in the retail `.kfg` format: capture a
+      key or a controller button for an action, refuse or reassign one already taken. The launcher has no SDL, so a
+      captured controller button must be numbered as `stdControl_sdl.c` numbers it; a test holds the two together.
+      Until this lands, sets are edited in the game's own dialog (P6.20, P6.21).
+- [ ] **P6.35** (S) Help: open the manual PDF from the player's data folder when it is there (the Steam release
+      ships one), otherwise the port's README.
+- [ ] **P6.36** (S) Keyboard and accessibility: Return and Escape, Tab through every control, arrow keys on the
+      sliders and choices, VoiceOver names for the custom-drawn switch, slider and choice bar.
+- [ ] **P6.37** (S) Tests: settings written by the launcher's bridge are read back by the `boot` test; the
+      launcher's `--snapshot` renders of each screen are kept as layout references, at 1× and 2×.
+
+#### 6C. The in-game dialogs' look (`j3dgui`)
+
+- [ ] **P6.38** (M) Replace the Windows 98 drawing in `gui_draw.c` and the controls with the launcher's look: dark
+      panels, the gold accent for the default button, focus and selection, switches for check boxes, and the system
+      font through `gui_text_ct.m`. Scale the templates' dialog units so body text is at least 13 points at the
+      window's size. The null build keeps fixed metrics, so its tests do not change with the look.
+- [ ] **P6.39** (S) One palette: the colours and metrics in a C header that both `j3dgui` and the launcher read, so
+      the two cannot drift.
+- [ ] **P6.40** (S) The original icons in the new look: drawn at whole multiples of their size without smoothing, on
+      a panel that suits them. Read every dialog at 1× and 2× and at the smallest window the game allows; no text
+      clipped, none below the size P6.38 sets.
+
+- [ ] **P6.41** (M) Controller navigation in the in-game dialogs: move focus with the stick or pad, accept and
+      cancel on the buttons the game's key set uses for them. Left out of P6.6.
+
+#### 6D. In-game dialogs, in order of how early the game needs them
+
+These are the dialogs `jonesConfig.c` raises while the game runs. The options dialogs among them (112, 113, 114,
+148, 111) change the same settings as the launcher's Options window; both must leave `settings.ini` in the same
+state.
 
 - [ ] **P6.11** (S) Message box (template 121). The game already calls it at startup today.
 - [ ] **P6.12** (S) Confirmations: exit game (211), save overwrite and save messages (163, 214), purchase message
@@ -716,20 +812,21 @@ The game is playable without dialogs from phase 3 on, so this phase can overlap 
 - [ ] **P6.15** (S) Sound settings (113).
 - [ ] **P6.16** (M) Display settings (114) and advanced display settings (148), fed by the P2.3 mode list.
 - [ ] **P6.17** (L) Save game (154) and load game (159): replace `GetSaveFileName`/`GetOpenFileName` with an in-game
-      file list, and the GDI thumbnail in `sithGamesave` with a VBuffer.
+      file list, and the GDI thumbnail in `sithGamesave` with a VBuffer. The two the `gamedialogs` test fails on
+      today.
 - [ ] **P6.18** (M) Game over (150), statistics (164), level completed (233).
 - [ ] **P6.19** (L) Indy's trading post (190): item list, cart, icons, purchase.
 - [ ] **P6.20** (L) Control options (111) with create scheme (116) and edit scheme (115).
 - [ ] **P6.21** (M) Assign key (117) and reassign key (120), which read raw input from `stdControl`.
 - [ ] **P6.22** (S) Confirm templates 104, 105 and 118 are unreferenced and leave them out.
 - [ ] **P6.23** (S) Restore retail's `Start Mode`, `Debug Mode` and `Verbosity` defaults, which were changed in
-      phase 1 only because no GUI existed.
+      phase 1 only because no GUI existed. The launcher now sets `Start Mode` (P6.30).
 - [ ] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling (128-byte file-dialog
       buffers), its 58 narrowing warnings (then drop its `-Wno-error=shorten-64-to-32` in `CMakeLists.txt`) and its
       four uninitialised locals (`docs/PORTING.md`, "Known open items"). Its fall-off-the-end functions were fixed in
       P1.22.
-- [ ] **P6.25** (M) Layout pass: every dialog compared with a reference screenshot from the Windows build, at 1× and
-      2× scale.
+- [ ] **P6.25** (M) Content pass: every dialog compared with a reference screenshot from the Windows build for what
+      it holds (every control present, in the same order, with the same text and behaviour), not for its look.
 ## Complete Phase 6 Code Audit
 ### Phase 7: Full-game verification and 64-bit closure
 
@@ -778,16 +875,17 @@ Exit test: a notarized `.app` that a player with a retail copy can install and f
 has no developer tools.
 
 - [ ] **P8.1** (S) Choose the product name and bundle identifier, avoiding LucasArts and Disney marks (the working
-      name is J3DPort).
+      name is J3DPort). (Port name will be OpenIndy3D).
 - [ ] **P8.2** (M) `.app` bundle target: `Info.plist`, an original icon, high-resolution capable, games category, Game
-      Mode eligibility.
+      Mode eligibility. Icon located in the ICNS Art folder.
 - [ ] **P8.3** (M) Ship dependencies inside the bundle (SDL3 static or embedded); nothing loaded from Homebrew paths.
 - [ ] **P8.4** (M) First-run data locator: look in the Steam, GOG and DREAMM install locations, otherwise an open
-      panel; store the result as `Data Root`.
+      panel; store the result as `Data Root`. The launcher (6B) shows the result and asks when nothing is found.
 - [ ] **P8.5** (S) Validate the chosen folder: GOB names and sizes, and the `INDY3D.EXE` hash against
       `docs/VERSIONS.md`. Decide and state which data versions are supported (only 1.2 is tested so far).
 - [ ] **P8.6** (S) Command line: `--level`, `--windowed` (`--data` exists).
-- [ ] **P8.7** (S) Display preferences: window or fullscreen, vsync, frame limiter.
+- [ ] **P8.7** (S) Display preferences: window or fullscreen, vsync, frame limiter. Their controls are in the
+      launcher's Options (P6.31).
 - [ ] **P8.8** (M) Triage OpenJones3D's `CHANGELOG.md` (~80 entries) into crash fixes, raised limits and quality of
       life, each with its upstream commit.
 - [ ] **P8.9** (L) Apply the series behind a build option that defaults on, in groups, each retested: crash and
@@ -857,6 +955,10 @@ stubbed Win32 functions, 26 templates, and a known control set (section 2.1). Tw
 list-view controls, and 43 icons and bitmaps that are game assets inside the retail executable and so cannot be
 shipped (P6.10). The game is playable without dialogs from phase 3, so the schedule risk stays inside phase 6.
 
+The replan of 2026-11-14 adds two risks. The launcher brings Swift into a C and Objective-C build (P6.27), and must
+stay within macOS 13's SwiftUI. And the same settings can now be changed in two places, the launcher's Options and
+the game's own options dialogs, in two languages; `settings.ini` is the only thing they share, and P6.37 tests it.
+
 ### 7.4 Blocky16 and INSANE correctness
 
 Hand-written assembler with no debug build to read, and structures that assume 1-byte packing. Mitigation: the packing
@@ -894,7 +996,7 @@ guide.
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Code complete and audited 2026-11-13; the playthrough by hand is open |
 | 4 | Audio complete | 2 weeks | Complete 2026-11-13, with 3D sound; listened to by hand in `12_sol` |
 | 5 | Movies complete | 2 to 3 weeks | Complete 2026-11-13, audited: the intro plays with sound; every movie decodes headlessly; watching by hand open |
-| 6 | All dialogs, save and load in-app | 4 to 6 weeks | Not started |
+| 6 | Launcher, Options, all dialogs, save and load in-app | 4 to 6 weeks | Replanned 2026-11-14: dialog foundation committed on `phase6-dialogs`; launcher mocked up, not in the tree |
 | 7 | Full playthrough verified | 2 to 3 weeks | Not started |
 | 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | Not started |
 
@@ -909,7 +1011,9 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
    `J3D_AUDIO_DUMP` (BUILDING.md) records what was heard, for comparing later builds.
 2. **Phase 5, by hand:** watch the intro for audio/video sync and listen to it (`moviecheck` measures the sound but
    nobody has listened), fullscreen and windowed.
-3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
+3. **Phase 6:** settle the hand-over (P6.26) and bring the mockup into the build (P6.27, P6.28); in parallel, finish
+   and commit the dialog wiring that is in the working tree, starting with save and load (P6.17).
+4. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 
 To reproduce the measurements at the top of this file:
