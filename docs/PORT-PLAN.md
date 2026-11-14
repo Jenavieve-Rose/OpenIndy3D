@@ -71,8 +71,9 @@ passes in the apple (11 tests), null (7) and sanitizer (11) trees.
 2026-11-13. At `9c739bd` everything builds and every test passes in the apple (13 tests), null (8) and sanitizer (13)
 trees.
 
-Phase 5 is on the branch `phase5-movies`, not yet merged. Everything builds and every test passes in the apple (15
-tests), null (10) and sanitizer (15) trees.
+Phase 5 is on `main` (at `cc734c9`), merged by fast-forward on 2026-11-13: two commits from the branch
+`phase5-movies`, P5.1 to P5.12 (`2740902`) and the audit (`cc734c9`). At `cc734c9` everything builds and every test
+passes in the apple (15 tests), null (10) and sanitizer (15) trees.
 
 ## 1. Goal
 
