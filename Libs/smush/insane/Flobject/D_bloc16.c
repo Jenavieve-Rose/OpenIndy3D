@@ -8,6 +8,7 @@
  */
 #include <stdarg.h>
 #include <stddef.h>
+#include <string.h>
 #include "../lec.h"
 #include "../Memory/Memory.h"
 #include "../Bitmap/Bitmap.h"
@@ -122,6 +123,9 @@ static int dbloc16_DecodeFrame(LecBitmapHeader* pBitmap, MixerRect* pClip, int x
 static void dbloc16_BuildLut(LecBitmapHeader* pBitmap);
 static void dbloc16_Scale(unsigned short* pDst, unsigned short* pSrc, int width, int height);
 static unsigned short dbloc16_Average(unsigned short a, unsigned short b);
+#ifdef J3D_PORT
+static void dbloc16_Store32(unsigned short* p, unsigned v);
+#endif
 static void dbloc16_ScalePal(unsigned short* pDst, unsigned char* pSrc, int width, int height, unsigned short* pPalette);
 
 static LecModule dbloc16_module = { dbloc16_Register, dbloc16_Unregister, dbloc16_Startup, dbloc16_Shutdown };
@@ -486,6 +490,11 @@ static void dbloc16_MakeGlyphs(int size)
     int entry;
     int glyph[64];
 
+#ifdef J3D_PORT
+    if (size != 4 && size != 8) {
+        return; // Port: the edge tables are unset for any other size; both callers pass 4 or 8 (static analyzer)
+    }
+#endif
     if (size == 8) {
         pEdgeX = dbloc16_big1;
         pEdgeY = dbloc16_big2;
@@ -769,12 +778,12 @@ static void dbloc16_Scale(unsigned short* pDst, unsigned short* pSrc, int width,
     pOut = pDst + width;
     for (y = 0; y < height; y += 2) {
         cur = *pSrc++;
-        *(unsigned*)pOut = (cur << 16) | cur;
+        dbloc16_Store32(pOut, (cur << 16) | cur); // Port: was *(unsigned*)pOut, unaligned for an odd width
         pOut += 2;
         for (x = width - 2; x > 0; x -= 2) {
             prev = cur;
             cur = *pSrc++;
-            *(unsigned*)pOut = (cur << 16) | dbloc16_Average(prev, cur);
+            dbloc16_Store32(pOut, (cur << 16) | dbloc16_Average(prev, cur)); // Port: was *(unsigned*)pOut, unaligned for an odd width
             pOut += 2;
         }
         pOut += width;
@@ -790,6 +799,13 @@ static void dbloc16_Scale(unsigned short* pDst, unsigned short* pSrc, int width,
         pOut += width;
     }
 }
+
+#ifdef J3D_PORT
+static void dbloc16_Store32(unsigned short* p, unsigned v)
+{
+    memcpy(p, &v, sizeof(v));
+}
+#endif
 
 static unsigned short dbloc16_Average(unsigned short a, unsigned short b)
 {
@@ -807,12 +823,12 @@ static void dbloc16_ScalePal(unsigned short* pDst, unsigned char* pSrc, int widt
     pOut = pDst + width;
     for (y = 0; y < height; y += 2) {
         cur = pPalette[*pSrc++];
-        *(unsigned*)pOut = (cur << 16) | cur;
+        dbloc16_Store32(pOut, (cur << 16) | cur); // Port: was *(unsigned*)pOut, unaligned for an odd width
         pOut += 2;
         for (x = width - 2; x > 0; x -= 2) {
             prev = cur;
             cur = pPalette[*pSrc++];
-            *(unsigned*)pOut = (cur << 16) | dbloc16_Average(prev, cur);
+            dbloc16_Store32(pOut, (cur << 16) | dbloc16_Average(prev, cur)); // Port: was *(unsigned*)pOut, unaligned for an odd width
             pOut += 2;
         }
         pOut += width;

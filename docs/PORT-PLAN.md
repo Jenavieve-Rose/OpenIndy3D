@@ -20,7 +20,7 @@ confused with section numbers.
 | 2 | Window, 2D back buffer and Metal renderer | 22 of 22 | Complete |
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
-| 5 | Movies (INSANE) | 12 of 12 | Code complete 2026-11-13; audit open; watched and listened to by hand open |
+| 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
 | 6 | Dialogs: options, save and load, store, controls | 0 of 25 | Not started |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
@@ -662,6 +662,21 @@ headless decode test passes for all of them.
       performance level below or at least 3); `jonesopn_5.snm` needs a 512×384 mode the Mac does not offer and is
       covered by `moviecheck`.
 ## Complete Phase 5 Code Audit
+
+Done 2026-11-13; details in `docs/PORTING.md`, "Phase 5 code audit". Extra warnings and the static analyzer on the
+phase's code, the whole player under ASan, UBSan and `MallocScribble`, a read-through of its three threads.
+
+- [x] Warnings and static analysis: three findings (a mistyped driver slot, unaligned stores in two unused codecs,
+      unset edge tables for an impossible glyph size), fixed; the remaining casts point into aligned buffers.
+- [x] Newly reachable retail code: out-of-frame motion vectors, uninitialised packet bytes, stale channel cursors,
+      unaligned fields, the 64-bit layouts; all fixed in the steps.
+- [x] Read-through: the sound engine's track table had no lock between the decoder and the mixing callback, which
+      only x86's store order made safe; it has one now, with a fixed lock order. Freed timers never call back.
+- [x] Behaviour: the `boot` autosave is byte-identical to `main`'s before the phase, null and apple builds; every test
+      passes in the apple (15), null (10) and sanitizer (15) trees; the intro plays and skips under the sanitizers.
+- Not yet done by hand: watching and listening to the intro (audio/video sync), fullscreen and windowed.
+- Left open, each with its phase: the intro movie chosen only for 640- and 800-wide modes (phase 8 fix series);
+  `jonesopn_5.snm` unreachable without a 512×384 mode; the DREAMM checksums.
 ### Phase 6: GUI dialogs
 
 Exit test: every dialog reachable in a playthrough works; the game can be configured, saved and loaded in-app.
@@ -877,7 +892,7 @@ guide.
 | 2 | Metal renderer, first level on screen | 3 to 4 weeks | Complete: every level renders textured, lit and fogged in a window or fullscreen; the phase audit is done |
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Code complete and audited 2026-11-13; the playthrough by hand is open |
 | 4 | Audio complete | 2 weeks | Complete 2026-11-13, with 3D sound; listened to by hand in `12_sol` |
-| 5 | Movies complete | 2 to 3 weeks | Code complete 2026-11-13: the intro plays with sound; every movie decodes headlessly |
+| 5 | Movies complete | 2 to 3 weeks | Complete 2026-11-13, audited: the intro plays with sound; every movie decodes headlessly; watching by hand open |
 | 6 | All dialogs, save and load in-app | 4 to 6 weeks | Not started |
 | 7 | Full playthrough verified | 2 to 3 weeks | Not started |
 | 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | Not started |
@@ -892,7 +907,7 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
    headphones plugged in or out while playing (the sound itself was listened to and approved in `12_sol`).
    `J3D_AUDIO_DUMP` (BUILDING.md) records what was heard, for comparing later builds.
 2. **Phase 5, by hand:** watch the intro for audio/video sync and listen to it (`moviecheck` measures the sound but
-   nobody has listened), fullscreen and windowed; then the phase 5 code audit.
+   nobody has listened), fullscreen and windowed.
 3. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 

@@ -1433,3 +1433,39 @@ buffer without global focus was. The volume table is retail's, applied as the st
 Checked in the game: the intro plays fullscreen and windowed, with its sound through the output device for its whole
 32.6 s (`J3D_AUDIO_DUMP`), and under ASan and UBSan. Not checked by machine: lip sync and audio/video sync by eye and
 ear.
+
+### Phase 5 code audit
+
+1. **Warnings** (`-Wall -Wextra -Wconversion -Wshadow -Wcast-align`) and **static analysis** on every file written or
+   changed this phase. Fixed: `insane_dsnd.c` filled the driver table's `SetRate` slot with `sound_Null` cast to
+   another type, as retail did (now a function of the slot's type); blocky16's two interpolating scalers stored pixel
+   pairs through `unsigned*`, unaligned for an odd frame width (byte copies; no movie uses those codecs); the analyzer
+   saw `dbloc16_MakeGlyphs` read its edge tables unset for a size other than 4 or 8 (guarded; both callers pass 4 or
+   8). Kept: the remaining `-Wcast-align` casts in `Decode.c`, `Engine.c`, `Memory.c`, `Bitmap.c` and `D_wave.c` point
+   into buffers aligned in every caller (UBSan reports none in `moviecheck` or the game); `LecShare.c`'s table casts
+   an int-returning function to a void one, as retail, and no caller reads the result.
+2. **Newly reachable retail code**, under ASan, UBSan and `MallocScribble`: the whole player, every movie, and the
+   intro in the game. Found and fixed in the steps above: out-of-frame motion vectors, the uninitialised packet bytes,
+   the stale channel cursors, the unaligned fields, the 64-bit layouts.
+3. **Read-through** of the threads. Three run during a movie: the game thread (decoding, the blit), INSANE's timer
+   thread (the pacer, the tick counter, the audio callback) and the output device's.
+   - Found: the sound engine's track table was shared between the decoder (game thread) and the mixing callback
+     (timer thread) with no lock; retail relied on x86 keeping its stores in order, which arm64 does not, so the mixer
+     could see a track marked starting before its buffer pointers. `Engine.c` now has a mutex over every entry point
+     that changes the tracks and over the callback. Lock order is always timer, then engine, then the sound driver's:
+     the game thread never takes the timer's lock while holding the engine's (`sound_Open` and `sound_Close`, which
+     start and stop the driver's timer, take no lock), and the device thread takes only the driver's.
+   - A timer's callback never runs after `Free` returns (P5.3), so the player's state and the driver's mixer are freed
+     only once nothing can reach them; module shutdown stops the sound driver's timer before the timer thread is
+     joined.
+   - Left as retail: the player's tick and lead counters, plain ints the timer thread increments and the game thread
+     reads; a stale read delays a frame by one tick and publishes no pointer.
+4. **Behaviour.** The `boot` autosave is byte-identical to `main`'s before this phase, in the null and apple builds,
+   and the boot log is the same apart from load timings; `python3 tools/layout_audit.py` reports no difference; every
+   test passes in the apple (15), null (10) and sanitizer (15) trees, with `-Werror`; the intro plays to its end and
+   skips under ASan and UBSan.
+
+Left open: watching and listening to the intro by hand (audio/video sync, fullscreen and windowed); the DREAMM
+checksums; `jonesopn_5.snm` has no trigger on the Mac (no 512×384 mode). Kept as retail for the phase 8 fix series:
+the intro is chosen for 640 or 800 wide modes only, so larger modes get the 640×480 movie scaled up rather than the
+800×600 one; `SysShutdown`'s unsubscribe order.

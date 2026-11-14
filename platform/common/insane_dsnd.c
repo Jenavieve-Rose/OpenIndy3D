@@ -34,8 +34,6 @@
 #define DSND_AHEAD  (3 * DSND_BLOCK) // frames kept mixed ahead of the play cursor
 #define DSND_MAXFILL 4              // blocks one callback may mix (catching up after a late tick)
 
-extern int sound_Null(void);
-
 int dsnd_Register(LecShare* pShare, void* pParam);
 int dsnd_Configure(int tag, ...);
 static void dsnd_Unregister(void);
@@ -49,7 +47,8 @@ static int dsnd_GetRate(void);
 static void dsnd_Callback(int index, intptr_t param);
 
 static LecModule dsnd_module = { dsnd_Register, dsnd_Unregister, dsnd_Startup, dsnd_Shutdown };
-static SndDriver dsnd_interface = { dsnd_Start, dsnd_Stop, dsnd_SetVolume, dsnd_GetVolume, (int (*)(int))sound_Null, dsnd_GetRate };
+static int dsnd_SetRate(int rate);
+static SndDriver dsnd_interface = { dsnd_Start, dsnd_Stop, dsnd_SetVolume, dsnd_GetVolume, dsnd_SetRate, dsnd_GetRate };
 
 static LecShare* dsnd_pShare = NULL;
 static void* dsnd_pParam = NULL;
@@ -198,6 +197,13 @@ static void dsnd_SetVolume(int volume)
 static int dsnd_GetVolume(void)
 {
     return dsnd_volume;
+}
+
+// retail's slot held Engine.c's sound_Null, an empty `return 0`, cast to this type
+static int dsnd_SetRate(int rate)
+{
+    (void)rate;
+    return 0;
 }
 
 static int dsnd_GetRate(void)

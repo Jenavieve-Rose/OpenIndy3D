@@ -100,10 +100,57 @@ static void sound_Fill(void* pDst, int value, int n);
 int sound_Null(void);
 
 static LecModule sound_module = { sound_Register, sound_Unregister, sound_Startup, sound_Shutdown };
+#ifdef J3D_PORT
+/*
+ * Port: the game thread (the wave decoder's packets, the player's volume, pause and resume) and INSANE's timer thread
+ * (sound_Callback, which mixes) share the track table. Retail had no lock: a new track's buffers were written, then
+ * its state set to 2, and on x86 the timer thread saw the stores in that order. arm64 does not keep stores in order,
+ * so the mixer could see "starting" before the track's pointers. A mutex now covers each entry point that changes
+ * the tracks and the callback. The timer thread takes it inside the timer's lock; the game thread never takes the
+ * timer's lock while holding it (sound_Open and sound_Close, which start and stop the driver and so free its timer,
+ * do not take it), so the order is always timer, then engine. PORT-PLAN.md P5.9, phase 5 audit.
+ */
+#include <pthread.h>
+static pthread_mutex_t sound_lock = PTHREAD_MUTEX_INITIALIZER;
+#define SOUND_LOCKED_VOID(name, params, args) \
+    static void name##_Locked params { pthread_mutex_lock(&sound_lock); name args; pthread_mutex_unlock(&sound_lock); }
+SOUND_LOCKED_VOID(sound_Play, (unsigned char* pData, int id, int volume, int pan, int priority), (pData, id, volume, pan, priority))
+SOUND_LOCKED_VOID(sound_Stop, (int id), (id))
+SOUND_LOCKED_VOID(sound_Pause, (void), ())
+SOUND_LOCKED_VOID(sound_Resume, (void), ())
+SOUND_LOCKED_VOID(sound_StopAll, (void), ())
+SOUND_LOCKED_VOID(sound_SetVolume, (int id, int volume), (id, volume))
+SOUND_LOCKED_VOID(sound_SetPan, (int id, int pan), (id, pan))
+SOUND_LOCKED_VOID(sound_Callback, (int n, SoundFeed pfnFeed), (n, pfnFeed))
+static int sound_GetPosition_Locked(int id)
+{
+    int position;
+    pthread_mutex_lock(&sound_lock);
+    position = sound_GetPosition(id);
+    pthread_mutex_unlock(&sound_lock);
+    return position;
+}
+static int sound_Control_Locked(int a1, int tag, int a3, int a4)
+{
+    int rc;
+    pthread_mutex_lock(&sound_lock);
+    rc = sound_Control(a1, tag, a3, a4);
+    pthread_mutex_unlock(&sound_lock);
+    return rc;
+}
+static SoundInterface sound_interface = {
+    sound_Play_Locked, sound_Stop_Locked, sound_Pause_Locked, sound_Resume_Locked, sound_StopAll_Locked, sound_GetVolume,
+    sound_SetVolume_Locked, sound_GetPan, sound_SetPan_Locked, sound_GetMasterVolume, sound_SetMasterVolume, sound_GetRate,
+    sound_SetRate, sound_GetPosition_Locked, sound_Query, sound_Control_Locked
+};
+#define SOUND_FILLFUNC sound_Callback_Locked
+#else
 static SoundInterface sound_interface = {
     sound_Play, sound_Stop, sound_Pause, sound_Resume, sound_StopAll, sound_GetVolume, sound_SetVolume, sound_GetPan, sound_SetPan,
     sound_GetMasterVolume, sound_SetMasterVolume, sound_GetRate, sound_SetRate, sound_GetPosition, sound_Query, sound_Control
 };
+#define SOUND_FILLFUNC sound_Callback
+#endif
 /* bytes per sample frame of each track format */
 static int sound_frameSize[6] = { 1, 2, 2, 4, 2, 4 };
 static int sound_numTracks = 4;
@@ -262,7 +309,7 @@ static int sound_Open(int rate, int size, ...)
         }
         n = va_arg(args, int);
     }
-    sound_started = !sound_pDriver->Start(rate, sound_numTracks, sound_Callback);
+    sound_started = !sound_pDriver->Start(rate, sound_numTracks, SOUND_FILLFUNC); // Port: the locked callback
     sound_rate = sound_pDriver->GetRate();
     sound_frames = 0;
     sound_playMusic = 1;
