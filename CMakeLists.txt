@@ -403,6 +403,10 @@ if(J3D_TEST_DATA AND J3D_PLATFORM STREQUAL "apple")
     add_test(NAME input COMMAND sh ${J3D_ROOT}/tests/input.sh $<TARGET_FILE:jones3d> ${J3D_TEST_DATA}
         ${CMAKE_CURRENT_BINARY_DIR}/input-out)
     set_tests_properties(input PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
+    # launcher: Start New Game, Resume Play and Options, answered without clicks (tests/launcher.sh)
+    add_test(NAME launcher COMMAND sh ${J3D_ROOT}/tests/launcher.sh $<TARGET_FILE:jones3d> ${J3D_TEST_DATA}
+        ${CMAKE_CURRENT_BINARY_DIR}/launcher-out)
+    set_tests_properties(launcher PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" SKIP_RETURN_CODE 77)
 endif()
 
 if(J3D_TEST_DATA)

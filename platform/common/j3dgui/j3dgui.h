@@ -20,6 +20,10 @@ extern "C" {
 // its stand-in. Returns 0 for a handle that is not an icon. The pixels belong to the icon.
 int J3DGui_GetIconPixels(HICON hIcon, int* pWidth, int* pHeight, const uint32_t** ppPixels);
 
+// The bitmap resource id of pExeName (relative to the data root) as a .bmp file in memory, which the caller frees.
+// Returns 0 when the file or the bitmap is not there. The launcher's picture (PORT-PLAN.md P6.28).
+int J3DGui_ReadExeBitmap(const char* pExeName, int id, uint8_t** ppBmpFile, size_t* pSize);
+
 /* ---- For the event loop ---------------------------------------------------------------------------------------------- */
 
 // Nonzero while a modal dialog or message box is open: keyboard and mouse input belongs to it.

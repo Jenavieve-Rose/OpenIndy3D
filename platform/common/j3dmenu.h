@@ -76,6 +76,7 @@ typedef struct J3DMenuDisplay
     int filter;
     int bFog;
     int fogDensity;
+    int bWindowMode;                // the launcher's Options only: fullscreen (0) or a window (1)
 } J3DMenuDisplay;
 int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult);
 
@@ -109,6 +110,39 @@ typedef struct J3DMenuStore
     int (*pfAction)(struct J3DMenuStore* pStore, int action, int index);
 } J3DMenuStore;
 int J3DMenu_ShowStore(J3DMenuStore* pStore, int* pResult);
+
+// The control options' settings (template 111): the control set (one of apSchemes), mouse and gamepad.
+typedef struct J3DMenuControls
+{
+    const char* const* apSchemes;
+    int numSchemes;
+    int scheme;
+    int bMouse;
+    int bJoystick;
+    int bJoystickAvailable;
+} J3DMenuControls;
+
+// The launcher's Options window (PORT-PLAN.md P6.31 to P6.33): the display, game play, sound and control settings as
+// tabs, filled by the caller as for the in-game menus. *pResult 1 (OK, the caller applies them all) or 2.
+int J3DMenu_ShowOptions(J3DMenuDisplay* pDisplay, J3DMenuGamePlay* pGamePlay, J3DMenuSound* pSound, J3DMenuControls* pControls,
+                        int* pResult);
+
+// The launcher (PORT-PLAN.md 6B), in a window of its own before the game window is shown. Returns 0 when this run has
+// none (headless, a replay or input script, a start mode given in the environment, J3D_NO_LAUNCHER, J3D_MENUS=classic,
+// the null platform), else 1 with *pChoice J3DMENU_LAUNCH_QUIT, _NEWGAME or _RESUME. pResumeDetail names what Resume
+// Play loads, or is NULL when there is nothing to resume; pfOptions shows the Options (J3DMenu_ShowOptions).
+#define J3DMENU_LAUNCH_QUIT    0
+#define J3DMENU_LAUNCH_NEWGAME 1
+#define J3DMENU_LAUNCH_RESUME  2
+typedef struct J3DMenuLaunch
+{
+    const char* pResumeDetail;
+    void (*pfOptions)(void);
+} J3DMenuLaunch;
+int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice);
+
+// Nonzero once the player quit from the launcher: the game's startup then stops, which is a normal exit, not a failure.
+int J3DMenu_QuitAtLaunch(void);
 
 // jonesConfig_ShowGameOverDialog's buttons: *pResult is 1177 (start the level again; offered only with bCanRestart),
 // 1178 (load a save) or 1179 (quit). The caller does what the button did.

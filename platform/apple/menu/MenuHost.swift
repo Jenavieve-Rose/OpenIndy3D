@@ -76,7 +76,7 @@ func runMenu<Content: View>(over gameWindowPointer: UnsafeMutableRawPointer?,
 private var menuShotCount = 0
 
 @MainActor
-private func menuUnattendedTimer(for overlay: NSWindow) -> Timer? {
+func menuUnattendedTimer(for overlay: NSWindow) -> Timer? {
     let environment = ProcessInfo.processInfo.environment
     guard let text = environment["J3D_MENU_AUTOCANCEL"], let seconds = Double(text), seconds > 0 else { return nil }
     let timer = Timer(timeInterval: seconds, repeats: false) { _ in

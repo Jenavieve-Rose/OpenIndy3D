@@ -82,6 +82,29 @@ int J3DMenu_ShowStore(J3DMenuStore* pStore, int* pResult)
     return 0;
 }
 
+int J3DMenu_ShowOptions(J3DMenuDisplay* pDisplay, J3DMenuGamePlay* pGamePlay, J3DMenuSound* pSound, J3DMenuControls* pControls,
+                        int* pResult)
+{
+    (void)pDisplay;
+    (void)pGamePlay;
+    (void)pSound;
+    (void)pControls;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
+{
+    (void)pLaunch;
+    (void)pChoice;
+    return 0;
+}
+
+int J3DMenu_QuitAtLaunch(void)
+{
+    return 0;
+}
+
 int J3DMenu_ShowGameOver(int bCanRestart, int* pResult)
 {
     (void)bCanRestart;

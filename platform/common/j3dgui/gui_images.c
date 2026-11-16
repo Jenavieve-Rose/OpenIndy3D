@@ -151,21 +151,18 @@ static uint16_t gui_U16(const uint8_t* p)
     return (uint16_t)(p[0] | (p[1] << 8));
 }
 
-static int gui_LoadExe(void)
+// Reads the first of apNames (relative to the data root) that exists and finds its resource section. 1 on success.
+static int gui_OpenExe(GuiExe* pExe, const char* const* apNames, size_t numNames)
 {
-    static const char* aNames[] = { "Resource/Indy3D.exe", "Indy3D.exe" };
+    GuiExe gui_exe; // the code below was written for the one executable; it fills this copy, then pExe
     size_t i;
-    if ( gui_bExeTried )
-    {
-        return gui_exe.pData != NULL;
-    }
-    gui_bExeTried = 1;
-    for ( i = 0; i < sizeof(aNames) / sizeof(aNames[0]) && !gui_exe.pData; ++i )
+    memset(&gui_exe, 0, sizeof(gui_exe));
+    for ( i = 0; i < numNames && !gui_exe.pData; ++i )
     {
         char aPath[1100];
         FILE* f;
         long size;
-        snprintf(aPath, sizeof(aPath), "%s%s", J3DHost_GetDataRoot(), aNames[i]);
+        snprintf(aPath, sizeof(aPath), "%s%s", J3DHost_GetDataRoot(), apNames[i]);
         f = J3DHost_fopen(aPath, "rb");
         if ( !f )
         {
@@ -214,16 +211,29 @@ static int gui_LoadExe(void)
             gui_exe.pData = NULL;
         }
     }
-    if ( !gui_exe.pData )
+    *pExe = gui_exe;
+    return gui_exe.pData != NULL;
+}
+
+static int gui_LoadExe(void)
+{
+    static const char* const aNames[] = { "Resource/Indy3D.exe", "Indy3D.exe" };
+    if ( gui_bExeTried )
+    {
+        return gui_exe.pData != NULL;
+    }
+    gui_bExeTried = 1;
+    if ( !gui_OpenExe(&gui_exe, aNames, sizeof(aNames) / sizeof(aNames[0])) )
     {
         fprintf(stderr, "j3dgui: the dialog icons are read from the game's Resource/Indy3D.exe, which was not found; plain icons are drawn\n");
     }
     return gui_exe.pData != NULL;
 }
 
-// The data of resource type/id (the first language), or NULL.
-static const uint8_t* gui_FindResource(uint32_t type, uint32_t id, uint32_t* pSize)
+// The data of resource type/id (the first language) in pExe, or NULL.
+static const uint8_t* gui_FindResourceIn(const GuiExe* pExe, uint32_t type, uint32_t id, uint32_t* pSize)
 {
+    const GuiExe gui_exe = *pExe;
     const uint8_t* base = gui_exe.pData + gui_exe.rsrcRaw;
     size_t limit = gui_exe.size - gui_exe.rsrcRaw;
     uint32_t want[2] = { type, id };
@@ -280,6 +290,58 @@ static const uint8_t* gui_FindResource(uint32_t type, uint32_t id, uint32_t* pSi
         }
     }
     return NULL;
+}
+
+static const uint8_t* gui_FindResource(uint32_t type, uint32_t id, uint32_t* pSize)
+{
+    return gui_FindResourceIn(&gui_exe, type, id, pSize);
+}
+
+int J3DGui_ReadExeBitmap(const char* pExeName, int id, uint8_t** ppBmpFile, size_t* pSize)
+{
+    GuiExe exe;
+    const uint8_t* pDib;
+    uint32_t dibSize = 0;
+    int bFound = 0;
+    *ppBmpFile = NULL;
+    *pSize = 0;
+    if ( !gui_OpenExe(&exe, &pExeName, 1) )
+    {
+        return 0;
+    }
+    pDib = gui_FindResourceIn(&exe, 2, (uint32_t)id, &dibSize); // RT_BITMAP: a DIB without its file header
+    if ( pDib && dibSize >= 40 )
+    {
+        const uint32_t headerSize = gui_U32(pDib);
+        const uint16_t bpp = gui_U16(pDib + 14);
+        uint32_t numColors = gui_U32(pDib + 32);
+        if ( !numColors && bpp <= 8 )
+        {
+            numColors = 1u << bpp;
+        }
+        *ppBmpFile = malloc((size_t)dibSize + 14);
+        if ( *ppBmpFile && headerSize >= 40 && headerSize + numColors * 4 <= dibSize )
+        {
+            uint8_t* p = *ppBmpFile;
+            const uint32_t fileSize = dibSize + 14;
+            const uint32_t bitsAt = 14 + headerSize + numColors * 4;
+            p[0] = 'B';
+            p[1] = 'M';
+            memcpy(p + 2, &fileSize, 4);
+            memset(p + 6, 0, 4);
+            memcpy(p + 10, &bitsAt, 4);
+            memcpy(p + 14, pDib, dibSize);
+            *pSize = fileSize;
+            bFound = 1;
+        }
+        else
+        {
+            free(*ppBmpFile);
+            *ppBmpFile = NULL;
+        }
+    }
+    free(exe.pData);
+    return bFound;
 }
 
 // An RT_ICON image: BITMAPINFOHEADER (height doubled), palette, XOR bits, AND mask.

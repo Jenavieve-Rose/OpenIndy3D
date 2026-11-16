@@ -5045,46 +5045,61 @@ LRESULT CALLBACK jonesConfig_LoadGameThumbnailPaintProc(HWND hWnd, UINT uMsg, WP
     return CallWindowProc((WNDPROC)pData->pfThubnailProc, hWnd, uMsg, wParam, lParam);
 }
 
+#ifdef J3D_PORT
+// Port: the game play settings for the platform's menus (PORT-PLAN.md Phase 6, decision 21), and what
+// jonesConfig_GamePlayOptions_HandleWM_COMMAND's OK did with them. The in-game menu and the launcher's Options share
+// both, so they leave settings.ini alike.
+static void jonesConfig_GetGamePlayMenu(J3DMenuGamePlay* pOptions)
+{
+    pOptions->difficulty    = sithGetGameDifficulty();
+    pOptions->maxDifficulty = (int)jonesInventory_GetMaxDifficultyLevel();
+    pOptions->bShowHints    = sithOverlayMap_GetShowHints();
+    pOptions->bMapRotation  = sithOverlayMap_GetMapRotation();
+    pOptions->bDefaultRun   = jonesConfig_gamePlayOptions_bDefaultRun;
+    pOptions->bShowText     = sithVoice_GetShowText();
+}
+
+static void jonesConfig_ApplyGamePlayMenu(const J3DMenuGamePlay* pOptions)
+{
+    J3DMenuGamePlay options = *pOptions;
+    sithVoice_ShowText(options.bShowText);
+    wuRegistry_SaveIntEx("Show Text", sithVoice_GetShowText());
+
+    sithOverlayMap_EnableMapRotation(options.bMapRotation);
+    wuRegistry_SaveIntEx("Map Rotation", sithOverlayMap_GetMapRotation());
+
+    sithOverlayMap_SetShowHints(options.bShowHints);
+    wuRegistry_SaveIntEx("Show Hints", sithOverlayMap_GetShowHints());
+
+    sithSetGameDifficulty(options.difficulty);
+    wuRegistry_SaveInt("Difficulty", sithGetGameDifficulty());
+
+    jonesConfig_gamePlayOptions_bDefaultRun = options.bDefaultRun;
+    wuRegistry_SaveIntEx("Default Run", jonesConfig_gamePlayOptions_bDefaultRun);
+    if ( jonesConfig_gamePlayOptions_bDefaultRun )
+    {
+        sithControl_controlOptions |= 0x02;
+    }
+    else
+    {
+        sithControl_controlOptions &= ~0x02;
+    }
+}
+#endif
+
 int J3DAPI jonesConfig_ShowGamePlayOptions(HWND hWnd)
 {
 #ifdef J3D_PORT
     {
-        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 21); OK applies and saves the
-        // settings as jonesConfig_GamePlayOptions_HandleWM_COMMAND's OK does
+        // Port: the platform's own menu, when it has one (decision 21)
         J3DMenuGamePlay options;
         int menuResult;
-        options.difficulty    = sithGetGameDifficulty();
-        options.maxDifficulty = jonesInventory_GetMaxDifficultyLevel();
-        options.bShowHints    = sithOverlayMap_GetShowHints();
-        options.bMapRotation  = sithOverlayMap_GetMapRotation();
-        options.bDefaultRun   = jonesConfig_gamePlayOptions_bDefaultRun;
-        options.bShowText     = sithVoice_GetShowText();
+        jonesConfig_GetGamePlayMenu(&options);
         if ( J3DMenu_ShowGamePlayOptions(&options, &menuResult) )
         {
             if ( menuResult == 1 )
             {
-                sithVoice_ShowText(options.bShowText);
-                wuRegistry_SaveIntEx("Show Text", sithVoice_GetShowText());
-
-                sithOverlayMap_EnableMapRotation(options.bMapRotation);
-                wuRegistry_SaveIntEx("Map Rotation", sithOverlayMap_GetMapRotation());
-
-                sithOverlayMap_SetShowHints(options.bShowHints);
-                wuRegistry_SaveIntEx("Show Hints", sithOverlayMap_GetShowHints());
-
-                sithSetGameDifficulty(options.difficulty);
-                wuRegistry_SaveInt("Difficulty", sithGetGameDifficulty());
-
-                jonesConfig_gamePlayOptions_bDefaultRun = options.bDefaultRun;
-                wuRegistry_SaveIntEx("Default Run", jonesConfig_gamePlayOptions_bDefaultRun);
-                if ( jonesConfig_gamePlayOptions_bDefaultRun )
-                {
-                    sithControl_controlOptions |= 0x02;
-                }
-                else
-                {
-                    sithControl_controlOptions &= ~0x02;
-                }
+                jonesConfig_ApplyGamePlayMenu(&options);
             }
             return menuResult;
         }
@@ -7550,21 +7565,34 @@ void J3DAPI jonesConfig_DisplaySettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, 
 // settings (148) did: the resolutions jonesConfig_InitDisplaySettingsDialog lists, of the current colour depth (the
 // port's modes are all 32-bit), and both dialogs' OK. The advanced dialog's buffering is left out (the Metal present
 // path owns its swap chain, P2.6), and so are its device and rasterizer lists (there is one of each).
-static int jonesConfig_ShowDisplaySettingsMenu(StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pSettings, int* pResult)
+typedef struct JonesDisplayMenu
 {
-    static const int aPerfLevels[3] = { 0, 2, 4 }; // average, fast, very fast, as the dialog's radio buttons
-    StdDisplayInfo* pDisplayInfo;
-    StdVideoMode curVideoMode;
     J3DMenuDisplay menu;
     char (*aaNames)[64];
     const char** apNames;
     int* aModeNums;
-    const char* pFormat;
     int perfLevel;
+} JonesDisplayMenu;
+
+static void jonesConfig_FreeDisplayMenu(JonesDisplayMenu* pMenu)
+{
+    free(pMenu->aaNames);
+    free(pMenu->apNames);
+    free(pMenu->aModeNums);
+    memset(pMenu, 0, sizeof(*pMenu));
+}
+
+// The settings as the dialogs showed them. Returns 0 when there is nothing to offer.
+static int jonesConfig_GetDisplayMenu(StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pSettings, JonesDisplayMenu* pMenu)
+{
+    StdDisplayInfo* pDisplayInfo;
+    StdVideoMode curVideoMode;
+    const char* pFormat;
     int i;
     int j;
 
-    if ( !J3DMenu_IsAvailable() || !pDisplayEnv || pSettings->displayDeviceNum >= pDisplayEnv->numInfos )
+    memset(pMenu, 0, sizeof(*pMenu));
+    if ( !pDisplayEnv || pSettings->displayDeviceNum >= pDisplayEnv->numInfos )
     {
         return 0;
     }
@@ -7575,18 +7603,15 @@ static int jonesConfig_ShowDisplaySettingsMenu(StdDisplayEnvironment* pDisplayEn
         return 0;
     }
 
-    aaNames   = calloc(pDisplayInfo->numModes, sizeof(*aaNames));
-    apNames   = calloc(pDisplayInfo->numModes, sizeof(*apNames));
-    aModeNums = calloc(pDisplayInfo->numModes, sizeof(*aModeNums));
-    if ( !aaNames || !apNames || !aModeNums )
+    pMenu->aaNames   = calloc(pDisplayInfo->numModes, sizeof(*pMenu->aaNames));
+    pMenu->apNames   = calloc(pDisplayInfo->numModes, sizeof(*pMenu->apNames));
+    pMenu->aModeNums = calloc(pDisplayInfo->numModes, sizeof(*pMenu->aModeNums));
+    if ( !pMenu->aaNames || !pMenu->apNames || !pMenu->aModeNums )
     {
-        free(aaNames);
-        free(apNames);
-        free(aModeNums);
+        jonesConfig_FreeDisplayMenu(pMenu);
         return 0;
     }
 
-    memset(&menu, 0, sizeof(menu));
     curVideoMode = pDisplayInfo->aModes[pSettings->videoModeNum];
     pFormat = jonesString_GetString("JONES_STR_BYPIXELS");
     if ( !pFormat || !strstr(pFormat, "%") )
@@ -7604,95 +7629,121 @@ static int jonesConfig_ShowDisplaySettingsMenu(StdDisplayEnvironment* pDisplayEn
             continue;
         }
 
-        for ( j = 0; j < menu.numResolutions; ++j )
+        for ( j = 0; j < pMenu->menu.numResolutions; ++j )
         {
-            const StdVideoMode* pListed = &pDisplayInfo->aModes[aModeNums[j]];
+            const StdVideoMode* pListed = &pDisplayInfo->aModes[pMenu->aModeNums[j]];
             if ( pListed->rasterInfo.width == pMode->rasterInfo.width && pListed->rasterInfo.height == pMode->rasterInfo.height )
             {
                 break;
             }
         }
 
-        if ( j == menu.numResolutions )
+        if ( j == pMenu->menu.numResolutions )
         {
-            snprintf(aaNames[j], sizeof(aaNames[j]), pFormat, pMode->rasterInfo.width, pMode->rasterInfo.height);
-            apNames[j]   = aaNames[j];
-            aModeNums[j] = i;
-            menu.numResolutions++;
+            snprintf(pMenu->aaNames[j], sizeof(pMenu->aaNames[j]), pFormat, pMode->rasterInfo.width, pMode->rasterInfo.height);
+            pMenu->apNames[j]   = pMenu->aaNames[j];
+            pMenu->aModeNums[j] = i;
+            pMenu->menu.numResolutions++;
             if ( pMode->rasterInfo.width == curVideoMode.rasterInfo.width && pMode->rasterInfo.height == curVideoMode.rasterInfo.height )
             {
-                menu.resolution = j;
+                pMenu->menu.resolution = j;
             }
 
             if ( pMode->rasterInfo.width == 640 && pMode->rasterInfo.height == 480 )
             {
-                menu.defaultResolution = j; // the dialog's Default Settings
+                pMenu->menu.defaultResolution = j; // the dialog's Default Settings
             }
         }
     }
 
-    perfLevel = wuRegistry_GetInt("Performance Level", 4);
-    menu.apResolutions = apNames;
-    menu.performance   = perfLevel == 0 ? 0 : perfLevel == 2 ? 1 : 2;
-    menu.filter        = pSettings->filter;
-    menu.bFog          = pSettings->bFog;
-    menu.fogDensity    = (int)sithRender_fogDensity; // Port: narrowing cast, as TBM_SETPOS took it
-
-    if ( menu.numResolutions == 0 || !J3DMenu_ShowDisplaySettings(&menu, pResult) )
+    if ( pMenu->menu.numResolutions == 0 )
     {
-        free(aaNames);
-        free(apNames);
-        free(aModeNums);
+        jonesConfig_FreeDisplayMenu(pMenu);
         return 0;
     }
 
-    if ( *pResult == 1 )
+    pMenu->perfLevel          = wuRegistry_GetInt("Performance Level", 4);
+    pMenu->menu.apResolutions = pMenu->apNames;
+    pMenu->menu.performance   = pMenu->perfLevel == 0 ? 0 : pMenu->perfLevel == 2 ? 1 : 2;
+    pMenu->menu.filter        = pSettings->filter;
+    pMenu->menu.bFog          = pSettings->bFog;
+    pMenu->menu.fogDensity    = (int)sithRender_fogDensity; // Port: narrowing cast, as TBM_SETPOS took it
+    pMenu->menu.bWindowMode   = pSettings->bWindowMode;
+    return 1;
+}
+
+// Both dialogs' OK. bWindowMode is the launcher's (the developer dialog's InWindow); the in-game menu leaves it.
+static void jonesConfig_ApplyDisplayMenu(StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pSettings, const JonesDisplayMenu* pMenu, int bWindowMode)
+{
+    static const int aPerfLevels[3] = { 0, 2, 4 }; // average, fast, very fast, as the dialog's radio buttons
+    StdDisplayInfo* pDisplayInfo = &pDisplayEnv->aDisplayInfos[pSettings->displayDeviceNum];
+    const J3DMenuDisplay* pChosen = &pMenu->menu;
+
+    // jonesConfig_AdvanceDisplaySettings_HandleWM_COMMAND's OK
+    pSettings->bFog       = pChosen->bFog;
+    sithRender_fogDensity = (float)pChosen->fogDensity;
+    pSettings->fogDensity = sithRender_fogDensity / 100.0f;
+    wuRegistry_SaveInt("Performance Level", aPerfLevels[pChosen->performance]);
+    if ( JonesMain_HasStarted() && aPerfLevels[pChosen->performance] != pMenu->perfLevel )
     {
-        // jonesConfig_AdvanceDisplaySettings_HandleWM_COMMAND's OK
-        pSettings->bFog       = menu.bFog;
-        sithRender_fogDensity = (float)menu.fogDensity;
-        pSettings->fogDensity = sithRender_fogDensity / 100.0f;
-        wuRegistry_SaveInt("Performance Level", aPerfLevels[menu.performance]);
-        if ( JonesMain_HasStarted() && aPerfLevels[menu.performance] != perfLevel )
+        // Retail compared against the very-fast level it had just reset its own copy to, so the message showed for
+        // any level but very fast; it was meant for a change (decision 18)
+        const char* pMsgText = jonesString_GetString("JONES_STR_PERFORMANCE");
+        if ( pMsgText )
         {
-            // Retail compared against the very-fast level it had just reset its own copy to, so the message showed for
-            // any level but very fast; it was meant for a change (decision 18)
-            const char* pMsgText = jonesString_GetString("JONES_STR_PERFORMANCE");
-            if ( pMsgText )
-            {
-                jonesConfig_ShowMessageDialog(NULL, "JONES_STR_DPLY_OPTS", pMsgText, 136); // 136 - tv icon
-            }
+            jonesConfig_ShowMessageDialog(NULL, "JONES_STR_DPLY_OPTS", pMsgText, 136); // 136 - tv icon
         }
-
-        pSettings->filter = (Std3DMipmapFilterType)menu.filter;
-
-        // jonesConfig_DisplaySettings_HandleWM_COMMAND's OK
-        pSettings->videoModeNum = aModeNums[menu.resolution];
-        pSettings->width  = pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.width;
-        pSettings->height = pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.height;
-
-        wuRegistry_SaveStr("Display", pDisplayInfo->displayDevice.aDriverName);
-        wuRegistry_SaveStr("3D Device", pDisplayInfo->aDevices[pSettings->device3DNum].deviceDescription);
-        wuRegistry_SaveInt("Width", pSettings->width);
-        wuRegistry_SaveInt("Height", pSettings->height);
-        wuRegistry_SaveInt("BPP", pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.colorInfo.bpp);
-
-        wuRegistry_SaveFloat("Fog Density", sithRender_fogDensity / 100.0f);
-        wuRegistry_SaveIntEx("Buffering", pSettings->bBuffering);
-        wuRegistry_SaveIntEx("Fog", pSettings->bFog);
-        std3D_EnableFog(pSettings->bFog, sithRender_fogDensity);
-        if ( sithWorld_pCurrentWorld )
-        {
-            sithWorld_pCurrentWorld->state |= SITH_WORLD_STATE_UPDATE_FOG;
-        }
-
-        wuRegistry_SaveInt("Filter", pSettings->filter);
     }
 
-    free(aaNames);
-    free(apNames);
-    free(aModeNums);
-    return 1;
+    pSettings->filter = (Std3DMipmapFilterType)pChosen->filter;
+
+    // jonesConfig_DisplaySettings_HandleWM_COMMAND's OK
+    pSettings->videoModeNum = pMenu->aModeNums[pChosen->resolution];
+    pSettings->width  = pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.width;
+    pSettings->height = pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.height;
+
+    wuRegistry_SaveStr("Display", pDisplayInfo->displayDevice.aDriverName);
+    wuRegistry_SaveStr("3D Device", pDisplayInfo->aDevices[pSettings->device3DNum].deviceDescription);
+    wuRegistry_SaveInt("Width", pSettings->width);
+    wuRegistry_SaveInt("Height", pSettings->height);
+    wuRegistry_SaveInt("BPP", pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.colorInfo.bpp);
+
+    wuRegistry_SaveFloat("Fog Density", sithRender_fogDensity / 100.0f);
+    wuRegistry_SaveIntEx("Buffering", pSettings->bBuffering);
+    wuRegistry_SaveIntEx("Fog", pSettings->bFog);
+    std3D_EnableFog(pSettings->bFog, sithRender_fogDensity);
+    if ( sithWorld_pCurrentWorld )
+    {
+        sithWorld_pCurrentWorld->state |= SITH_WORLD_STATE_UPDATE_FOG;
+    }
+
+    wuRegistry_SaveInt("Filter", pSettings->filter);
+
+    if ( bWindowMode )
+    {
+        // The developer dialog's "Open in a Window", which JonesDevDialog_LoadSettings reads
+        pSettings->bWindowMode = pChosen->bWindowMode;
+        wuRegistry_SaveIntEx("InWindow", pSettings->bWindowMode);
+    }
+}
+
+static int jonesConfig_ShowDisplaySettingsMenu(StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pSettings, int* pResult)
+{
+    JonesDisplayMenu menu;
+    int bShown;
+    if ( !J3DMenu_IsAvailable() || !jonesConfig_GetDisplayMenu(pDisplayEnv, pSettings, &menu) )
+    {
+        return 0;
+    }
+
+    bShown = J3DMenu_ShowDisplaySettings(&menu.menu, pResult);
+    if ( bShown && *pResult == 1 )
+    {
+        jonesConfig_ApplyDisplayMenu(pDisplayEnv, pSettings, &menu, 0);
+    }
+
+    jonesConfig_FreeDisplayMenu(&menu);
+    return bShown;
 }
 #endif
 
@@ -8622,27 +8673,40 @@ static void jonesConfig_SoundSettingsTestVolume(int volume)
 }
 #endif
 
+#ifdef J3D_PORT
+// Port: the sound settings for the platform's menus, and what jonesConfig_SoundSettings_HandleWM_COMMAND's OK did
+// with them (decision 21)
+static void jonesConfig_GetSoundMenu(const JonesSoundSettings* pData, J3DMenuSound* pSettings)
+{
+    pSettings->volume       = (int)(pData->maxSoundVolume * 100.0f); // Port: narrowing cast, as TBM_SETPOS took it
+    pSettings->b3DAvailable = Sound_Has3DHW();
+    pSettings->b3DSound     = pSettings->b3DAvailable && pData->b3DHWSupport;
+    pSettings->pfTestVolume = jonesConfig_SoundSettingsTestVolume;
+}
+
+static void jonesConfig_ApplySoundMenu(JonesSoundSettings* pData, const J3DMenuSound* pSettings)
+{
+    pData->maxSoundVolume = (float)(pSettings->volume / 100.0);
+    pData->b3DHWSupport   = pSettings->b3DSound;
+    wuRegistry_SaveFloat("Sound Volume", (float)(pSettings->volume / 100.0));
+    wuRegistry_SaveIntEx("Sound 3D", pData->b3DHWSupport);
+    wuRegistry_SaveIntEx("ReverseSound", pData->bReverseSound); // the hidden box, unchanged
+}
+#endif
+
 int J3DAPI jonesConfig_ShowSoundSettingsDialog(HWND hWnd, JonesSoundSettings* pData)
 {
 #ifdef J3D_PORT
     {
-        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 21); OK stores and saves the
-        // settings as jonesConfig_SoundSettings_HandleWM_COMMAND's OK does
+        // Port: the platform's own menu, when it has one (decision 21)
         J3DMenuSound settings;
         int menuResult;
-        settings.volume       = (int)(pData->maxSoundVolume * 100.0f); // Port: narrowing cast, as TBM_SETPOS took it
-        settings.b3DAvailable = Sound_Has3DHW();
-        settings.b3DSound     = settings.b3DAvailable && pData->b3DHWSupport;
-        settings.pfTestVolume = jonesConfig_SoundSettingsTestVolume;
+        jonesConfig_GetSoundMenu(pData, &settings);
         if ( J3DMenu_ShowSoundSettings(&settings, &menuResult) )
         {
             if ( menuResult == 1 )
             {
-                pData->maxSoundVolume = (float)(settings.volume / 100.0);
-                pData->b3DHWSupport   = settings.b3DSound;
-                wuRegistry_SaveFloat("Sound Volume", (float)(settings.volume / 100.0));
-                wuRegistry_SaveIntEx("Sound 3D", pData->b3DHWSupport);
-                wuRegistry_SaveIntEx("ReverseSound", pData->bReverseSound); // the hidden box, unchanged
+                jonesConfig_ApplySoundMenu(pData, &settings);
             }
             return menuResult;
         }
@@ -10825,3 +10889,70 @@ void J3DAPI jonesConfig_InsertCD_HandleWM_COMMAND(HWND hWnd, int nResult, LPARAM
             break;
     }
 }
+
+#ifdef J3D_PORT
+// Port: the launcher's Options window (PORT-PLAN.md P6.31 to P6.33): the display, game play, sound and control settings
+// as tabs, applied on OK by the same functions as the in-game menus, so the two leave settings.ini alike. It runs
+// before the game window is shown and before jonesConfig_Startup, so it sets up the key sets' folder itself.
+int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pDisplaySettings, JonesSoundSettings* pSoundSettings)
+{
+    JonesDisplayMenu display;
+    J3DMenuGamePlay gamePlay;
+    J3DMenuSound sound;
+    J3DMenuControls controls;
+    const char** apSchemes = NULL;
+    char aSelectedName[128];
+    int result = 2;
+    int i;
+
+    if ( !jonesConfig_GetDisplayMenu(pDisplayEnv, pDisplaySettings, &display) )
+    {
+        return 2;
+    }
+
+    jonesConfig_GetGamePlayMenu(&gamePlay);
+    jonesConfig_GetSoundMenu(pSoundSettings, &sound);
+
+    // The control sets as jonesConfig_InitControlOptionsDialog lists them, the chosen one by its saved name
+    memset(&controls, 0, sizeof(controls));
+    if ( jonesConfig_InitKeySetsPath() && jonesConfig_ControlOptions_InitControlsConfig() )
+    {
+        const JonesControlsConfig* pConfig = &jonesConfig_controlOptions_curControlConfig;
+        apSchemes = calloc((size_t)(pConfig->numSchemes > 0 ? pConfig->numSchemes : 1), sizeof(*apSchemes));
+        memset(aSelectedName, 0, sizeof(aSelectedName));
+        wuRegistry_GetStr("Configuration", aSelectedName, STD_ARRAYLEN(aSelectedName), "");
+        for ( i = 0; apSchemes && i < pConfig->numSchemes; ++i )
+        {
+            apSchemes[i] = pConfig->aSchemes[i].aName;
+            if ( streq(aSelectedName, pConfig->aSchemes[i].aName) )
+            {
+                controls.scheme = i;
+            }
+        }
+        controls.apSchemes  = apSchemes;
+        controls.numSchemes = apSchemes ? pConfig->numSchemes : 0;
+    }
+    controls.bMouse             = wuRegistry_GetIntEx("Mouse Control", 0);
+    controls.bJoystick          = wuRegistry_GetIntEx("Joystick Control", 0);
+    controls.bJoystickAvailable = 1; // the controllers are opened later, with the game's input
+
+    if ( J3DMenu_ShowOptions(&display.menu, &gamePlay, &sound, &controls, &result) && result == 1 )
+    {
+        jonesConfig_ApplyDisplayMenu(pDisplayEnv, pDisplaySettings, &display, 1);
+        jonesConfig_ApplyGamePlayMenu(&gamePlay);
+        jonesConfig_ApplySoundMenu(pSoundSettings, &sound);
+        Sound_SetMaxVolume(pSoundSettings->maxSoundVolume);
+        Sound_Set3DHWState(pSoundSettings->b3DHWSupport);
+        if ( controls.numSchemes > 0 )
+        {
+            wuRegistry_SaveStr("Configuration", controls.apSchemes[controls.scheme]);
+        }
+        wuRegistry_SaveIntEx("Mouse Control", controls.bMouse);
+        wuRegistry_SaveIntEx("Joystick Control", controls.bJoystick);
+    }
+
+    free(apSchemes);
+    jonesConfig_FreeDisplayMenu(&display);
+    return result;
+}
+#endif

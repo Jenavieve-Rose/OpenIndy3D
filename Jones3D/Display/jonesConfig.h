@@ -22,6 +22,9 @@ int J3DAPI jonesConfig_GetSaveGameFilePath(HWND hWnd, char* pOutFilePath); // sa
 int J3DAPI jonesConfig_GetLoadGameFilePath(HWND hWnd, char* pDestNdsPath); // load game dialog
 
 int J3DAPI jonesConfig_ShowGamePlayOptions(HWND hWnd);
+#ifdef J3D_PORT
+int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pDisplaySettings, JonesSoundSettings* pSoundSettings);
+#endif
 void J3DAPI jonesConfig_EnableMouseControl(int bEnable);
 int J3DAPI jonesConfig_ShowControlOptions(HWND hWnd);
 int J3DAPI jonesConfig_ShowDisplaySettingsDialog(HWND hWnd, StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pDSettings);

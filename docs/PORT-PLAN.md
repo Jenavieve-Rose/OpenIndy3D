@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 21 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 30 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **118 of 162** | |
+| **All** | | **127 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -757,35 +757,43 @@ opens the Win32 form of every dialog. Nothing of 6B exists in the tree yet.
 The launcher writes the same settings the Steam launcher wrote to the registry, through `wuRegistry`'s
 `settings.ini`, and the game reads them as it does today. The launcher holds no game logic.
 
-- [ ] **P6.26** (S) Decide how the launcher hands over to the game, by trying both: replace the process with the game
+- [x] **P6.26** (S) Decide how the launcher hands over to the game, by trying both: replace the process with the game
       executable (`execv`, as retail's launcher started `Indy3D.exe`; preferred, because the game target stays free
       of Swift and its tests are unaffected), or run the game loop in the launcher's process. Record the choice in
       `docs/PORTING.md`. Hold the SwiftUI code to what macOS 13 offers (the deployment target, P8.14); the mockup's
-      `dismissWindow` is macOS 14 and must go.
-- [ ] **P6.27** (M) Swift in the build: `enable_language(Swift)` for `J3D_PLATFORM=apple` only, a `launcher` target
+      `dismissWindow` is macOS 14 and must go. Done 2026-11-16: in the game's process, from `JonesMain_Startup` just before the start-mode switch, in a
+      window of its own; the menus had already put Swift in the game target, so `execv` saved nothing. Its choice is
+      the start mode (`J3DMenu_RunLauncher`, `docs/PORTING.md`). Only macOS 13 SwiftUI is used.
+- [x] **P6.27** (M) Swift in the build: `enable_language(Swift)` for `J3D_PLATFORM=apple` only, a `launcher` target
       built from the mockup's two files, in both the Ninja and Xcode trees. The null and sanitizer trees do not build
       it. The launcher window: the picture, then Start New Game, Resume Play, Help, Options and Quit in the
-      original's order, the title bar hidden, fixed size.
-- [ ] **P6.28** (S) The launch picture: bitmap 141 (320×240, 8-bit) in the Steam release's `Jones3D.exe`, read from
+      original's order, the title bar hidden, fixed size. Done 2026-11-16 in the menus' Swift library (`LauncherWindow.swift`), not a target of its own; built in the
+      Ninja trees (the Xcode tree is checked in the audit).
+- [x] **P6.28** (S) The launch picture: bitmap 141 (320×240, 8-bit) in the Steam release's `Jones3D.exe`, read from
       the player's copy at run time through the reader P6.10 wrote; nothing is copied into the repository or the
       bundle. The CD-era launcher (`Jones3D_CD.exe`) loads a `.bmp` from disk instead: find where the GOG and CD
-      releases keep it. The plain title card when none is found.
-- [ ] **P6.29** (M) Settings bridge: Swift reads and writes `settings.ini` through `wuRegistry`'s C functions (a
+      releases keep it. The plain title card when none is found. Done 2026-11-16: bitmap 141 of the Steam release's `Jones3D.exe`, else `Install/Launch.bmp`, which the CD and
+      GOG releases ship, both in the data folder; the title card when neither is there.
+- [x] **P6.29** (M) Settings bridge: Swift reads and writes `settings.ini` through `wuRegistry`'s C functions (a
       bridging header), under the names the Steam launcher used: `Start Mode`, `Width`, `Height`, `BPP`,
       `Buffering`, `Filter`, `Performance Level`, `Fog`, `Fog Density`, `Mouse Control`, `Joystick Control`,
       `Difficulty`, `Show Hints`, `Default Run`, `Show Text`, `Map Rotation`, `Sound Volume`, `Sound 3D`,
       `Configuration`. Values use the game's encodings (`Sound Volume` is a float stored as four bytes). Options
-      writes only on OK.
-- [ ] **P6.30** (S) Start New Game and Resume Play: set what the game needs to start a new game or load
+      writes only on OK. Done 2026-11-16 without a Swift bridge to `wuRegistry`: Options runs inside the game, so the same C functions
+      fill and apply it as the in-game menus (`jonesConfig_ShowLauncherOptions`).
+- [x] **P6.30** (S) Start New Game and Resume Play: set what the game needs to start a new game or load
       `Last Save Game`, then hand over (P6.26). Resume Play is the default button and names the latest save when one
-      exists, and is disabled when none does; the save's level and date come from its header.
-- [ ] **P6.31** (M) Options, Display: the resolution list from the port's display modes (P2.3). Find out which of
+      exists, and is disabled when none does; the save's level and date come from its header. Done 2026-11-16: Start New Game saves Start Mode 0; Resume Play saves 1 and the game loads `Last Save Game`
+      (`JonesMain_GetResumeSave`); the button shows that save's name and date and is greyed with none.
+- [x] **P6.31** (M) Options, Display: the resolution list from the port's display modes (P2.3). Find out which of
       Buffering, Performance Level and Mip Mapping the Metal renderer honours; keep those, drop the others, and put
       P8.7's window or fullscreen, vsync and frame limiter here in their place. Fog and its density. Default
-      Settings.
-- [ ] **P6.32** (S) Options, Game Play and Sound: the difficulty slider with the game's level names (confirm the
+      Settings. Done 2026-11-16: the in-game display menu's items and fullscreen or window (`InWindow`). Buffering is not
+      honoured by the Metal present path and is left out; vsync and the frame limiter stay with P8.7.
+- [x] **P6.32** (S) Options, Game Play and Sound: the difficulty slider with the game's level names (confirm the
       full set against `jonesConfig.c`; the Steam launcher shows Freshman to Senior), Show Map Hints, Map Rotation,
-      Default to Run, Show Text; volume and 3D Sound.
+      Default to Run, Show Text; volume and 3D Sound. Done 2026-11-16: difficulty with the string table's six names (JONES_STR_HARD0 to 5; the game allows all six,
+      `jonesInventory_GetMaxDifficultyLevel` returns 5), the four switches, volume and 3D sound.
 - [ ] **P6.33** (M) Options, Controls: the control sets in the user's and the retail `KeySets` folders, the chosen
       one stored as `Configuration`; view a set as one table of action, keys and controller buttons (the original's
       two lists merged); delete a user set; Enable Mouse and Enable Gamepad/Joystick.
@@ -793,12 +801,13 @@ The launcher writes the same settings the Steam launcher wrote to the registry, 
       key or a controller button for an action, refuse or reassign one already taken. The launcher has no SDL, so a
       captured controller button must be numbered as `stdControl_sdl.c` numbers it; a test holds the two together.
       Until this lands, sets are edited in the game's own dialog (P6.20, P6.21).
-- [ ] **P6.35** (S) Help: open the manual PDF from the player's data folder when it is there (the Steam release
-      ships one), otherwise the port's README.
+- [x] **P6.35** (S) Help: open the manual PDF from the player's data folder when it is there (the Steam release
+      ships one), otherwise the port's README. Done 2026-11-16 for the launcher: `manual.pdf` in the data folder (Steam and GOG ship it), greyed without one.
 - [ ] **P6.36** (S) Keyboard and accessibility: Return and Escape, Tab through every control, arrow keys on the
       sliders and choices, VoiceOver names for the custom-drawn switch, slider and choice bar.
-- [ ] **P6.37** (S) Tests: settings written by the launcher's bridge are read back by the `boot` test; the
-      launcher's `--snapshot` renders of each screen are kept as layout references, at 1× and 2×.
+- [x] **P6.37** (S) Tests: settings written by the launcher's bridge are read back by the `boot` test; the
+      launcher's `--snapshot` renders of each screen are kept as layout references, at 1× and 2×. Done 2026-11-16: `launcher` (tests/launcher.sh) starts a new game and resumes it through the launcher's
+      choices and checks the settings file and the restore; Options opens and closes. Snapshots: `J3D_MENU_SHOT`.
 
 #### 6C. The in-game menus (SwiftUI, `platform/apple/menu/`)
 

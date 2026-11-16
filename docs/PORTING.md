@@ -1542,6 +1542,33 @@ of each (string-table text, checks, what OK applies) is in `platform/apple/j3dme
   returned; `J3D_MENU_AUTOCANCEL=<seconds>` closes each unanswered; `J3D_MENU_SHOT=<prefix>` writes each as a PNG
   first. The game's frame is not in the PNG (Metal drew it).
 
+### The launcher and Options (6B; P6.26 to P6.32, P6.35, P6.37)
+
+- **Where it runs.** In the game's process, called from `JonesMain_Startup` just before its start-mode switch
+  (`J3DMenu_RunLauncher`). By then SDL and the (hidden) game window exist, the string table is open and the display
+  environment is built, so the launcher has the game's own names and mode list. Retail's `Jones3D.exe` wrote "Start
+  Mode" and started `Indy3D.exe`; here the choice becomes the start mode and is saved as the Steam launcher saved it.
+  Quit ends startup, which `wkernel_sdl.c` reports as a normal exit (`J3DMenu_QuitAtLaunch`). There is no launcher in
+  headless runs, replays, input scripts, with `J3D_REG_Start_Mode` in the environment (every test and tool sets it),
+  with `J3D_NO_LAUNCHER` or `J3D_MENUS=classic`, and on the null platform; those runs keep the stored start mode, whose
+  retail default (2) opens the developer dialog.
+- **Resume Play** loads "Last Save Game", the save the game last wrote or read. Retail's start mode 1 opened the load
+  dialog; the game window is not shown yet at that point, so the load menu has nowhere to appear, and the launcher has
+  already named the save (`JonesMain_GetResumeSave`). The button is greyed when that file is gone.
+- **The picture** is bitmap 141 of the Steam release's `Jones3D.exe` (j3dgui's resource reader, now able to open any
+  executable: `J3DGui_ReadExeBitmap`), else `Install/Launch.bmp`, the same 320 by 240 picture as a file in the CD and
+  GOG releases. Nothing is copied into the repository or the app.
+- **Options** is a window of its own with the Display, Game Play, Sound and Controls tabs. Its items are built by the
+  same functions as the in-game menus (`j3dmenu_apple.c`) and applied by the same functions (`jonesConfig.c`:
+  `jonesConfig_Get*Menu`, `jonesConfig_Apply*Menu`), so either way leaves `settings.ini` alike. Display adds fullscreen
+  or a window (`InWindow`, which only the developer dialog offered). Controls has the control set (as the control
+  options dialog lists them; the launcher sets up the key sets' folder itself, as `jonesConfig_Startup` has not run)
+  and the mouse and gamepad switches.
+- **Help** opens `manual.pdf` from the data folder.
+- **Tests.** `J3D_MENU_TEST_LAUNCH=newgame|resume` answers the launcher without showing it, `J3D_MENU_TEST_OPTIONS`
+  opens Options first; with `J3D_MENU_AUTOCANCEL` and `J3D_MENU_SHOT` both windows are captured. The `launcher` test
+  uses them.
+
 ### Test data
 
 The `Indy3D` test folder became a GOG install on 2026-11-15. With it, `saveload` and `saveload-3d` failed: a timed

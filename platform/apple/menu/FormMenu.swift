@@ -4,7 +4,7 @@
 
 import SwiftUI
 
-private struct FormItem: Identifiable {
+struct FormItem: Identifiable {
     let id: Int
     var kind: Int32
     var group: String?
@@ -15,7 +15,7 @@ private struct FormItem: Identifiable {
     var names: [String]
 }
 
-private func readItems(_ items: UnsafeMutablePointer<J3DMenuItem>, _ count: Int) -> [FormItem] {
+func readItems(_ items: UnsafeMutablePointer<J3DMenuItem>, _ count: Int) -> [FormItem] {
     (0..<count).map { i in
         let item = items[i]
         var names: [String] = []
@@ -27,7 +27,7 @@ private func readItems(_ items: UnsafeMutablePointer<J3DMenuItem>, _ count: Int)
     }
 }
 
-private final class FormModel: ObservableObject {
+final class FormModel: ObservableObject {
     @Published var items: [FormItem]
     private let cItems: UnsafeMutablePointer<J3DMenuItem>
     private let count: Int
@@ -39,6 +39,8 @@ private final class FormModel: ObservableObject {
         self.changed = changed
         items = readItems(cItems, count)
     }
+
+    var canReset: Bool { changed != nil }
 
     /// The values as they are on screen go to the C items.
     func writeBack() {
@@ -61,13 +63,10 @@ private final class FormModel: ObservableObject {
     }
 }
 
-private struct FormMenu: View {
-    let title: String
-    let okLabel: String
-    let cancelLabel: String
-    let defaultsLabel: String?
+/// The items of a form in their titled groups, each drawn as its kind's control. The in-game forms and the launcher's
+/// Options both use it.
+struct FormItemsView: View {
     @ObservedObject var model: FormModel
-    let answer: (Int) -> Void
 
     /// The items in their groups: a group starts at each item that names one.
     private var groups: [(title: String, items: [FormItem])] {
@@ -85,36 +84,16 @@ private struct FormMenu: View {
     }
 
     var body: some View {
-        MenuCard(title: title, width: 520) {
-            VStack(spacing: 12) {
-                ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                    MenuGroup(title: group.title) {
-                        ForEach(group.items) { item in
-                            row(item)
-                                .disabled(item.disabled)
-                                .opacity(item.disabled ? 0.4 : 1)
-                        }
+        VStack(spacing: 12) {
+            ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                MenuGroup(title: group.title) {
+                    ForEach(group.items) { item in
+                        row(item)
+                            .disabled(item.disabled)
+                            .opacity(item.disabled ? 0.4 : 1)
                     }
                 }
-                HStack(spacing: 8) {
-                    if let defaultsLabel {
-                        Button(defaultsLabel) { model.notify(-1) }
-                            .buttonStyle(MenuButtonStyle())
-                    }
-                    Spacer()
-                    Button(cancelLabel) { answer(0) }
-                        .buttonStyle(MenuButtonStyle())
-                        .keyboardShortcut(.cancelAction)
-                    Button(okLabel) {
-                        model.writeBack()
-                        answer(1)
-                    }
-                    .buttonStyle(MenuButtonStyle(prominent: true))
-                    .keyboardShortcut(.defaultAction)
-                }
-                .padding(.top, 4)
             }
-            .padding(20)
         }
     }
 
@@ -188,6 +167,41 @@ private struct FormMenu: View {
             }
             .font(.system(size: 12))
             .foregroundColor(Palette.dimText)
+        }
+    }
+}
+
+private struct FormMenu: View {
+    let title: String
+    let okLabel: String
+    let cancelLabel: String
+    let defaultsLabel: String?
+    @ObservedObject var model: FormModel
+    let answer: (Int) -> Void
+
+    var body: some View {
+        MenuCard(title: title, width: 520) {
+            VStack(spacing: 12) {
+                FormItemsView(model: model)
+                HStack(spacing: 8) {
+                    if let defaultsLabel {
+                        Button(defaultsLabel) { model.notify(-1) }
+                            .buttonStyle(MenuButtonStyle())
+                    }
+                    Spacer()
+                    Button(cancelLabel) { answer(0) }
+                        .buttonStyle(MenuButtonStyle())
+                        .keyboardShortcut(.cancelAction)
+                    Button(okLabel) {
+                        model.writeBack()
+                        answer(1)
+                    }
+                    .buttonStyle(MenuButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                }
+                .padding(.top, 4)
+            }
+            .padding(20)
         }
     }
 }

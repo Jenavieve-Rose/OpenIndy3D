@@ -68,6 +68,10 @@
 #ifdef J3D_PORT
 #include <platform/common/host_dirs.h>
 #include <platform/common/host_path.h>
+#include <platform/common/j3dmenu.h>
+
+#include <sys/stat.h>
+#include <time.h>
 #endif
 #include <wkernel/wkernel.h>
 
@@ -872,6 +876,36 @@ static int J3DAPI JonesMain_GameWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
     return JonesMain_bWndMsgProcessed;
 }
 
+#ifdef J3D_PORT
+// Port: the save Resume Play loads: the last one the game wrote or read ("Last Save Game", sithGamesave), when it is still
+// there. 1 with its path in pPath.
+static int JonesMain_GetResumeSave(char* pPath, size_t size)
+{
+    char aHostPath[J3D_PATHSIZE];
+    struct stat st;
+    memset(pPath, 0, size);
+    wuRegistry_GetStr("Last Save Game", pPath, size, "");
+    if ( !pPath[0] )
+    {
+        return 0;
+    }
+
+    J3DHost_ToPosixPath(aHostPath, sizeof(aHostPath), pPath);
+    if ( stat(aHostPath, &st) != 0 || !S_ISREG(st.st_mode) )
+    {
+        pPath[0] = 0;
+        return 0;
+    }
+    return 1;
+}
+
+// Port: the launcher's Options button
+static void JonesMain_LauncherOptions(void)
+{
+    jonesConfig_ShowLauncherOptions(JonesMain_pDisplayEnv, &JonesMain_state.displaySettings, &JonesMain_state.soundSettings);
+}
+#endif
+
 int J3DAPI JonesMain_Startup(const char* lpCmdLine)
 {
     int bSuccess;
@@ -972,6 +1006,48 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
     Sound_SetMaxVolume(JonesMain_state.soundSettings.maxSoundVolume);
     SmushPlay_SetGlobalVolume((int)((size_t)(JonesMain_state.soundSettings.maxSoundVolume * 127.0f))); // TODO: Can be removed as it's being set in PlayIntroMovie
 
+#ifdef J3D_PORT
+    {
+        // Port: the launcher (PORT-PLAN.md 6B). Retail's Jones3D.exe wrote "Start Mode" and started the game; here it
+        // runs in the game's process, in a window of its own, before the game window is shown, and its choice is the
+        // start mode. Runs that set their start mode (tests, tools, J3D_REG_Start_Mode) have none.
+        char aResume[J3D_PATHSIZE];
+        char aDetail[256];
+        J3DMenuLaunch launch;
+        int choice;
+
+        memset(&launch, 0, sizeof(launch));
+        if ( JonesMain_GetResumeSave(aResume, sizeof(aResume)) )
+        {
+            struct stat st;
+            char aDate[64] = { 0 };
+            char aHostPath[J3D_PATHSIZE];
+            const char* pName = strrchr(aResume, '/');
+            J3DHost_ToPosixPath(aHostPath, sizeof(aHostPath), aResume);
+            if ( stat(aHostPath, &st) == 0 )
+            {
+                struct tm when;
+                localtime_r(&st.st_mtime, &when);
+                strftime(aDate, sizeof(aDate), " \xC2\xB7 %e %b", &when); // " · 14 Nov"
+            }
+            snprintf(aDetail, sizeof(aDetail), "%s%s", pName ? pName + 1 : aResume, aDate);
+            launch.pResumeDetail = aDetail;
+        }
+        launch.pfOptions = JonesMain_LauncherOptions;
+
+        if ( J3DMenu_RunLauncher(&launch, &choice) )
+        {
+            if ( choice == J3DMENU_LAUNCH_QUIT )
+            {
+                return 1; // exit, as the developer dialog's Exit
+            }
+
+            JonesMain_state.startMode = choice == J3DMENU_LAUNCH_RESUME ? JONES_STARTMODE_LOADGAME : JONES_STARTMODE_STARTGAME;
+            wuRegistry_SaveInt("Start Mode", JonesMain_state.startMode); // as the Steam launcher left it
+        }
+    }
+#endif
+
     // Handle start mode
     switch ( JonesMain_state.startMode )
     {
@@ -991,6 +1067,16 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
 
         case JONES_STARTMODE_LOADGAME:
         {
+#ifdef J3D_PORT
+            // Port: Resume Play loads the last save. Retail opened the load dialog here; the game window is not shown
+            // yet, so the load menu has nowhere to be, and the launcher already named the save. With no last save
+            // the dialog's path is taken, which cancels where there is no menu.
+            if ( JonesMain_GetResumeSave(JonesMain_aNdsFilename, sizeof(JonesMain_aNdsFilename)) )
+            {
+                bSuccess = 1;
+            }
+            else
+#endif
             bSuccess = jonesConfig_GetLoadGameFilePath(stdWin95_GetWindow(), JonesMain_aNdsFilename);
             if ( bSuccess != 1 )
             {

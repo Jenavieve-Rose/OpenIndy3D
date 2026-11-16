@@ -33,6 +33,7 @@
 #include <platform/common/stdDisplay_common.h>
 
 #include <dirent.h>
+#include <platform/common/host_dirs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -550,79 +551,79 @@ int J3DMenu_ShowExitGame(char* pSaveGameFilePath, int* pResult)
 
 /* ---- Options ---------------------------------------------------------------------------------------------------------- */
 
-// The game play options (template 112): difficulty, then the four switches, in the dialog's order.
-int J3DMenu_ShowGamePlayOptions(J3DMenuGamePlay* pOptions, int* pResult)
+// The options pages, each built from the game's settings into form items and read back from them. The in-game menus
+// show one page; the launcher's Options window shows the four as tabs (J3DMenu_ShowOptions). Labels are copied here,
+// as menu_String keeps only sixteen of its copies and a window of four pages needs more.
+typedef struct MenuPage
+{
+    J3DMenuItem aItems[8];
+    int numItems;
+    char aaText[24][128];
+    const char* apNames[3][8];  // the name lists of choice items
+    int numText;
+} MenuPage;
+
+static const char* menu_PageText(MenuPage* pPage, const char* pName, const char* pFallback)
+{
+    char* pText;
+    if ( pPage->numText >= (int)(sizeof(pPage->aaText) / sizeof(pPage->aaText[0])) )
+    {
+        return "";
+    }
+    pText = pPage->aaText[pPage->numText++];
+    snprintf(pText, sizeof(pPage->aaText[0]), "%s", menu_String(pName, pFallback));
+    return pText;
+}
+
+// Game play (template 112): difficulty, then the four switches, in the dialog's order.
+static void menu_BuildGamePlay(MenuPage* pPage, const J3DMenuGamePlay* pOptions)
 {
     static const char* const aDifficultyNames[6] = {
         "JONES_STR_HARD0", "JONES_STR_HARD1", "JONES_STR_HARD2", "JONES_STR_HARD3", "JONES_STR_HARD4", "JONES_STR_HARD5"
     };
-    static const char* const aFallbacks[6] = { "Freshman", "Sophomore", "Junior", "Senior", "Graduate", "Professor" };
-    MenuSession session;
-    const char* apNames[6];
-    J3DMenuItem aItems[5];
-    int numNames;
+    int numNames = pOptions->maxDifficulty + 1;
     int i;
+    J3DMenuItem* aItems = pPage->aItems;
 
-    if ( !pOptions || !menu_Begin(&session) )
-    {
-        return 0;
-    }
-    numNames = pOptions->maxDifficulty + 1;
-    if ( numNames < 1 )
-    {
-        numNames = 1;
-    }
-    if ( numNames > 6 )
-    {
-        numNames = 6;
-    }
+    memset(pPage, 0, sizeof(*pPage));
+    numNames = numNames < 1 ? 1 : numNames > 6 ? 6 : numNames;
     for ( i = 0; i < numNames; ++i )
     {
-        apNames[i] = menu_String(aDifficultyNames[i], aFallbacks[i]);
+        pPage->apNames[0][i] = menu_PageText(pPage, aDifficultyNames[i], aDifficultyNames[i]);
     }
-
-    memset(aItems, 0, sizeof(aItems));
     aItems[0].kind = J3DMENU_ITEM_STEPS;
-    aItems[0].pGroup = menu_String("JONES_STR_DFCLTY", "Difficulty");
+    aItems[0].pGroup = menu_PageText(pPage, "JONES_STR_DFCLTY", "Difficulty");
     aItems[0].value = pOptions->difficulty < 0 ? 0 : pOptions->difficulty >= numNames ? numNames - 1 : pOptions->difficulty;
-    aItems[0].apNames = apNames;
+    aItems[0].apNames = pPage->apNames[0];
     aItems[0].numNames = numNames;
     aItems[0].bDisabled = numNames < 2;
-
     aItems[1].kind = J3DMENU_ITEM_TOGGLE;
-    aItems[1].pGroup = menu_String("JONES_STR_GMPLY_OPTS", "Game Play");
-    aItems[1].pLabel = menu_String("JONES_STR_HINTS", "Show Map Hints");
+    aItems[1].pGroup = menu_PageText(pPage, "JONES_STR_GMPLY_OPTS", "Game Play");
+    aItems[1].pLabel = menu_PageText(pPage, "JONES_STR_HINTS", "Show Map Hints");
     aItems[1].value = pOptions->bShowHints != 0;
     aItems[2].kind = J3DMENU_ITEM_TOGGLE;
-    aItems[2].pLabel = menu_String("JONES_STR_MAPTURN", "Map Rotation");
+    aItems[2].pLabel = menu_PageText(pPage, "JONES_STR_MAPTURN", "Map Rotation");
     aItems[2].value = pOptions->bMapRotation != 0;
     aItems[3].kind = J3DMENU_ITEM_TOGGLE;
-    aItems[3].pLabel = menu_String("JONES_STR_RUNWALK", "Default to Run");
+    aItems[3].pLabel = menu_PageText(pPage, "JONES_STR_RUNWALK", "Default to Run");
     aItems[3].value = pOptions->bDefaultRun != 0;
     aItems[4].kind = J3DMENU_ITEM_TOGGLE;
-    aItems[4].pLabel = menu_String("JONES_STR_TEXT", "Show Text");
+    aItems[4].pLabel = menu_PageText(pPage, "JONES_STR_TEXT", "Show Text");
     aItems[4].value = pOptions->bShowText != 0;
-
-    if ( J3DMenuUI_Form(session.pNSWindow, menu_String("JONES_STR_GMPLY_OPTS", "Game Play Options"), aItems, 5,
-                        menu_String("JONES_STR_OK", "OK"), menu_String("JONES_STR_CANCEL", "Cancel"), NULL, NULL) )
-    {
-        pOptions->difficulty = aItems[0].value;
-        pOptions->bShowHints = aItems[1].value;
-        pOptions->bMapRotation = aItems[2].value;
-        pOptions->bDefaultRun = aItems[3].value;
-        pOptions->bShowText = aItems[4].value;
-        *pResult = 1;
-    }
-    else
-    {
-        *pResult = 2;
-    }
-    menu_End(&session);
-    return 1;
+    pPage->numItems = 5;
 }
 
-// The sound settings (template 113): the volume, heard when the slider is let go, and 3D sound. The dialog's
-// reverse-stereo box is hidden in retail and is left out.
+static void menu_ReadGamePlay(const MenuPage* pPage, J3DMenuGamePlay* pOptions)
+{
+    pOptions->difficulty = pPage->aItems[0].value;
+    pOptions->bShowHints = pPage->aItems[1].value;
+    pOptions->bMapRotation = pPage->aItems[2].value;
+    pOptions->bDefaultRun = pPage->aItems[3].value;
+    pOptions->bShowText = pPage->aItems[4].value;
+}
+
+// Sound (template 113): the volume, heard when the slider is let go, and 3D sound. The dialog's reverse-stereo box is
+// hidden in retail and is left out.
 static J3DMenuSound* menu_pSound;
 
 static int32_t menu_SoundChanged(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex)
@@ -635,57 +636,39 @@ static int32_t menu_SoundChanged(J3DMenuItem* pItems, int32_t numItems, int32_t 
     return 0;
 }
 
-int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult)
+static void menu_BuildSound(MenuPage* pPage, const J3DMenuSound* pSettings)
 {
-    MenuSession session;
-    const char* apCaptions[3];
-    J3DMenuItem aItems[2];
-
-    if ( !pSettings || !menu_Begin(&session) )
-    {
-        return 0;
-    }
-    apCaptions[0] = menu_String("JONES_STR_LOW", "Low");
-    apCaptions[1] = menu_String("JONES_STR_MEDIUM", "Medium");
-    apCaptions[2] = menu_String("JONES_STR_HIGH", "High");
-
-    memset(aItems, 0, sizeof(aItems));
+    J3DMenuItem* aItems = pPage->aItems;
+    memset(pPage, 0, sizeof(*pPage));
+    pPage->apNames[0][0] = menu_PageText(pPage, "JONES_STR_LOW", "Low");
+    pPage->apNames[0][1] = menu_PageText(pPage, "JONES_STR_MEDIUM", "Medium");
+    pPage->apNames[0][2] = menu_PageText(pPage, "JONES_STR_HIGH", "High");
     aItems[0].kind = J3DMENU_ITEM_SLIDER;
-    aItems[0].pGroup = menu_String("JONES_STR_VOLUME", "Volume");
+    aItems[0].pGroup = menu_PageText(pPage, "JONES_STR_VOLUME", "Volume");
     aItems[0].value = pSettings->volume < 0 ? 0 : pSettings->volume > 100 ? 100 : pSettings->volume;
     aItems[0].maxValue = 100;
-    aItems[0].apNames = apCaptions;
+    aItems[0].apNames = pPage->apNames[0];
     aItems[0].numNames = 3;
     aItems[1].kind = J3DMENU_ITEM_TOGGLE;
     aItems[1].pGroup = "";
-    aItems[1].pLabel = menu_String("JONES_STR_3D_SND", "3D Sound");
+    aItems[1].pLabel = menu_PageText(pPage, "JONES_STR_3D_SND", "3D Sound");
     aItems[1].value = pSettings->b3DAvailable && pSettings->b3DSound;
     aItems[1].bDisabled = !pSettings->b3DAvailable;
-
-    menu_pSound = pSettings;
-    if ( J3DMenuUI_Form(session.pNSWindow, menu_String("JONES_STR_SND_OPTS", "Sound Options"), aItems, 2,
-                        menu_String("JONES_STR_OK", "OK"), menu_String("JONES_STR_CANCEL", "Cancel"), NULL, menu_SoundChanged) )
-    {
-        pSettings->volume = aItems[0].value;
-        pSettings->b3DSound = aItems[1].value;
-        *pResult = 1;
-    }
-    else
-    {
-        *pResult = 2;
-    }
-    menu_pSound = NULL;
-    menu_End(&session);
-    return 1;
+    pPage->numItems = 2;
 }
 
-// The display settings (templates 114 and 148 as one menu). Items: 0 resolution, 1 performance, 2 mip mapping, 3 fog,
-// 4 fog density, which is greyed while fog is off.
+static void menu_ReadSound(const MenuPage* pPage, J3DMenuSound* pSettings)
+{
+    pSettings->volume = pPage->aItems[0].value;
+    pSettings->b3DSound = pPage->aItems[1].value;
+}
+
+// Display (templates 114 and 148 as one page). Items: 0 resolution, 1 performance, 2 mip mapping, 3 fog, 4 fog density
+// (greyed while fog is off), and in the launcher 5 fullscreen or a window.
 static int menu_displayDefaultResolution;
 
 static int32_t menu_DisplayChanged(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex)
 {
-    (void)numItems;
     if ( changedIndex == -1 )
     {
         // The two dialogs' Default Settings buttons
@@ -694,51 +677,47 @@ static int32_t menu_DisplayChanged(J3DMenuItem* pItems, int32_t numItems, int32_
         pItems[2].value = 1;
         pItems[3].value = 1;
         pItems[4].value = 100;
+        if ( numItems > 5 )
+        {
+            pItems[5].value = 0; // fullscreen, retail's default
+        }
     }
     pItems[4].bDisabled = !pItems[3].value;
     return 1;
 }
 
-int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
+static void menu_BuildDisplay(MenuPage* pPage, const J3DMenuDisplay* pSettings, int bWithWindowMode)
 {
-    MenuSession session;
-    const char* apPerformance[3];
-    const char* apFilters[3];
-    const char* apFogCaptions[2] = { "0%", "100%" };
-    J3DMenuItem aItems[5];
+    static const char* const apFogCaptions[2] = { "0%", "100%" };
+    J3DMenuItem* aItems = pPage->aItems;
+    memset(pPage, 0, sizeof(*pPage));
+    pPage->apNames[0][0] = menu_PageText(pPage, "JONES_STR_AVERAGE", "Average");
+    pPage->apNames[0][1] = menu_PageText(pPage, "JONES_STR_FAST", "Fast");
+    pPage->apNames[0][2] = menu_PageText(pPage, "JONES_STR_VFAST", "Very Fast");
+    pPage->apNames[1][0] = menu_PageText(pPage, "JONES_STR_NO_MIPMAP", "None");
+    pPage->apNames[1][1] = menu_PageText(pPage, "JONES_STR_BI_MIPMAP", "Bilinear");
+    pPage->apNames[1][2] = menu_PageText(pPage, "JONES_STR_TRI_MIPMAP", "Trilinear");
 
-    if ( !pSettings || pSettings->numResolutions <= 0 || !menu_Begin(&session) )
-    {
-        return 0;
-    }
-    apPerformance[0] = menu_String("JONES_STR_AVERAGE", "Average");
-    apPerformance[1] = menu_String("JONES_STR_FAST", "Fast");
-    apPerformance[2] = menu_String("JONES_STR_VFAST", "Very Fast");
-    apFilters[0] = menu_String("JONES_STR_NO_MIPMAP", "None");
-    apFilters[1] = menu_String("JONES_STR_BI_MIPMAP", "Bilinear");
-    apFilters[2] = menu_String("JONES_STR_TRI_MIPMAP", "Trilinear");
-
-    memset(aItems, 0, sizeof(aItems));
     aItems[0].kind = J3DMENU_ITEM_STEPS;
-    aItems[0].pGroup = menu_String("JONES_STR_GMRES", "Game Resolution");
+    aItems[0].pGroup = menu_PageText(pPage, "JONES_STR_GMRES", "Game Resolution");
     aItems[0].value = pSettings->resolution < 0 || pSettings->resolution >= pSettings->numResolutions ? 0 : pSettings->resolution;
     aItems[0].apNames = pSettings->apResolutions;
     aItems[0].numNames = pSettings->numResolutions;
     aItems[0].bDisabled = pSettings->numResolutions < 2;
     aItems[1].kind = J3DMENU_ITEM_CHOICE;
-    aItems[1].pGroup = menu_String("JONES_STR_ADVDSPLY_SET", "Advanced Display Settings");
-    aItems[1].pLabel = menu_String("JONES_STR_SPEED", "Performance Level");
+    aItems[1].pGroup = menu_PageText(pPage, "JONES_STR_ADVDSPLY_SET", "Advanced Display Settings");
+    aItems[1].pLabel = menu_PageText(pPage, "JONES_STR_SPEED", "Performance Level");
     aItems[1].value = pSettings->performance < 0 || pSettings->performance > 2 ? 2 : pSettings->performance;
-    aItems[1].apNames = apPerformance;
+    aItems[1].apNames = pPage->apNames[0];
     aItems[1].numNames = 3;
     aItems[2].kind = J3DMENU_ITEM_CHOICE;
-    aItems[2].pLabel = menu_String("JONES_STR_MIPMAP", "Mip Mapping");
+    aItems[2].pLabel = menu_PageText(pPage, "JONES_STR_MIPMAP", "Mip Mapping");
     aItems[2].value = pSettings->filter < 0 || pSettings->filter > 2 ? 1 : pSettings->filter;
-    aItems[2].apNames = apFilters;
+    aItems[2].apNames = pPage->apNames[1];
     aItems[2].numNames = 3;
     aItems[3].kind = J3DMENU_ITEM_TOGGLE;
-    aItems[3].pGroup = menu_String("JONES_STR_FOGDENSITY", "Fog Density");
-    aItems[3].pLabel = menu_String("JONES_STR_FOG", "Fog");
+    aItems[3].pGroup = menu_PageText(pPage, "JONES_STR_FOGDENSITY", "Fog Density");
+    aItems[3].pLabel = menu_PageText(pPage, "JONES_STR_FOG", "Fog");
     aItems[3].value = pSettings->bFog != 0;
     aItems[4].kind = J3DMENU_ITEM_SLIDER;
     aItems[4].value = pSettings->fogDensity < 0 ? 0 : pSettings->fogDensity > 100 ? 100 : pSettings->fogDensity;
@@ -746,24 +725,326 @@ int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
     aItems[4].apNames = apFogCaptions;
     aItems[4].numNames = 2;
     aItems[4].bDisabled = !aItems[3].value;
-
-    menu_displayDefaultResolution = pSettings->defaultResolution;
-    if ( J3DMenuUI_Form(session.pNSWindow, menu_String("JONES_STR_DPLY_OPTS", "Display Options"), aItems, 5,
-                        menu_String("JONES_STR_OK", "OK"), menu_String("JONES_STR_CANCEL", "Cancel"),
-                        menu_String("JONES_STR_DEFAULTSET", "Default Settings"), menu_DisplayChanged) )
+    pPage->numItems = 5;
+    if ( bWithWindowMode )
     {
-        pSettings->resolution = aItems[0].value;
-        pSettings->performance = aItems[1].value;
-        pSettings->filter = aItems[2].value;
-        pSettings->bFog = aItems[3].value;
-        pSettings->fogDensity = aItems[4].value;
-        *pResult = 1;
+        // The developer dialog's "Open in a Window" (InWindow), which the Steam launcher did not offer (P8.7)
+        pPage->apNames[2][0] = "Fullscreen";
+        pPage->apNames[2][1] = "Window";
+        aItems[5].kind = J3DMENU_ITEM_CHOICE;
+        aItems[5].pGroup = "Screen";
+        aItems[5].value = pSettings->bWindowMode != 0;
+        aItems[5].apNames = pPage->apNames[2];
+        aItems[5].numNames = 2;
+        pPage->numItems = 6;
+    }
+    menu_displayDefaultResolution = pSettings->defaultResolution;
+}
+
+static void menu_ReadDisplay(const MenuPage* pPage, J3DMenuDisplay* pSettings)
+{
+    pSettings->resolution = pPage->aItems[0].value;
+    pSettings->performance = pPage->aItems[1].value;
+    pSettings->filter = pPage->aItems[2].value;
+    pSettings->bFog = pPage->aItems[3].value;
+    pSettings->fogDensity = pPage->aItems[4].value;
+    if ( pPage->numItems > 5 )
+    {
+        pSettings->bWindowMode = pPage->aItems[5].value;
+    }
+}
+
+// Controls (template 111's settings): the control set and the two switches.
+static void menu_BuildControls(MenuPage* pPage, const J3DMenuControls* pControls)
+{
+    J3DMenuItem* aItems = pPage->aItems;
+    memset(pPage, 0, sizeof(*pPage));
+    aItems[0].kind = J3DMENU_ITEM_LIST;
+    aItems[0].pGroup = menu_PageText(pPage, "JONES_STR_AVAIL_KEYCONFIG", "Control Sets");
+    aItems[0].value = pControls->scheme < 0 || pControls->scheme >= pControls->numSchemes ? 0 : pControls->scheme;
+    aItems[0].apNames = pControls->apSchemes;
+    aItems[0].numNames = pControls->numSchemes;
+    aItems[1].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[1].pGroup = "";
+    aItems[1].pLabel = menu_PageText(pPage, "JONES_STR_CTRLMOUSE", "Enable Mouse");
+    aItems[1].value = pControls->bMouse != 0;
+    aItems[2].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[2].pLabel = menu_PageText(pPage, "JONES_STR_CTRLJOYSTICK", "Enable Gamepad/Joystick");
+    aItems[2].value = pControls->bJoystickAvailable && pControls->bJoystick;
+    aItems[2].bDisabled = !pControls->bJoystickAvailable;
+    pPage->numItems = 3;
+}
+
+static void menu_ReadControls(const MenuPage* pPage, J3DMenuControls* pControls)
+{
+    pControls->scheme = pPage->aItems[0].value;
+    pControls->bMouse = pPage->aItems[1].value;
+    pControls->bJoystick = pPage->aItems[2].value;
+}
+
+// One page as an in-game menu. Returns what J3DMenuUI_Form did, -1 when no menu could be shown.
+static int menu_ShowPage(MenuPage* pPage, const char* pTitleName, const char* pTitleFallback, const char* pDefaultsLabel,
+                         J3DMenuFormChanged pfChanged)
+{
+    MenuSession session;
+    int result;
+    char aTitle[128];
+    if ( !menu_Begin(&session) )
+    {
+        return -1;
+    }
+    snprintf(aTitle, sizeof(aTitle), "%s", menu_String(pTitleName, pTitleFallback));
+    result = J3DMenuUI_Form(session.pNSWindow, aTitle, pPage->aItems, pPage->numItems, menu_String("JONES_STR_OK", "OK"),
+                            menu_String("JONES_STR_CANCEL", "Cancel"), pDefaultsLabel, pfChanged);
+    menu_End(&session);
+    return result;
+}
+
+int J3DMenu_ShowGamePlayOptions(J3DMenuGamePlay* pOptions, int* pResult)
+{
+    static MenuPage page;
+    int result;
+    if ( !pOptions || !J3DMenu_IsAvailable() )
+    {
+        return 0;
+    }
+    menu_BuildGamePlay(&page, pOptions);
+    result = menu_ShowPage(&page, "JONES_STR_GMPLY_OPTS", "Game Play Options", NULL, NULL);
+    if ( result < 0 )
+    {
+        return 0;
+    }
+    if ( result == 1 )
+    {
+        menu_ReadGamePlay(&page, pOptions);
+    }
+    *pResult = result == 1 ? 1 : 2;
+    return 1;
+}
+
+int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult)
+{
+    static MenuPage page;
+    int result;
+    if ( !pSettings || !J3DMenu_IsAvailable() )
+    {
+        return 0;
+    }
+    menu_BuildSound(&page, pSettings);
+    menu_pSound = pSettings;
+    result = menu_ShowPage(&page, "JONES_STR_SND_OPTS", "Sound Options", NULL, menu_SoundChanged);
+    menu_pSound = NULL;
+    if ( result < 0 )
+    {
+        return 0;
+    }
+    if ( result == 1 )
+    {
+        menu_ReadSound(&page, pSettings);
+    }
+    *pResult = result == 1 ? 1 : 2;
+    return 1;
+}
+
+int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
+{
+    static MenuPage page;
+    char aDefaults[128];
+    int result;
+    if ( !pSettings || pSettings->numResolutions <= 0 || !J3DMenu_IsAvailable() )
+    {
+        return 0;
+    }
+    menu_BuildDisplay(&page, pSettings, 0);
+    snprintf(aDefaults, sizeof(aDefaults), "%s", menu_String("JONES_STR_DEFAULTSET", "Default Settings"));
+    result = menu_ShowPage(&page, "JONES_STR_DPLY_OPTS", "Display Options", aDefaults, menu_DisplayChanged);
+    if ( result < 0 )
+    {
+        return 0;
+    }
+    if ( result == 1 )
+    {
+        menu_ReadDisplay(&page, pSettings);
+    }
+    *pResult = result == 1 ? 1 : 2;
+    return 1;
+}
+
+/* ---- The launcher ------------------------------------------------------------------------------------------------------ */
+
+static int menu_bQuitAtLaunch;
+static void* menu_pLauncherWindow; // the launcher's NSWindow while it is up, to put Options in front of
+static const J3DMenuLaunch* menu_pLaunch;
+
+int J3DMenu_ShowOptions(J3DMenuDisplay* pDisplay, J3DMenuGamePlay* pGamePlay, J3DMenuSound* pSound, J3DMenuControls* pControls,
+                        int* pResult)
+{
+    static MenuPage aPages[4];
+    J3DMenuFormPage aFormPages[4];
+    char aaTitles[4][64];
+    char aWindowTitle[64];
+    char aaButtons[3][64];
+    int result;
+
+    menu_BuildDisplay(&aPages[0], pDisplay, 1);
+    menu_BuildGamePlay(&aPages[1], pGamePlay);
+    menu_BuildSound(&aPages[2], pSound);
+    menu_BuildControls(&aPages[3], pControls);
+    // The Steam launcher's tab names: its Display, Game Play, Sound and Control Options dialogs
+    snprintf(aaTitles[0], sizeof(aaTitles[0]), "Display");
+    snprintf(aaTitles[1], sizeof(aaTitles[1]), "Game Play");
+    snprintf(aaTitles[2], sizeof(aaTitles[2]), "Sound");
+    snprintf(aaTitles[3], sizeof(aaTitles[3]), "Controls");
+    snprintf(aWindowTitle, sizeof(aWindowTitle), "Options");
+    snprintf(aaButtons[0], sizeof(aaButtons[0]), "%s", menu_String("JONES_STR_OK", "OK"));
+    snprintf(aaButtons[1], sizeof(aaButtons[1]), "%s", menu_String("JONES_STR_CANCEL", "Cancel"));
+    snprintf(aaButtons[2], sizeof(aaButtons[2]), "%s", menu_String("JONES_STR_DEFAULTSET", "Default Settings"));
+    aFormPages[0] = (J3DMenuFormPage){ aaTitles[0], aPages[0].aItems, aPages[0].numItems, menu_DisplayChanged };
+    aFormPages[1] = (J3DMenuFormPage){ aaTitles[1], aPages[1].aItems, aPages[1].numItems, NULL };
+    aFormPages[2] = (J3DMenuFormPage){ aaTitles[2], aPages[2].aItems, aPages[2].numItems, menu_SoundChanged };
+    aFormPages[3] = (J3DMenuFormPage){ aaTitles[3], aPages[3].aItems, aPages[3].numItems, NULL };
+
+    menu_pSound = pSound;
+    result = J3DMenuUI_OptionsWindow(menu_pLauncherWindow, aWindowTitle, aFormPages, 4, aaButtons[0], aaButtons[1], aaButtons[2]);
+    menu_pSound = NULL;
+    if ( result == 1 )
+    {
+        menu_ReadDisplay(&aPages[0], pDisplay);
+        menu_ReadGamePlay(&aPages[1], pGamePlay);
+        menu_ReadSound(&aPages[2], pSound);
+        menu_ReadControls(&aPages[3], pControls);
+    }
+    *pResult = result == 1 ? 1 : 2;
+    return 1;
+}
+
+static void menu_LauncherOptions(void* pWindow)
+{
+    menu_pLauncherWindow = pWindow;
+    if ( menu_pLaunch && menu_pLaunch->pfOptions )
+    {
+        menu_pLaunch->pfOptions();
+    }
+    menu_pLauncherWindow = NULL;
+}
+
+// The help file: the manual the Steam and GOG releases ship beside the game, else none.
+static int menu_FindHelp(char* pPath, size_t size)
+{
+    static const char* const aNames[] = { "manual.pdf", "Manual.pdf", "MANUAL.PDF" };
+    size_t i;
+    for ( i = 0; i < sizeof(aNames) / sizeof(aNames[0]); ++i )
+    {
+        struct stat st;
+        snprintf(pPath, size, "%s%s", J3DHost_GetDataRoot(), aNames[i]);
+        if ( stat(pPath, &st) == 0 && S_ISREG(st.st_mode) )
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// The launch picture: bitmap 141 of the Steam release's Jones3D.exe, else the CD and GOG releases' Install/Launch.bmp,
+// both in the player's data folder; NULL for the plain title card. The caller frees it.
+static uint8_t* menu_LoadLaunchPicture(size_t* pSize)
+{
+    char aPath[1100];
+    uint8_t* pBmp = NULL;
+    FILE* f;
+    long size;
+    if ( J3DGui_ReadExeBitmap("Jones3D.exe", 141, &pBmp, pSize) )
+    {
+        return pBmp;
+    }
+    snprintf(aPath, sizeof(aPath), "%sInstall/Launch.bmp", J3DHost_GetDataRoot());
+    f = J3DHost_fopen(aPath, "rb");
+    if ( !f )
+    {
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if ( size > 54 && size < (8 << 20) )
+    {
+        pBmp = malloc((size_t)size);
+        if ( pBmp && fread(pBmp, 1, (size_t)size, f) == (size_t)size )
+        {
+            *pSize = (size_t)size;
+        }
+        else
+        {
+            free(pBmp);
+            pBmp = NULL;
+        }
+    }
+    fclose(f);
+    return pBmp;
+}
+
+int J3DMenu_QuitAtLaunch(void)
+{
+    return menu_bQuitAtLaunch;
+}
+
+int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
+{
+    J3DMenuLauncherUI ui;
+    SDL_Window* pWindow = NULL;
+    const char* pMode = getenv("J3D_MENUS");
+    char aHelp[1100];
+    char aStatus[1200];
+    size_t pictureSize = 0;
+    uint8_t* pPicture;
+
+    // Not for runs that start themselves: tests and tools set the start mode, replays and scripts hold their own input
+    if ( J3DDisplay_IsHeadless() || J3DRecord_IsReplaying() || getenv("J3D_INPUT_SCRIPT") || getenv("J3D_REG_Start_Mode")
+         || getenv("J3D_NO_LAUNCHER") || (pMode && strcmp(pMode, "classic") == 0) )
+    {
+        return 0;
+    }
+    (void)pWindow;
+
+    pPicture = menu_LoadLaunchPicture(&pictureSize);
+    memset(&ui, 0, sizeof(ui));
+    ui.pTitle = "Indiana Jones and the Infernal Machine";
+    ui.pPicture = pPicture;
+    ui.pictureSize = pictureSize;
+    // The Steam launcher's buttons, in its order (its Exit is Quit on the Mac)
+    ui.apLabels[0] = "Start New Game";
+    ui.apLabels[1] = "Resume Play";
+    ui.apLabels[2] = "Help";
+    ui.apLabels[3] = "Options";
+    ui.apLabels[4] = "Quit";
+    ui.pResumeDetail = pLaunch->pResumeDetail;
+    snprintf(aStatus, sizeof(aStatus), "Game data: %s", J3DHost_GetDataRoot());
+    ui.pStatus = aStatus;
+    ui.pVersion = "Mac port";
+    ui.pfOptions = menu_LauncherOptions;
+    ui.pHelpPath = menu_FindHelp(aHelp, sizeof(aHelp)) ? aHelp : NULL;
+
+    menu_pLaunch = pLaunch;
+    if ( getenv("J3D_MENU_TEST_OPTIONS") )
+    {
+        menu_LauncherOptions(NULL); // for tests: the Options window first, which J3D_MENU_AUTOCANCEL closes and _SHOT keeps
+    }
+    if ( getenv("J3D_MENU_TEST_LAUNCH") )
+    {
+        // For tests: answer as the player would have, without showing the window ("newgame" or "resume")
+        *pChoice = strcmp(getenv("J3D_MENU_TEST_LAUNCH"), "resume") == 0 ? J3DMENU_LAUNCH_RESUME : J3DMENU_LAUNCH_NEWGAME;
     }
     else
     {
-        *pResult = 2;
+        *pChoice = J3DMenuUI_Launcher(&ui);
     }
-    menu_End(&session);
+    menu_pLaunch = NULL;
+    menu_bQuitAtLaunch = *pChoice == J3DMENU_LAUNCH_QUIT;
+    free(pPicture);
+    // The keys that answered the launcher are not the game's
+    SDL_PumpEvents();
+    SDL_FlushEvents(SDL_EVENT_KEY_DOWN, SDL_EVENT_KEY_UP);
+    SDL_ResetKeyboard();
     return 1;
 }
 

@@ -7,6 +7,7 @@
  * Every J3DMenuUI function lays its menu over the game window (an NSWindow*), runs a modal session until the player
  * answers, and returns. Main thread only. Strings are UTF-8 or the game's Latin-1 text; the Swift side copies them.
  */
+#include <stddef.h>
 #include <stdint.h>
 
 #define J3DMENU_THUMB_WIDTH  128
@@ -137,6 +138,33 @@ typedef struct J3DMenuStoreUI
     int32_t numIcons;
 } J3DMenuStoreUI;
 
+// The launcher's Options window (J3DMenuUI_OptionsWindow): a page of form items a tab. The defaults button calls the
+// shown page's pfChanged with -1, and is greyed for a page that has none.
+typedef struct J3DMenuFormPage
+{
+    const char* pTitle;
+    J3DMenuItem* pItems;
+    int32_t numItems;
+    J3DMenuFormChanged pfChanged;
+} J3DMenuFormPage;
+
+// The launcher (J3DMenuUI_Launcher), a window of its own before the game window is shown.
+#define J3DMENU_LAUNCH_QUIT    0
+#define J3DMENU_LAUNCH_NEWGAME 1
+#define J3DMENU_LAUNCH_RESUME  2
+typedef struct J3DMenuLauncherUI
+{
+    const char* pTitle;             // the window's
+    const uint8_t* pPicture;        // the launch picture as a .bmp file, or NULL for the plain title card
+    size_t pictureSize;
+    const char* apLabels[5];        // Start New Game, Resume Play, Help, Options, Quit
+    const char* pResumeDetail;      // what Resume Play would load, or NULL when there is nothing (it is greyed)
+    const char* pStatus;            // the line under the buttons
+    const char* pVersion;
+    void (*pfOptions)(void* pLauncherWindow);   // the NSWindow*, to put Options in front of
+    const char* pHelpPath;          // the file Help opens (the manual), or NULL when there is none (it is greyed)
+} J3DMenuLauncherUI;
+
 #ifndef J3DMENU_SWIFT // implemented in Swift (@_cdecl); these are the prototypes for C
 
 // A title, a text and up to eight buttons. Returns the index of the button chosen. defaultIndex is the button Return
@@ -152,6 +180,14 @@ int32_t J3DMenuUI_Form(void* pGameWindow, const char* pTitle, J3DMenuItem* pItem
 
 // Pages of figures with a Close button, and arrows to turn the pages when there are several.
 void J3DMenuUI_Stats(void* pGameWindow, const J3DMenuStats* pStats);
+
+// The Options window: modal, in a window of its own centred on pParentWindow (an NSWindow*, or NULL). Returns 1 for
+// OK with every page's items holding the values chosen, else 0.
+int32_t J3DMenuUI_OptionsWindow(void* pParentWindow, const char* pTitle, J3DMenuFormPage* pPages, int32_t numPages,
+                                const char* pOkLabel, const char* pCancelLabel, const char* pDefaultsLabel);
+
+// The launcher, until the player chooses: J3DMENU_LAUNCH_*.
+int32_t J3DMenuUI_Launcher(const J3DMenuLauncherUI* pUI);
 
 // The store, until pfAction returns nonzero.
 void J3DMenuUI_Store(void* pGameWindow, const J3DMenuStoreUI* pUI, J3DMenuStoreAction pfAction);

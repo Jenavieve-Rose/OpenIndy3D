@@ -906,7 +906,7 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         JonesMain_Shutdown();
         wkernel_DestroyWindow();
         SDL_Quit();
-        return -1;
+        return J3DMenu_QuitAtLaunch() ? 1 : -1; // Quit in the launcher is the player's normal way out (WM_QUIT's 1)
     }
 
     const char*   pFrames   = getenv("J3D_FRAMES");
