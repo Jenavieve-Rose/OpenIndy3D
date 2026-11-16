@@ -22,11 +22,9 @@
  * folder; the port defaults it to ~/Library/Application Support/J3DPort/ (host_dirs.h), so nothing is written into the
  * player's game data.
  *
- * Until the GUI exists (Phase 6), three values default so a headless run gets past the parts that need it:
- *   "Start Mode" = 0 (start game). The engine's default, 2, opens the developer dialog.
- *   "Debug Mode" = 1 (console). The engine log goes to stdout through stdConsole.
- *   "Verbosity"  = 2 (verbose).
- * They are defaults, not stored values: the file and the environment override them and they are not written out.
+ * Until the dialogs existed (Phase 6), "Start Mode", "Debug Mode" and "Verbosity" defaulted to 0, 1 and 2 (start the
+ * game, log to the console, verbose) so a run got past the launcher. Retail's own defaults are back (P6.23): the
+ * launcher, no log, normal verbosity. The tests and tools set the values they need (J3D_REG_Start_Mode=0 and so on).
  */
 #include <errno.h>
 #include <stdio.h>
@@ -125,10 +123,9 @@ static const char* wuRegistry_GetEnv(const char* pKey)
  * -------------------------------------------------------------------------------------------------------------- */
 static int wuRegistry_GetDefaultInt(const char* pKey, int* pValue)
 {
+    // none since P6.23; kept for the next value that needs one
     static const struct { const char* pKey; int value; } aDefaults[] = {
-        { "Start Mode", 0 },
-        { "Debug Mode", 1 },
-        { "Verbosity",  2 },
+        { "", 0 },
     };
 
     for ( size_t i = 0; i < sizeof(aDefaults) / sizeof(aDefaults[0]); ++i )

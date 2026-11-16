@@ -28,6 +28,11 @@ endif()
 if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET 13.0 CACHE STRING "" FORCE)
 endif()
+if(J3D_PLATFORM STREQUAL "apple")
+    # The menus are SwiftUI (PORT-PLAN.md Phase 6, decision 20). Enabled here so Swift takes the deployment target.
+    set(CMAKE_Swift_LANGUAGE_VERSION 5)
+    enable_language(Swift)
+endif()
 
 # J3D_DEBUG (j3d.h) follows NDEBUG. The decomp's release build is the reference, so NDEBUG is defined in every
 # configuration unless the engine's debug asserts are asked for explicitly.
@@ -198,6 +203,7 @@ if(J3D_PLATFORM STREQUAL "apple")
         stdControl_null.c       # platform/apple/stdControl_sdl.c (Phase 3)
         audio_device_null.c     # platform/apple/audio_device_avf.m (Phase 4, decision 19)
         gui_text_null.c         # platform/apple/gui_text_ct.m, the dialogs' text through Core Text (Phase 6)
+        j3dmenu_null.c          # platform/apple/j3dmenu_apple.c and menu/, the SwiftUI menus (Phase 6)
     )
     set(J3D_APPLE_NULL_SOURCES ${J3D_PLATFORM_NULL_SOURCES})
     foreach(replaced IN LISTS J3D_APPLE_REPLACES_NULL)
@@ -222,6 +228,28 @@ if(J3D_PLATFORM STREQUAL "apple")
     target_compile_definitions(platform_apple PUBLIC J3D_PLATFORM_APPLE=1)
     # Objective-C files are compiled with ARC. The C-only warning switches in j3d_common apply to them unchanged.
     target_compile_options(platform_apple PRIVATE $<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>)
+
+    # platform/apple/menu/: the SwiftUI menus, a Swift library of its own. j3dmenu_ui.h is its bridging header and the
+    # whole of its interface with the C code (j3dmenu_apple.c); J3DMENU_SWIFT hides the prototypes Swift implements.
+    file(GLOB J3D_MENU_SWIFT_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/platform/apple/menu/*.swift)
+    add_library(j3dmenu_swift STATIC ${J3D_MENU_SWIFT_SOURCES})
+    set_target_properties(j3dmenu_swift PROPERTIES Swift_MODULE_NAME J3DMenu)
+    target_compile_options(j3dmenu_swift PRIVATE
+        -parse-as-library
+        -target ${CMAKE_OSX_ARCHITECTURES}-apple-macos${CMAKE_OSX_DEPLOYMENT_TARGET}
+        -import-objc-header ${J3D_ROOT}/platform/apple/menu/j3dmenu_ui.h
+        -Xcc -DJ3DMENU_SWIFT
+        -warnings-as-errors)
+    # Everything else is C, archived and linked as C: the Swift objects name the runtime libraries they need
+    # themselves, and the linker only has to be told where the SDK and the toolchain keep them.
+    get_filename_component(J3D_SWIFT_BIN_DIR ${CMAKE_Swift_COMPILER} REALPATH)
+    get_filename_component(J3D_SWIFT_BIN_DIR ${J3D_SWIFT_BIN_DIR} DIRECTORY)
+    execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE J3D_MACOS_SDK OUTPUT_STRIP_TRAILING_WHITESPACE)
+    target_link_libraries(j3dmenu_swift PUBLIC "-framework SwiftUI" "-framework AppKit")
+    target_link_options(j3dmenu_swift PUBLIC
+        -L${J3D_MACOS_SDK}/usr/lib/swift -L${J3D_SWIFT_BIN_DIR}/../lib/swift/macosx LINKER:-rpath,/usr/lib/swift)
+    target_link_libraries(platform_apple PUBLIC j3dmenu_swift)
+    set_target_properties(platform_apple PROPERTIES LINKER_LANGUAGE C)
 endif()
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -241,6 +269,7 @@ target_link_libraries(jones3d_game PUBLIC
 # j3d_executable(<target> <platform library> <sources...>): a program linked with the game and one platform.
 function(j3d_executable name platform)
     add_executable(${name} ${ARGN})
+    set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
     target_link_libraries(${name} PRIVATE jones3d_game ${platform})
     # The static libraries reference each other in cycles (sith <-> std <-> platform); let the linker resolve them.
     target_link_options(${name} PRIVATE LINKER:-no_warn_duplicate_libraries)
@@ -333,12 +362,21 @@ endif()
 # saveload writes its two saves under an "Install Path" in the build tree, like boot.
 if(J3D_TEST_DATA)
     set_tests_properties(saveload PROPERTIES
-        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/logs/;${J3D_SANITIZER_ENV}"
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Debug_Mode=1;J3D_REG_Verbosity=2;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
     # saveload-3d: the same with "Sound 3D" on (decision 19), so 3D voices' channel flags go through the round trip.
     add_test(NAME saveload-3d COMMAND saveload ${J3D_TEST_DATA})
     set_tests_properties(saveload-3d PROPERTIES
-        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Sound_3D=1;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/logs/;${J3D_SANITIZER_ENV}"
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Sound_3D=1;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/logs/;${J3D_SANITIZER_ENV}"
+        FAIL_REGULAR_EXPRESSION "ASSERT")
+endif()
+
+# gamedialogs: the game's own dialogs through their entry points, with the player's data (Phase 6).
+j3d_executable(gamedialogs platform_null ${J3D_ROOT}/tests/gamedialogs.c ${J3D_ROOT}/tests/harness.c)
+if(J3D_TEST_DATA)
+    add_test(NAME gamedialogs COMMAND gamedialogs ${J3D_TEST_DATA})
+    set_tests_properties(gamedialogs PROPERTIES
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/gamedialogs-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/gamedialogs-out/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()
 
@@ -355,7 +393,7 @@ endif()
 if(J3D_TEST_DATA AND J3D_PLATFORM STREQUAL "apple")
     add_test(NAME boot-sdl COMMAND jones3d --data ${J3D_TEST_DATA} --headless --frames 600)
     set_tests_properties(boot-sdl PROPERTIES
-        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/logs/;${J3D_SANITIZER_ENV}"
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Debug_Mode=1;J3D_REG_Verbosity=2;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot-sdl/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()
 
@@ -370,6 +408,6 @@ endif()
 if(J3D_TEST_DATA)
     add_test(NAME boot COMMAND ${J3D_HEADLESS_TARGET} --data ${J3D_TEST_DATA} --headless --frames 600)
     set_tests_properties(boot PROPERTIES
-        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot/logs/;${J3D_SANITIZER_ENV}"
+        ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Debug_Mode=1;J3D_REG_Verbosity=2;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()

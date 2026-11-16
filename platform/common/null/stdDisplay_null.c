@@ -21,24 +21,6 @@ LPDIRECTDRAW4 J3DAPI stdDisplay_GetDirectDraw(void)
     return NULL;
 }
 
-HDC J3DAPI stdDisplay_GetFrontBufferDC(void)
-{
-    return NULL;
-}
-
-void J3DAPI stdDisplay_ReleaseFrontBufferDC(HDC hdc)
-{
-}
-
-HDC J3DAPI stdDisplay_GetBackBufferDC(void)
-{
-    return NULL;
-}
-
-void J3DAPI stdDisplay_ReleaseBackBufferDC(HDC hdc)
-{
-}
-
 int J3DAPI stdDisplay_FlipToGDISurface(void)
 {
     return (int)0;

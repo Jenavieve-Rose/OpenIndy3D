@@ -39,6 +39,7 @@ OVERRIDES = {
     memset(&device, 0, sizeof(device));
     device.caps.bHAL       = 1;
     device.caps.hasZBuffer = 1;
+    device.d3dDesc.dwDeviceRenderBitDepth = DDBD_32; // the colour depths the display settings dialog lists, as Metal's
     strcpy(device.deviceName, "Null");
     strcpy(device.deviceDescription, "Null HAL (no renderer until Phase 2)");
 
@@ -179,6 +180,9 @@ IMPLEMENTED_ELSEWHERE = {
     'stdDisplay_UnlockBackBuffer', 'stdDisplay_VBufferCopy', 'stdDisplay_EncodeFromRGB565', 'stdDisplay_CreateZBuffer',
     'stdDisplay_SetBufferClipper', 'stdDisplay_RemoveBufferClipper', 'stdDisplay_GetTextureMemory',
     'stdDisplay_GetTotalMemory', 'stdDisplay_Refresh',
+    # platform/common/j3dgui/gui_gdi.c: the buffers' GDI DCs, over the locked back buffer (Phase 6)
+    'stdDisplay_GetFrontBufferDC', 'stdDisplay_ReleaseFrontBufferDC', 'stdDisplay_GetBackBufferDC',
+    'stdDisplay_ReleaseBackBufferDC',
 }
 
 # Functions written to a file of their own instead of the module's null file, so an Apple backend can replace them

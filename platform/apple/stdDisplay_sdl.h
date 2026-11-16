@@ -10,4 +10,11 @@
 // display. A position in the bars maps outside the back buffer. With no mode set the position is returned unchanged.
 void J3DApple_WindowToBackBuffer(float* pX, float* pY);
 
+// A dialog shown before the game sets a display mode (the launcher, a start-up message box) needs somewhere to be
+// drawn: opens the display windowed at width x height for it, starting the display module if it was not. Returns 0
+// on success. J3DApple_CloseTemporaryScreen undoes all of it, so the game opens its own display as before.
+// (PORT-PLAN.md Phase 6)
+int  J3DApple_OpenTemporaryScreen(int width, int height);
+void J3DApple_CloseTemporaryScreen(void);
+
 #endif // J3D_PLATFORM_STDDISPLAY_SDL_H

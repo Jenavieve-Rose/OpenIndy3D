@@ -13,6 +13,8 @@
 #include "gui_text.h"
 #include "j3dgui.h"
 
+#include <std/Win95/stdDisplay.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -1838,4 +1840,77 @@ BOOL WINAPI RemoveFontResourceA(LPCSTR pName)
 {
     (void)pName;
     return FALSE;
+}
+
+/* ---- The display's buffer DCs (stdDisplay.h) ------------------------------------------------------------------------ */
+
+// IDirectDrawSurface4_GetDC gave the game a GDI DC on a DirectDraw surface. Here the DC draws into the back buffer
+// itself, a 32-bit top-down bitmap over the locked pixels, until the DC is released. The windowed dialog path snapshots
+// the frame through it (JonesDialog_AllocOffScreenDIBSection) and puts the frame back when the dialogs close; the
+// front buffer is the back buffer, as the frame is presented whole.
+static HDC gui_BufferDC(void)
+{
+    void* pPixels;
+    uint32_t w;
+    uint32_t h;
+    int32_t pitch;
+    GuiObject* pBitmap;
+    GuiDC* pDC;
+
+    if ( stdDisplay_LockBackBuffer(&pPixels, &w, &h, &pitch) != 0 )
+    {
+        return NULL;
+    }
+    pBitmap = calloc(1, sizeof(*pBitmap));
+    pDC = gui_NewDC();
+    if ( !pBitmap || !pDC )
+    {
+        free(pBitmap);
+        free(pDC);
+        stdDisplay_UnlockBackBuffer();
+        return NULL;
+    }
+    pBitmap->magic = GUI_OBJ_MAGIC;
+    pBitmap->type = GUI_OBJ_BITMAP;
+    pBitmap->width = (int)w;
+    pBitmap->height = (int)h;
+    pBitmap->bpp = 32;
+    pBitmap->pitch = pitch;
+    pBitmap->bTopDown = 1;
+    pBitmap->pBits = pPixels;
+    pBitmap->bOwnsBits = 0;
+    pDC->pBitmap = pBitmap;
+    return (HDC)pDC;
+}
+
+static void gui_ReleaseBufferDC(HDC hdc)
+{
+    GuiDC* p = gui_DC(hdc);
+    if ( !p )
+    {
+        return;
+    }
+    DeleteObject((HGDIOBJ)p->pBitmap);
+    DeleteDC(hdc);
+    stdDisplay_UnlockBackBuffer();
+}
+
+HDC J3DAPI stdDisplay_GetFrontBufferDC(void)
+{
+    return gui_BufferDC();
+}
+
+void J3DAPI stdDisplay_ReleaseFrontBufferDC(HDC hdc)
+{
+    gui_ReleaseBufferDC(hdc);
+}
+
+HDC J3DAPI stdDisplay_GetBackBufferDC(void)
+{
+    return gui_BufferDC();
+}
+
+void J3DAPI stdDisplay_ReleaseBackBufferDC(HDC hdc)
+{
+    gui_ReleaseBufferDC(hdc);
 }

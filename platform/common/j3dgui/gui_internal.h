@@ -200,6 +200,19 @@ LRESULT CALLBACK J3DGui_DialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 /* ---- The modal loop and the host (gui_dialog.c, j3dgui_host.h) ----------------------------------------------------- */
 
 void J3DGui_RunModal(J3DGuiWindow* pDialog);
+
+// Dialog base units of the stock dialog font (MS Sans Serif 8): a dialog unit is a quarter of one across, an eighth down.
+#define GUI_BASEUNIT_X 6
+#define GUI_BASEUNIT_Y 13
+
+// A dialog template as a child window at the top-left of pParent's client area: its controls are created and its
+// procedure gets WM_INITDIALOG with param. Not shown yet. NULL if there is no such template.
+J3DGuiWindow* J3DGui_CreateTemplateChild(LPCSTR pTemplate, J3DGuiWindow* pParent, DLGPROC pfnDlgProc, LPARAM param, HINSTANCE hInstance);
+
+// What DialogBoxParam does with the dialog it created: disables its owner, shows it, runs the modal loop, destroys it,
+// and puts the focus back on pPrevFocus. Returns EndDialog's result. The caller brackets it with J3DGuiHost_BeginScreen
+// and J3DGuiHost_EndScreen when J3DGui_ModalDepth() is 0.
+INT_PTR J3DGui_DoModal(J3DGuiWindow* pDialog, HWND hParent, J3DGuiWindow* pPrevFocus);
 int  J3DGui_ModalDepth(void);
 
 #endif

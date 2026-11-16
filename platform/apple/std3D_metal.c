@@ -103,6 +103,9 @@ int J3DAPI std3D_Startup(void)
     pDevice->caps.maxTexWidth                  = 16384; // every Apple GPU
     pDevice->caps.maxTexHeight                 = 16384;
     pDevice->caps.maxVertexCount               = 0;     // no limit: STD3D_DEFAULT_MAX_VERTICES applies, as retail
+    // The bit depths it renders at. Every display mode the port offers is 32-bit (stdDisplay_common.c); the launcher
+    // lists only the modes whose depth is here (JonesDevDialog_CurDisplaySupportsBPP), so it must say so (Phase 6).
+    pDevice->d3dDesc.dwDeviceRenderBitDepth = DDBD_32;
     strcpy(pDevice->deviceName, "Metal");
     // The game picks the 3D device whose description contains "HAL" (JonesDevDialog_LoadSettings).
     snprintf(pDevice->deviceDescription, sizeof(pDevice->deviceDescription), "Metal HAL: %s", aName);

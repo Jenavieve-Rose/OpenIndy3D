@@ -191,6 +191,7 @@ StdDisplayEnvironment* J3DAPI std3D_BuildDisplayEnvironment(void)
     memset(&device, 0, sizeof(device));
     device.caps.bHAL       = 1;
     device.caps.hasZBuffer = 1;
+    device.d3dDesc.dwDeviceRenderBitDepth = DDBD_32; // the colour depths the display settings dialog lists, as Metal's
     strcpy(device.deviceName, "Null");
     strcpy(device.deviceDescription, "Null HAL (no renderer until Phase 2)");
 

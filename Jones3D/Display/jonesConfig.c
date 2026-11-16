@@ -37,6 +37,7 @@
 
 #ifdef J3D_PORT
 #include <platform/common/host_path.h>
+#include <platform/common/j3dmenu.h>
 #endif
 
 #include <math.h>
@@ -2096,6 +2097,17 @@ static int J3DAPI jonesConfig_ControlOptions_SetAllDefaultControlSchemes(JonesCo
 
 int J3DAPI jonesConfig_ShowMessageDialog(HWND hWnd, const char* pTitle, const char* pText, int iconID)
 {
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 20)
+        int menuResult;
+        if ( J3DMenu_ShowMessage(pTitle, pText, iconID, &menuResult) )
+        {
+            return menuResult;
+        }
+    }
+#endif
+
     JonesMessageDialogData data;
     HINSTANCE hInstance;
     int dlgResult;
@@ -3930,6 +3942,17 @@ void J3DAPI jonesConfig_SetDialogTitleAndPosition(HWND hWnd, JonesDialogFontInfo
 
 int J3DAPI jonesConfig_GetSaveGameFilePath(HWND hWnd, char* pOutFilePath)
 {
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 20)
+        int menuResult;
+        if ( J3DMenu_GetSaveGameFilePath(pOutFilePath, &menuResult) )
+        {
+            return menuResult;
+        }
+    }
+#endif
+
     uint32_t width, height;
     OPENFILENAME ofn;
     RECT rect;
@@ -4079,7 +4102,7 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                 {
                     int bValidFile = 0;
                     char aFilename[128];
-                    CHAR aPath[128];
+                    CHAR aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128; with aSearchPath and aCurDir it holds the save folder's path
 
                     if ( (int16_t)pOfNotify->lpOFN->nFileOffset > 0 )
                     {
@@ -4088,9 +4111,9 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                         char* pFilename;
                         LPSTR pFilePart;
                         int levelNum;
-                        CHAR aSearchPath[128];
+                        CHAR aSearchPath[J3D_PATHSIZE];
                         CHAR aExtension[128];
-                        CHAR aCurDir[128];
+                        CHAR aCurDir[J3D_PATHSIZE];
                         char aQuckSaveFilename[128];
 
                         memset(aPath, 0, sizeof(aPath));
@@ -4346,6 +4369,17 @@ int J3DAPI jonesConfig_ShowOverwriteSaveGameDlg(HWND hWnd, const char* aFilePath
 
 int J3DAPI jonesConfig_ShowExitGameDialog(HWND hWnd, char* pSaveGameFilePath)
 {
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 20)
+        int menuResult;
+        if ( J3DMenu_ShowExitGame(pSaveGameFilePath, &menuResult) )
+        {
+            return menuResult;
+        }
+    }
+#endif
+
     int result;
     GameSaveMsgBoxData data;
 
@@ -4474,7 +4508,9 @@ int J3DAPI jonesConfig_GameSaveSetData(HWND hDlg, int a2, LPARAM lParam)
             if ( pOverwriteText )
             {
                 memset(aText, 0, sizeof(aText));
-                sprintf(aText, pOverwriteText, pNdsFilePath + 4);
+                // Port: was + 4. The caller passes its SaveGameDialogData (retail bug, jonesConfig_SaveGameDialogHookProc)
+                // and the 4 skipped that structure's first member, a 32-bit handle, to reach the file name.
+                sprintf(aText, pOverwriteText, pNdsFilePath + offsetof(SaveGameDialogData, aFilePath));
                 jonesConfig_SetTextControl(hDlg, GetDlgItem(hDlg, 1197), aText);
             }
             break;
@@ -4516,6 +4552,17 @@ void J3DAPI jonesConfig_MsgBoxDlg_HandleWM_COMMAND(HWND hWnd, int nResult, LPARA
 
 int J3DAPI jonesConfig_GetLoadGameFilePath(HWND hWnd, char* pDestNdsPath)
 {
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 20)
+        int menuResult;
+        if ( J3DMenu_GetLoadGameFilePath(pDestNdsPath, &menuResult) )
+        {
+            return menuResult;
+        }
+    }
+#endif
+
     uint32_t width, height;
     OPENFILENAME ofn;
     RECT rect;
@@ -4701,7 +4748,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                 {
                     int bValidFile = 0;
                     char aFilename[128];
-                    CHAR aPath[128];
+                    CHAR aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128; with aSearchPath it holds the save folder's path
 
                     if ( (int16_t)pOfNotify->lpOFN->nFileOffset > 0 )
                     {
@@ -4709,7 +4756,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
                         size_t strLen;
                         size_t nameLen;
                         LPSTR lpFilePart;
-                        CHAR aSearchPath[128];
+                        CHAR aSearchPath[J3D_PATHSIZE];
                         char aExtension[128];
 
                         memset(aPath, 0, sizeof(aPath));
@@ -7715,14 +7762,21 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
                             sprintf(aResolutionText, "%s", pFormat); // Port: was the format string; the colour-depth strings have no %
                         }
                         break;
+
+                    default:
+                        continue; // Port: retail went on with the colour depth uninitialised; the 3D devices list 16, 24 and 32 only
                 }
 
                 pData->aVideoModes[videomodeNum].colorDepthFlags |= colorDepthMask;
                 pData->aVideoModes[videomodeNum].aColorDepthVideoModes[colorDepthIdx] = i;
 
-                if ( ComboBox_FindString(hCBColorDepth, 0, aResolutionText) == -1 )
+                // Port: retail set itemData and index only when it added the colour depth, so the current mode took the last
+                // added depth's data when its own depth was already listed, and the resolution list was built for the
+                // wrong depth (and its index read past it). Both now come from the mode's own depth.
+                itemData = (colorDepthMask << 16) | colorDepthIdx;// Packs pixel byte size and color depth mask
+                index = ComboBox_FindString(hCBColorDepth, 0, aResolutionText);
+                if ( index == -1 )
                 {
-                    itemData = (colorDepthMask << 16) | colorDepthIdx;// Packs pixel byte size and color depth mask
                     index = ComboBox_AddString(hCBColorDepth, aResolutionText);
                     ComboBox_SetItemData(hCBColorDepth, index, itemData);
                 }
@@ -7741,6 +7795,12 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
     }
 
     // Init screen resolutions for selected color depth
+    if ( pData->numVideoModes == 0 )
+    {
+        // Port: retail read aVideoModes[0] below; no mode of 512x384 or more for the 3D device
+        SetWindowLongPtr(hDlg, DWL_USER, (LONG_PTR)pData);
+        return 1;
+    }
 
 #line 7504
     pData->aCurColorDepthResolutions = (const JonesDisplaySettingsVideoMode**)STDMALLOC(sizeof(const JonesDisplaySettingsVideoMode**) * pData->numVideoModes);
@@ -7785,6 +7845,11 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
 
     // Init resolution text control
     hCtrl = GetDlgItem(hDlg, 1097);
+    if ( selVideoModeNum < 0 || selVideoModeNum >= (int)pData->numCurColorDepthResolutions )
+    {
+        selVideoModeNum = 0; // Port: retail indexed past the list when the selected mode was not of the selected depth
+        SendMessage(GetDlgItem(hDlg, 1050), TBM_SETPOS, TRUE, selVideoModeNum);
+    }
     SetWindowText(hCtrl, pData->aCurColorDepthResolutions[selVideoModeNum]->aResolutionText);
     SendMessage(hCtrl, TBM_SETPAGESIZE, 0, 1); // Retail bug: sent to the text control, not the slider
 

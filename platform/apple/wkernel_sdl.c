@@ -51,6 +51,8 @@
 
 #include <SDL3/SDL.h>
 
+#include <platform/common/j3dmenu.h>
+
 #include <Windows.h>
 
 #include <wkernel/wkernel.h>
@@ -924,6 +926,7 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         result = JonesMain_Process();
         ++numFrames;
         J3DHost_AfterFrame(numFrames); // --screenshot-at
+        J3DMenu_AfterFrame(numFrames); // J3D_MENU_TEST
     }
 
     wkernel_DestroyWindow();
@@ -989,6 +992,22 @@ HWND J3DGuiHost_GameWindow(void)
 int J3DGuiHost_Pump(int bWait)
 {
     return wkernel_Pump(bWait) || wkernel_bQuit;
+}
+
+void J3DGuiHost_BeginScreen(void)
+{
+    uint32_t w = 0;
+    uint32_t h = 0;
+    stdDisplay_GetBackBufferSize(&w, &h);
+    if ( (!w || !h) && J3DGuiHost_IsInteractive() )
+    {
+        J3DApple_OpenTemporaryScreen(800, 600);
+    }
+}
+
+void J3DGuiHost_EndScreen(void)
+{
+    J3DApple_CloseTemporaryScreen();
 }
 
 void J3DGuiHost_Present(void)

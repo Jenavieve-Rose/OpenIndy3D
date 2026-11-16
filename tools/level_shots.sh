@@ -35,7 +35,7 @@ n=1
 for level in $levels; do
     name=$(printf '%02d_%s' "$n" "$level")
     # Start Mode 0 starts the level numbered on the command line (JonesMain_Startup); 1 to 17, in the game's order.
-    if J3D_SETTINGS=/dev/null J3D_REG_Start_Mode=0 J3D_REG_Install_Path="$out/install/" J3D_LOGS="$out/logs/" \
+    if J3D_SETTINGS=/dev/null J3D_REG_Start_Mode=0 J3D_REG_Debug_Mode=1 J3D_REG_Verbosity=2 J3D_REG_Install_Path="$out/install/" J3D_LOGS="$out/logs/" \
         "$game" --data "$data" --headless --frames "$last" --screenshot-at "$frames" \
         --screenshot-file "$out/${name}_f{frame}.bmp" "$n" > "$out/$(printf '%02d' "$n").log" 2>&1; then
         echo "$name: ok"

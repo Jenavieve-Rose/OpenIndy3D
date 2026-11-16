@@ -133,6 +133,14 @@ int J3DGuiHost_Pump(int bWait)
     return wkernel_PumpNull();
 }
 
+void J3DGuiHost_BeginScreen(void)
+{
+}
+
+void J3DGuiHost_EndScreen(void)
+{
+}
+
 void J3DGuiHost_Present(void)
 {
     uint32_t w = 0;

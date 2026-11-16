@@ -54,6 +54,11 @@ HWND J3DGuiHost_GameWindow(void);
 // dialog is open, everything else to the game's window procedure. Returns nonzero when the application is quitting.
 int J3DGuiHost_Pump(int bWait);
 
+// Called before the first dialog is created and after the last one is gone: a host with no display mode set yet
+// opens a temporary one so the dialog can be seen (the launcher comes up before the game's display), and closes it.
+void J3DGuiHost_BeginScreen(void);
+void J3DGuiHost_EndScreen(void);
+
 // Shows the back buffer (stdDisplay_Update), or does nothing where there is no display.
 void J3DGuiHost_Present(void);
 

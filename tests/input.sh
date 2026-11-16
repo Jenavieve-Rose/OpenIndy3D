@@ -41,7 +41,7 @@ run() {
         printf '%s\n800 vkey F5\n' "$script" > "$out/$name.txt"
         set -- --input-script "$out/$name.txt" "$@"
     fi
-    if ! env J3D_SETTINGS=/dev/null J3D_REG_Start_Mode=0 J3D_REG_Install_Path="$out/$name/" J3D_LOGS="$out/$name/logs/" \
+    if ! env J3D_SETTINGS=/dev/null J3D_REG_Start_Mode=0 J3D_REG_Debug_Mode=1 J3D_REG_Verbosity=2 J3D_REG_Install_Path="$out/$name/" J3D_LOGS="$out/$name/logs/" \
         "$game" --data "$data" --headless "$@" 2 > "$out/$name.log" 2>&1; then
         echo "FAIL $name: exit status (see $out/$name.log)"
         status=1

@@ -20,8 +20,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define GUI_BASEUNIT_X 6
-#define GUI_BASEUNIT_Y 13
 
 typedef struct GuiPosted
 {
@@ -701,7 +699,10 @@ static HFONT gui_TemplateFont(const J3DGuiTemplate* t)
     return CreateFontA(-MulDiv(t->fontSize, 96, 72), 0, 0, 0, FW_NORMAL, 0, 0, 0, ANSI_CHARSET, 0, 0, 0, 0, t->pFontName);
 }
 
-static J3DGuiWindow* gui_CreateDialog(const J3DGuiTemplate* t, HWND hParent, DLGPROC pfnDlgProc, LPARAM param, HINSTANCE hInstance)
+// pChildOf: the template becomes a child window filling the top-left of that dialog's client area (the file dialogs'
+// custom part, gui_filedlg.c), else a dialog of its own.
+static J3DGuiWindow* gui_CreateDialog(const J3DGuiTemplate* t, HWND hParent, DLGPROC pfnDlgProc, LPARAM param, HINSTANCE hInstance,
+                                      J3DGuiWindow* pChildOf)
 {
     J3DGuiWindow* pParentDlg = J3DGui_FromHwnd(hParent);
     DWORD style = t->style;
@@ -716,8 +717,11 @@ static J3DGuiWindow* gui_CreateDialog(const J3DGuiTemplate* t, HWND hParent, DLG
     J3DGuiWindow* pChild;
     INT_PTR initResult;
 
-    // A child-style template (the file dialogs' 154 and 159) is shown as a dialog of its own.
-    if ( style & WS_CHILD )
+    if ( pChildOf )
+    {
+        style = (style & ~(DWORD)(WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_BORDER | DS_MODALFRAME)) | WS_CHILD | DS_CONTROL;
+    }
+    else if ( style & WS_CHILD ) // a child-style template opened directly is shown as a dialog of its own
     {
         style = (style & ~(DWORD)(WS_CHILD | DS_CONTROL)) | WS_POPUP | DS_MODALFRAME;
     }
@@ -726,15 +730,18 @@ static J3DGuiWindow* gui_CreateDialog(const J3DGuiTemplate* t, HWND hParent, DLG
     client.right = MulDiv(t->cx, GUI_BASEUNIT_X, 4);
     client.bottom = MulDiv(t->cy, GUI_BASEUNIT_Y, 8);
     rect = client;
-    AdjustWindowRectEx(&rect, style & ~(DWORD)WS_VISIBLE, FALSE, 0);
-    OffsetRect(&rect, -rect.left, -rect.top);
-    J3DGuiHost_GetScreenSize(&screenW, &screenH);
-    // Centred on the screen. The templates' own positions are for a 640x480 desktop, and retail's code moves its dialogs
-    // after WM_INITDIALOG in any case (jonesConfig_SetDialogTitleAndPosition).
-    OffsetRect(&rect, (screenW - (rect.right - rect.left)) / 2, (screenH - (rect.bottom - rect.top)) / 2);
+    if ( !pChildOf )
+    {
+        AdjustWindowRectEx(&rect, style & ~(DWORD)WS_VISIBLE, FALSE, 0);
+        OffsetRect(&rect, -rect.left, -rect.top);
+        J3DGuiHost_GetScreenSize(&screenW, &screenH);
+        // Centred on the screen. The templates' own positions are for a 640x480 desktop, and retail's code moves its
+        // dialogs after WM_INITDIALOG in any case (jonesConfig_SetDialogTitleAndPosition).
+        OffsetRect(&rect, (screenW - (rect.right - rect.left)) / 2, (screenH - (rect.bottom - rect.top)) / 2);
+    }
 
-    pDlg = J3DGui_CreateWindow(GUI_CLASS_DIALOG, "#32770", t->pCaption, style & ~(DWORD)WS_VISIBLE, 0, &rect, NULL,
-                               pParentDlg ? J3DGui_ToHwnd(J3DGui_TopLevel(pParentDlg)) : hParent, 0, hInstance, NULL);
+    pDlg = J3DGui_CreateWindow(GUI_CLASS_DIALOG, "#32770", t->pCaption, style & ~(DWORD)WS_VISIBLE, 0, &rect, pChildOf,
+                               pChildOf ? NULL : pParentDlg ? J3DGui_ToHwnd(J3DGui_TopLevel(pParentDlg)) : hParent, 0, hInstance, NULL);
     if ( !pDlg )
     {
         return NULL;
@@ -783,7 +790,11 @@ static J3DGuiWindow* gui_CreateDialog(const J3DGuiTemplate* t, HWND hParent, DLG
     {
         return NULL;
     }
-    if ( initResult && !J3DGui_GetFocusWindow() )
+    if ( pChildOf )
+    {
+        // the dialog it is part of places the focus
+    }
+    else if ( initResult && !J3DGui_GetFocusWindow() )
     {
         gui_FocusControl(pFirst ? J3DGui_FromHwnd(GetNextDlgTabItem(J3DGui_ToHwnd(pDlg), NULL, FALSE)) : NULL);
     }
@@ -810,7 +821,7 @@ HWND WINAPI CreateDialogParamA(HINSTANCE hInstance, LPCSTR pTemplate, HWND hPare
     {
         return NULL;
     }
-    pDlg = gui_CreateDialog(t, hParent, pfnDlgProc, param, hInstance);
+    pDlg = gui_CreateDialog(t, hParent, pfnDlgProc, param, hInstance, NULL);
     if ( !pDlg )
     {
         return NULL;
@@ -836,6 +847,32 @@ BOOL WINAPI EndDialog(HWND hDlg, INT_PTR result)
 }
 
 /* ---- The modal loop ---------------------------------------------------------------------------------------------------- */
+
+// J3D_GUI_SCREENSHOT=<prefix>: the screen as each dialog first appears, as <prefix>-<n>-<caption>.bmp, to check the
+// dialogs inside the game (P6.25).
+static void gui_Screenshot(J3DGuiWindow* pDlg)
+{
+    static int count = 0;
+    const char* pPrefix = getenv("J3D_GUI_SCREENSHOT");
+    char aPath[1024];
+    char aName[64];
+    size_t i;
+    if ( !pPrefix || !*pPrefix )
+    {
+        return;
+    }
+    for ( i = 0; i < sizeof(aName) - 1 && pDlg->pText[i]; ++i )
+    {
+        char c = pDlg->pText[i];
+        aName[i] = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ? c : '_';
+    }
+    aName[i] = 0;
+    snprintf(aPath, sizeof(aPath), "%s-%02d-%s.bmp", pPrefix, ++count, aName);
+    if ( stdDisplay_SaveScreen(aPath) == 0 )
+    {
+        fprintf(stderr, "j3dgui: wrote %s\n", aPath);
+    }
+}
 
 void J3DGui_RunModal(J3DGuiWindow* pDlg)
 {
@@ -870,6 +907,10 @@ void J3DGui_RunModal(J3DGuiWindow* pDlg)
             }
         }
         gui_PresentIfNeeded(iteration == 0);
+        if ( iteration == 0 )
+        {
+            gui_Screenshot(pDlg);
+        }
         if ( J3DGuiHost_Pump(gui_pfModalHook == NULL) )
         {
             gui_bQuitting = 1;
@@ -897,29 +938,18 @@ void J3DGui_RunModal(J3DGuiWindow* pDlg)
     }
 }
 
-INT_PTR WINAPI DialogBoxParamA(HINSTANCE hInstance, LPCSTR pTemplate, HWND hParent, DLGPROC pfnDlgProc, LPARAM param)
+J3DGuiWindow* J3DGui_CreateTemplateChild(LPCSTR pTemplate, J3DGuiWindow* pParent, DLGPROC pfnDlgProc, LPARAM param, HINSTANCE hInstance)
 {
     const J3DGuiTemplate* t = gui_FindTemplate(pTemplate);
-    J3DGuiWindow* pDlg;
+    return t && pParent ? gui_CreateDialog(t, J3DGui_ToHwnd(pParent), pfnDlgProc, param, hInstance, pParent) : NULL;
+}
+
+INT_PTR J3DGui_DoModal(J3DGuiWindow* pDlg, HWND hParent, J3DGuiWindow* pPrevFocus)
+{
     J3DGuiWindow* pOwner = J3DGui_TopLevel(J3DGui_FromHwnd(hParent));
     INT_PTR result;
-    J3DGuiWindow* pPrevFocus = J3DGui_GetFocusWindow();
     int bOwnerWasEnabled = 0;
 
-    if ( !t )
-    {
-        fprintf(stderr, "j3dgui: DialogBoxParam: no template %u\n", (unsigned)(uintptr_t)pTemplate);
-        return -1;
-    }
-    if ( gui_bQuitting )
-    {
-        return IDCANCEL;
-    }
-    pDlg = gui_CreateDialog(t, hParent, pfnDlgProc, param, hInstance);
-    if ( !pDlg )
-    {
-        return -1;
-    }
     if ( pOwner )
     {
         bOwnerWasEnabled = !EnableWindow(J3DGui_ToHwnd(pOwner), FALSE);
@@ -946,6 +976,43 @@ INT_PTR WINAPI DialogBoxParamA(HINSTANCE hInstance, LPCSTR pTemplate, HWND hPare
     if ( pPrevFocus && J3DGui_FromHwnd(J3DGui_ToHwnd(pPrevFocus)) )
     {
         J3DGui_SetFocusWindow(pPrevFocus);
+    }
+    return result;
+}
+
+INT_PTR WINAPI DialogBoxParamA(HINSTANCE hInstance, LPCSTR pTemplate, HWND hParent, DLGPROC pfnDlgProc, LPARAM param)
+{
+    const J3DGuiTemplate* t = gui_FindTemplate(pTemplate);
+    J3DGuiWindow* pDlg;
+    INT_PTR result;
+    J3DGuiWindow* pPrevFocus = J3DGui_GetFocusWindow();
+
+    if ( !t )
+    {
+        fprintf(stderr, "j3dgui: DialogBoxParam: no template %u\n", (unsigned)(uintptr_t)pTemplate);
+        return -1;
+    }
+    if ( gui_bQuitting )
+    {
+        return IDCANCEL;
+    }
+    if ( gui_modalDepth == 0 )
+    {
+        J3DGuiHost_BeginScreen();
+    }
+    pDlg = gui_CreateDialog(t, hParent, pfnDlgProc, param, hInstance, NULL);
+    if ( !pDlg )
+    {
+        if ( gui_modalDepth == 0 )
+        {
+            J3DGuiHost_EndScreen();
+        }
+        return -1;
+    }
+    result = J3DGui_DoModal(pDlg, hParent, pPrevFocus);
+    if ( gui_modalDepth == 0 )
+    {
+        J3DGuiHost_EndScreen();
     }
     return result;
 }
@@ -1221,6 +1288,10 @@ int WINAPI MessageBoxA(HWND hwnd, LPCSTR pText, LPCSTR pCaption, UINT type)
         return pIds[0] == IDYES ? IDYES : pIds[0];
     }
 
+    if ( gui_modalDepth == 0 )
+    {
+        J3DGuiHost_BeginScreen();
+    }
     // lay out: text wrapped at most 2/3 of the screen wide, buttons centred under it
     J3DGuiHost_GetScreenSize(&screenW, &screenH);
     hdcMeasure = CreateCompatibleDC(NULL);
@@ -1279,6 +1350,10 @@ int WINAPI MessageBoxA(HWND hwnd, LPCSTR pText, LPCSTR pCaption, UINT type)
     if ( J3DGui_FromHwnd(J3DGui_ToHwnd(pBox)) )
     {
         DestroyWindow(J3DGui_ToHwnd(pBox));
+    }
+    if ( gui_modalDepth == 0 )
+    {
+        J3DGuiHost_EndScreen();
     }
     return (int)result;
 }

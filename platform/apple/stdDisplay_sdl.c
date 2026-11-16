@@ -468,3 +468,64 @@ void J3DAPI stdDisplay_Refresh(int bReload)
         SDL_SetWindowFullscreen(pWindow, true);
     }
 }
+
+/* ---- A screen for dialogs before the game's display (PORT-PLAN.md Phase 6) ------------------------------------------- */
+
+static int stdDisplay_bTempScreen = 0;
+static int stdDisplay_bTempStartup = 0;
+static StdVideoMode stdDisplay_savedPrimary;
+
+int J3DApple_OpenTemporaryScreen(int width, int height)
+{
+    if ( stdDisplay_bTempScreen || stdDisplay_bModeSet )
+    {
+        return 0;
+    }
+    stdDisplay_bTempStartup = 0;
+    if ( !stdDisplay_bStartup )
+    {
+        if ( stdDisplay_Startup() != 1 )
+        {
+            return 1;
+        }
+        stdDisplay_bTempStartup = 1;
+    }
+    if ( !stdDisplay_bOpen && !stdDisplay_Open(0) )
+    {
+        if ( stdDisplay_bTempStartup )
+        {
+            stdDisplay_Shutdown();
+        }
+        return 1;
+    }
+    stdDisplay_savedPrimary = stdDisplay_primaryVideoMode;
+    J3DDisplay_InitVideoMode(&stdDisplay_primaryVideoMode, (uint32_t)width, (uint32_t)height);
+    if ( stdDisplay_SetMode(0, 0, 1) )
+    {
+        stdDisplay_primaryVideoMode = stdDisplay_savedPrimary;
+        stdDisplay_Close();
+        if ( stdDisplay_bTempStartup )
+        {
+            stdDisplay_Shutdown();
+        }
+        return 1;
+    }
+    stdDisplay_bTempScreen = 1;
+    return 0;
+}
+
+void J3DApple_CloseTemporaryScreen(void)
+{
+    if ( !stdDisplay_bTempScreen )
+    {
+        return;
+    }
+    stdDisplay_bTempScreen = 0;
+    stdDisplay_ClearMode();
+    stdDisplay_Close();
+    stdDisplay_primaryVideoMode = stdDisplay_savedPrimary;
+    if ( stdDisplay_bTempStartup )
+    {
+        stdDisplay_Shutdown();
+    }
+}
