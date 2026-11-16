@@ -39,12 +39,71 @@ typedef struct J3DMenuSavePicker
     int32_t (*pfLoadThumb)(const char* pName, uint8_t* pPixels);
 } J3DMenuSavePicker;
 
+// One line of a form of settings (J3DMenuUI_Form). value is read when the form opens and holds the player's choice
+// when it closes with OK.
+#define J3DMENU_ITEM_TOGGLE 0   // on or off
+#define J3DMENU_ITEM_STEPS  1   // a slider over apNames, the chosen name shown above it (value: the index)
+#define J3DMENU_ITEM_SLIDER 2   // a slider from 0 to maxValue with apNames as captions under it
+#define J3DMENU_ITEM_CHOICE 3   // one of apNames, side by side (value: the index)
+#define J3DMENU_ITEM_LIST   4   // one of apNames, from a pop-up list, for more names than fit side by side
+
+typedef struct J3DMenuItem
+{
+    int32_t kind;
+    const char* pGroup;             // starts a titled group with this item; NULL goes on in the current one
+    const char* pLabel;             // the item's own label, or NULL when the group's title says it all
+    int32_t value;
+    int32_t maxValue;               // J3DMENU_ITEM_SLIDER
+    int32_t bDisabled;
+    const char* const* apNames;
+    int32_t numNames;
+} J3DMenuItem;
+
+// Called when the player changes an item (a slider: when it is let go), with the items holding the values as they
+// are now. It may change any item (values, names, bDisabled) and returns nonzero if it did, so the form reads them
+// again.
+typedef int32_t (*J3DMenuFormChanged)(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex);
+
+// A page of figures (J3DMenuUI_Stats): a title under the picture, and rows of label and value. The picture is the
+// game's IQ picture with the page's points drawn on it by the game, R, G, B, A in memory, top row first; when a page
+// has none, iqPoints is written in its place.
+#define J3DMENU_STATS_MAXROWS 6
+typedef struct J3DMenuStatsPage
+{
+    const char* pTitle;             // or NULL
+    int32_t iqPoints;
+    const char* apLabels[J3DMENU_STATS_MAXROWS];
+    char aaValues[J3DMENU_STATS_MAXROWS][32];
+    int32_t numRows;
+    const uint8_t* pPicture;        // or NULL
+    int32_t pictureWidth;
+    int32_t pictureHeight;
+} J3DMenuStatsPage;
+
+typedef struct J3DMenuStats
+{
+    const char* pTitle;
+    const J3DMenuStatsPage* pPages;
+    int32_t numPages;
+    int32_t startPage;
+    const char* pCloseLabel;
+} J3DMenuStats;
+
 #ifndef J3DMENU_SWIFT // implemented in Swift (@_cdecl); these are the prototypes for C
 
 // A title, a text and up to eight buttons. Returns the index of the button chosen. defaultIndex is the button Return
 // presses, cancelIndex the one Escape presses (-1: none).
+// disabledMask: bit i set greys button i out.
 int32_t J3DMenuUI_Choice(void* pGameWindow, const char* pTitle, const char* pText, const char* const* apButtons, int32_t numButtons,
-                         int32_t defaultIndex, int32_t cancelIndex, int32_t layout);
+                         int32_t defaultIndex, int32_t cancelIndex, int32_t layout, uint32_t disabledMask);
+
+// A form of settings with OK and Cancel, and a "defaults" button when pDefaultsLabel is given (it calls pfChanged
+// with changedIndex -1). Returns 1 for OK, with the items' values set, else 0.
+int32_t J3DMenuUI_Form(void* pGameWindow, const char* pTitle, J3DMenuItem* pItems, int32_t numItems, const char* pOkLabel,
+                       const char* pCancelLabel, const char* pDefaultsLabel, J3DMenuFormChanged pfChanged);
+
+// Pages of figures with a Close button, and arrows to turn the pages when there are several.
+void J3DMenuUI_Stats(void* pGameWindow, const J3DMenuStats* pStats);
 
 // The save and load menu. Returns 1 with the chosen name in pOutName (J3DMENU_NAME_SIZE bytes), else 0.
 int32_t J3DMenuUI_PickSave(void* pGameWindow, const J3DMenuSavePicker* pPicker, char* pOutName);

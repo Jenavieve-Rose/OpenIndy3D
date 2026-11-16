@@ -13,6 +13,8 @@ enum Palette {
     static let amber = Color(red: 0.93, green: 0.47, blue: 0.10)
     static let text = Color(red: 0.96, green: 0.93, blue: 0.87)
     static let dimText = Color(red: 0.66, green: 0.60, blue: 0.52)
+    /// Behind the game's own pictures: they were drawn for Windows' light grey dialogs, and the IQ points are black.
+    static let parchment = Color(red: 0.84, green: 0.77, blue: 0.62)
     static let goldFill = LinearGradient(colors: [gold, amber], startPoint: .top, endPoint: .bottom)
     static let goldRule = LinearGradient(colors: [amber, gold, amber], startPoint: .leading, endPoint: .trailing)
 }

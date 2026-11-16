@@ -4,6 +4,11 @@
  */
 #include <platform/common/j3dmenu.h>
 
+int J3DMenu_IsAvailable(void)
+{
+    return 0;
+}
+
 int J3DMenu_ShowMessage(const char* pTitle, const char* pText, int iconID, int* pResult)
 {
     (void)pTitle;
@@ -30,6 +35,39 @@ int J3DMenu_GetSaveGameFilePath(char* pOutFilePath, int* pResult)
 int J3DMenu_GetLoadGameFilePath(char* pDestNdsPath, int* pResult)
 {
     (void)pDestNdsPath;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_ShowGamePlayOptions(J3DMenuGamePlay* pOptions, int* pResult)
+{
+    (void)pOptions;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult)
+{
+    (void)pSettings;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_ShowGameOver(int bCanRestart, int* pResult)
+{
+    (void)bCanRestart;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_ShowFigures(const char* pTitle, const J3DMenuFigurePage* pPages, int numPages, int startPage,
+                        J3DMenuDrawPicture pfDrawPicture, int* pResult)
+{
+    (void)pTitle;
+    (void)pPages;
+    (void)numPages;
+    (void)startPage;
+    (void)pfDrawPicture;
     (void)pResult;
     return 0;
 }

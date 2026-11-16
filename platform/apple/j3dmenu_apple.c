@@ -50,26 +50,39 @@ typedef struct MenuSession
     bool bCursorVisible;
 } MenuSession;
 
-// Can a menu be laid over the game window in this run? Not headless, not in a replay (which holds no answers), not
-// before the window is on screen, and not when J3D_MENUS=classic asks for the Win32 dialogs.
-static int menu_Begin(MenuSession* pSession)
+// The game window's NSWindow when a menu can be laid over it in this run: not headless, not in a replay (which holds
+// no answers), not before the window is on screen, and not when J3D_MENUS=classic asks for the Win32 dialogs.
+static void* menu_GameNSWindow(SDL_Window** ppWindow)
 {
     const char* pMode = getenv("J3D_MENUS");
     SDL_Window* pWindow = (SDL_Window*)stdWin95_GetWindow();
     if ( J3DDisplay_IsHeadless() || J3DRecord_IsReplaying() || !pWindow || (pMode && strcmp(pMode, "classic") == 0) )
     {
-        return 0;
+        return NULL;
     }
     if ( SDL_GetWindowFlags(pWindow) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED) )
     {
-        return 0;
+        return NULL;
     }
-    pSession->pWindow = pWindow;
-    pSession->pNSWindow = SDL_GetPointerProperty(SDL_GetWindowProperties(pWindow), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+    *ppWindow = pWindow;
+    return SDL_GetPointerProperty(SDL_GetWindowProperties(pWindow), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+}
+
+int J3DMenu_IsAvailable(void)
+{
+    SDL_Window* pWindow;
+    return menu_GameNSWindow(&pWindow) != NULL;
+}
+
+static int menu_Begin(MenuSession* pSession)
+{
+    SDL_Window* pWindow = NULL;
+    pSession->pNSWindow = menu_GameNSWindow(&pWindow);
     if ( !pSession->pNSWindow )
     {
         return 0;
     }
+    pSession->pWindow = pWindow;
     pSession->bRelativeMouse = SDL_GetWindowRelativeMouseMode(pWindow);
     pSession->bCursorVisible = SDL_CursorVisible();
     SDL_SetWindowRelativeMouseMode(pWindow, false);
@@ -130,7 +143,7 @@ static void menu_Message(MenuSession* pSession, const char* pTitle, const char* 
 {
     const char* apButtons[1];
     apButtons[0] = menu_String("JONES_STR_OK", "OK");
-    J3DMenuUI_Choice(pSession->pNSWindow, pTitle, pText, apButtons, 1, 0, 0, J3DMENU_CHOICE_ROW);
+    J3DMenuUI_Choice(pSession->pNSWindow, pTitle, pText, apButtons, 1, 0, 0, J3DMENU_CHOICE_ROW, 0);
 }
 
 // A question with Yes and No. Returns nonzero for Yes.
@@ -139,7 +152,7 @@ static int menu_Confirm(MenuSession* pSession, const char* pTitle, const char* p
     const char* apButtons[2];
     apButtons[0] = menu_String("JONES_STR_YES", "Yes");
     apButtons[1] = menu_String("JONES_STR_NO", "No");
-    return J3DMenuUI_Choice(pSession->pNSWindow, pTitle, pText, apButtons, 2, 0, 1, J3DMENU_CHOICE_ROW) == 0;
+    return J3DMenuUI_Choice(pSession->pNSWindow, pTitle, pText, apButtons, 2, 0, 1, J3DMENU_CHOICE_ROW, 0) == 0;
 }
 
 /* ---- Messages ---------------------------------------------------------------------------------------------------------- */
@@ -496,13 +509,291 @@ int J3DMenu_ShowExitGame(char* pSaveGameFilePath, int* pResult)
     apButtons[0] = menu_String("JONES_STR_EXIT3", "Return to Game");
     apButtons[1] = menu_String("JONES_STR_EXIT2", "Save and Quit");
     apButtons[2] = menu_String("JONES_STR_EXIT1", "Quit");
-    choice = J3DMenuUI_Choice(session.pNSWindow, menu_String("JONES_STR_EXIT", "Exit"), NULL, apButtons, 3, 0, 0, J3DMENU_CHOICE_COLUMN);
+    choice = J3DMenuUI_Choice(session.pNSWindow, menu_String("JONES_STR_EXIT", "Exit"), NULL, apButtons, 3, 0, 0, J3DMENU_CHOICE_COLUMN, 0);
     *pResult = choice >= 0 && choice < 3 ? aResults[choice] : 2;
     if ( *pResult == 1187 && (!pSaveGameFilePath || !menu_PickSave(&session, 1, pSaveGameFilePath)) )
     {
         *pResult = 2; // no save was named: back to the game, as retail
     }
     menu_End(&session);
+    return 1;
+}
+
+/* ---- Options ---------------------------------------------------------------------------------------------------------- */
+
+// The game play options (template 112): difficulty, then the four switches, in the dialog's order.
+int J3DMenu_ShowGamePlayOptions(J3DMenuGamePlay* pOptions, int* pResult)
+{
+    static const char* const aDifficultyNames[6] = {
+        "JONES_STR_HARD0", "JONES_STR_HARD1", "JONES_STR_HARD2", "JONES_STR_HARD3", "JONES_STR_HARD4", "JONES_STR_HARD5"
+    };
+    static const char* const aFallbacks[6] = { "Freshman", "Sophomore", "Junior", "Senior", "Graduate", "Professor" };
+    MenuSession session;
+    const char* apNames[6];
+    J3DMenuItem aItems[5];
+    int numNames;
+    int i;
+
+    if ( !pOptions || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    numNames = pOptions->maxDifficulty + 1;
+    if ( numNames < 1 )
+    {
+        numNames = 1;
+    }
+    if ( numNames > 6 )
+    {
+        numNames = 6;
+    }
+    for ( i = 0; i < numNames; ++i )
+    {
+        apNames[i] = menu_String(aDifficultyNames[i], aFallbacks[i]);
+    }
+
+    memset(aItems, 0, sizeof(aItems));
+    aItems[0].kind = J3DMENU_ITEM_STEPS;
+    aItems[0].pGroup = menu_String("JONES_STR_DFCLTY", "Difficulty");
+    aItems[0].value = pOptions->difficulty < 0 ? 0 : pOptions->difficulty >= numNames ? numNames - 1 : pOptions->difficulty;
+    aItems[0].apNames = apNames;
+    aItems[0].numNames = numNames;
+    aItems[0].bDisabled = numNames < 2;
+
+    aItems[1].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[1].pGroup = menu_String("JONES_STR_GMPLY_OPTS", "Game Play");
+    aItems[1].pLabel = menu_String("JONES_STR_HINTS", "Show Map Hints");
+    aItems[1].value = pOptions->bShowHints != 0;
+    aItems[2].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[2].pLabel = menu_String("JONES_STR_MAPTURN", "Map Rotation");
+    aItems[2].value = pOptions->bMapRotation != 0;
+    aItems[3].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[3].pLabel = menu_String("JONES_STR_RUNWALK", "Default to Run");
+    aItems[3].value = pOptions->bDefaultRun != 0;
+    aItems[4].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[4].pLabel = menu_String("JONES_STR_TEXT", "Show Text");
+    aItems[4].value = pOptions->bShowText != 0;
+
+    if ( J3DMenuUI_Form(session.pNSWindow, menu_String("JONES_STR_GMPLY_OPTS", "Game Play Options"), aItems, 5,
+                        menu_String("JONES_STR_OK", "OK"), menu_String("JONES_STR_CANCEL", "Cancel"), NULL, NULL) )
+    {
+        pOptions->difficulty = aItems[0].value;
+        pOptions->bShowHints = aItems[1].value;
+        pOptions->bMapRotation = aItems[2].value;
+        pOptions->bDefaultRun = aItems[3].value;
+        pOptions->bShowText = aItems[4].value;
+        *pResult = 1;
+    }
+    else
+    {
+        *pResult = 2;
+    }
+    menu_End(&session);
+    return 1;
+}
+
+// The sound settings (template 113): the volume, heard when the slider is let go, and 3D sound. The dialog's
+// reverse-stereo box is hidden in retail and is left out.
+static J3DMenuSound* menu_pSound;
+
+static int32_t menu_SoundChanged(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex)
+{
+    (void)numItems;
+    if ( changedIndex == 0 && menu_pSound && menu_pSound->pfTestVolume )
+    {
+        menu_pSound->pfTestVolume(pItems[0].value);
+    }
+    return 0;
+}
+
+int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult)
+{
+    MenuSession session;
+    const char* apCaptions[3];
+    J3DMenuItem aItems[2];
+
+    if ( !pSettings || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    apCaptions[0] = menu_String("JONES_STR_LOW", "Low");
+    apCaptions[1] = menu_String("JONES_STR_MEDIUM", "Medium");
+    apCaptions[2] = menu_String("JONES_STR_HIGH", "High");
+
+    memset(aItems, 0, sizeof(aItems));
+    aItems[0].kind = J3DMENU_ITEM_SLIDER;
+    aItems[0].pGroup = menu_String("JONES_STR_VOLUME", "Volume");
+    aItems[0].value = pSettings->volume < 0 ? 0 : pSettings->volume > 100 ? 100 : pSettings->volume;
+    aItems[0].maxValue = 100;
+    aItems[0].apNames = apCaptions;
+    aItems[0].numNames = 3;
+    aItems[1].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[1].pGroup = "";
+    aItems[1].pLabel = menu_String("JONES_STR_3D_SND", "3D Sound");
+    aItems[1].value = pSettings->b3DAvailable && pSettings->b3DSound;
+    aItems[1].bDisabled = !pSettings->b3DAvailable;
+
+    menu_pSound = pSettings;
+    if ( J3DMenuUI_Form(session.pNSWindow, menu_String("JONES_STR_SND_OPTS", "Sound Options"), aItems, 2,
+                        menu_String("JONES_STR_OK", "OK"), menu_String("JONES_STR_CANCEL", "Cancel"), NULL, menu_SoundChanged) )
+    {
+        pSettings->volume = aItems[0].value;
+        pSettings->b3DSound = aItems[1].value;
+        *pResult = 1;
+    }
+    else
+    {
+        *pResult = 2;
+    }
+    menu_pSound = NULL;
+    menu_End(&session);
+    return 1;
+}
+
+/* ---- Game over --------------------------------------------------------------------------------------------------------- */
+
+// Template 150's three buttons, in its order: start the level again, load a save (the default), quit. There is no
+// cancel, as the dialog handled no IDCANCEL; a menu closed unanswered (J3D_MENU_AUTOCANCEL) counts as Load.
+int J3DMenu_ShowGameOver(int bCanRestart, int* pResult)
+{
+    static const int aResults[3] = { 1177, 1178, 1179 };
+    MenuSession session;
+    const char* apButtons[3];
+    int32_t choice;
+
+    if ( !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    apButtons[0] = menu_String("JONES_STR_RESTART", "Restart Level");
+    apButtons[1] = menu_String("JONES_STR_LOAD", "Load Game");
+    apButtons[2] = menu_String("JONES_STR_DEAD", "Quit");
+    choice = J3DMenuUI_Choice(session.pNSWindow, menu_String("JONES_STR_DEATH", "Game Over"), NULL, apButtons, 3, 1, -1,
+                              J3DMENU_CHOICE_COLUMN, bCanRestart ? 0u : 1u);
+    *pResult = aResults[choice >= 0 && choice < 3 ? choice : 1];
+    menu_End(&session);
+    return 1;
+}
+
+/* ---- Figures ----------------------------------------------------------------------------------------------------------- */
+
+// A picture and its mask (24 or 32 bits, blue first) as R, G, B, A, the mask's white transparent. NULL when the
+// picture cannot be read; the caller frees the result.
+static uint8_t* menu_PictureFromBitmaps(HBITMAP hImage, HBITMAP hMask, int* pWidth, int* pHeight)
+{
+    BITMAP bmp;
+    BITMAP mask;
+    uint8_t* pPixels;
+    int bMask;
+    int x;
+    int y;
+    if ( !hImage || GetObject(hImage, sizeof(bmp), &bmp) != (int)sizeof(bmp) || !bmp.bmBits
+         || (bmp.bmBitsPixel != 24 && bmp.bmBitsPixel != 32) || bmp.bmWidth <= 0 || bmp.bmHeight == 0 )
+    {
+        return NULL;
+    }
+    bMask = hMask && GetObject(hMask, sizeof(mask), &mask) == (int)sizeof(mask) && mask.bmBits
+            && mask.bmWidth == bmp.bmWidth && mask.bmHeight == bmp.bmHeight && (mask.bmBitsPixel == 24 || mask.bmBitsPixel == 32);
+    *pWidth = bmp.bmWidth;
+    *pHeight = bmp.bmHeight < 0 ? -bmp.bmHeight : bmp.bmHeight;
+    pPixels = malloc((size_t)*pWidth * (size_t)*pHeight * 4);
+    if ( !pPixels )
+    {
+        return NULL;
+    }
+    for ( y = 0; y < *pHeight; ++y )
+    {
+        const uint8_t* pSrc = (const uint8_t*)bmp.bmBits + (size_t)y * (size_t)bmp.bmWidthBytes;
+        const uint8_t* pMask = bMask ? (const uint8_t*)mask.bmBits + (size_t)y * (size_t)mask.bmWidthBytes : NULL;
+        uint8_t* pDst = pPixels + (size_t)y * (size_t)*pWidth * 4;
+        const int step = bmp.bmBitsPixel / 8;
+        const int maskStep = bMask ? mask.bmBitsPixel / 8 : 0;
+        for ( x = 0; x < *pWidth; ++x )
+        {
+            const int bClear = pMask && pMask[x * maskStep] > 127 && pMask[x * maskStep + 1] > 127 && pMask[x * maskStep + 2] > 127;
+            pDst[x * 4 + 0] = bClear ? 0 : pSrc[x * step + 2];
+            pDst[x * 4 + 1] = bClear ? 0 : pSrc[x * step + 1];
+            pDst[x * 4 + 2] = bClear ? 0 : pSrc[x * step + 0];
+            pDst[x * 4 + 3] = bClear ? 0 : 255;
+        }
+    }
+    return pPixels;
+}
+
+int J3DMenu_ShowFigures(const char* pTitle, const J3DMenuFigurePage* pPages, int numPages, int startPage,
+                        J3DMenuDrawPicture pfDrawPicture, int* pResult)
+{
+    MenuSession session;
+    J3DMenuStatsPage* pMenuPages;
+    char (*paaLabels)[J3DMENU_STATS_MAXROWS][128];
+    uint8_t** ppPictures;
+    J3DMenuStats stats;
+    int i;
+    int r;
+
+    if ( !pPages || numPages <= 0 || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    pMenuPages = calloc((size_t)numPages, sizeof(*pMenuPages));
+    ppPictures = calloc((size_t)numPages, sizeof(*ppPictures));
+    paaLabels = calloc((size_t)numPages, sizeof(*paaLabels));
+    if ( !pMenuPages || !ppPictures || !paaLabels )
+    {
+        free(paaLabels);
+        free(pMenuPages);
+        free(ppPictures);
+        menu_End(&session);
+        return 0;
+    }
+    for ( i = 0; i < numPages; ++i )
+    {
+        J3DMenuStatsPage* pPage = &pMenuPages[i];
+        pPage->pTitle = pPages[i].aTitle[0] ? pPages[i].aTitle : NULL;
+        pPage->iqPoints = pPages[i].iqPoints;
+        pPage->numRows = pPages[i].numRows > J3DMENU_STATS_MAXROWS ? J3DMENU_STATS_MAXROWS : pPages[i].numRows;
+        for ( r = 0; r < pPage->numRows; ++r )
+        {
+            // menu_String's copies do not outlive sixteen more calls, so each label is kept here
+            snprintf(paaLabels[i][r], sizeof(paaLabels[i][r]), "%s", menu_String(pPages[i].apLabels[r], pPages[i].apLabels[r]));
+            pPage->apLabels[r] = paaLabels[i][r];
+            snprintf(pPage->aaValues[r], sizeof(pPage->aaValues[r]), "%s", pPages[i].aaValues[r]);
+        }
+        if ( pfDrawPicture )
+        {
+            void* hImage = NULL;
+            void* hMask = NULL;
+            int width = 0;
+            int height = 0;
+            pfDrawPicture(pPages[i].iqPoints, &hImage, &hMask);
+            ppPictures[i] = menu_PictureFromBitmaps((HBITMAP)hImage, (HBITMAP)hMask, &width, &height);
+            pPage->pPicture = ppPictures[i];
+            pPage->pictureWidth = width;
+            pPage->pictureHeight = height;
+        }
+    }
+    memset(&stats, 0, sizeof(stats));
+    stats.pPages = pMenuPages;
+    stats.numPages = numPages;
+    stats.startPage = startPage < 0 ? 0 : startPage >= numPages ? numPages - 1 : startPage;
+    {
+        char aTitle[256];
+        char aClose[64];
+        snprintf(aTitle, sizeof(aTitle), "%s", menu_String(pTitle, pTitle));
+        snprintf(aClose, sizeof(aClose), "%s", menu_String("JONES_STR_CLOSE", "Close"));
+        stats.pTitle = aTitle;
+        stats.pCloseLabel = aClose;
+        J3DMenuUI_Stats(session.pNSWindow, &stats);
+    }
+    for ( i = 0; i < numPages; ++i )
+    {
+        free(ppPictures[i]);
+    }
+    free(ppPictures);
+    free(paaLabels);
+    free(pMenuPages);
+    menu_End(&session);
+    *pResult = 1;
     return 1;
 }
 
@@ -556,4 +847,23 @@ void J3DMenu_AfterFrame(unsigned long numFrames)
     result = 0;
     bShown = J3DMenu_GetLoadGameFilePath(aPath, &result);
     printf("J3D_MENU_TEST load: shown %d, result %d\n", bShown, result);
+    // The rest through jonesConfig, as the game opens them, so what they prepare runs too; unanswered, each cancels
+    printf("J3D_MENU_TEST game play: result %d\n", jonesConfig_ShowGamePlayOptions(stdWin95_GetWindow()));
+    {
+        JonesSoundSettings sound;
+        memset(&sound, 0, sizeof(sound));
+        sound.maxSoundVolume = 0.5f;
+        printf("J3D_MENU_TEST sound: result %d\n", jonesConfig_ShowSoundSettingsDialog(stdWin95_GetWindow(), &sound));
+    }
+    result = 0;
+    bShown = J3DMenu_ShowGameOver(1, &result);
+    printf("J3D_MENU_TEST game over: shown %d, result %d\n", bShown, result);
+    {
+        SithGameStatistics* pStatistics = sithGamesave_GetGameStatistics();
+        if ( pStatistics && sithGamesave_LockGameStatistics() )
+        {
+            printf("J3D_MENU_TEST statistics: result %d\n", jonesConfig_ShowStatisticsDialog(stdWin95_GetWindow(), pStatistics));
+            sithGamesave_UnlockGameStatistics();
+        }
+    }
 }

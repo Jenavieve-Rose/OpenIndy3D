@@ -22,6 +22,55 @@
 #define GUI_OBJ_MAGIC 0x4A474449u // "IDGJ"
 #define GUI_DC_MAGIC  0x4A474443u // "CDGJ"
 
+// The DCs and objects that exist. A handle is used only once it is found here, so one the game keeps after deleting it
+// (retail's dialogs paint with DCs they have already deleted, and Windows refused those calls) is refused too, instead
+// of being read after it was freed. Stock objects are static and never in the table. A few hundred live at most.
+static void** gui_apLive;
+static size_t gui_numLive;
+static size_t gui_maxLive;
+
+static void gui_Track(void* p)
+{
+    if ( gui_numLive == gui_maxLive )
+    {
+        size_t newMax = gui_maxLive ? gui_maxLive * 2 : 256;
+        void** apNew = realloc(gui_apLive, newMax * sizeof(*apNew));
+        if ( !apNew )
+        {
+            return; // untracked: refused as stale, which only loses that one handle
+        }
+        gui_apLive = apNew;
+        gui_maxLive = newMax;
+    }
+    gui_apLive[gui_numLive++] = p;
+}
+
+static void gui_Untrack(void* p)
+{
+    size_t i;
+    for ( i = gui_numLive; i-- > 0; )
+    {
+        if ( gui_apLive[i] == p )
+        {
+            gui_apLive[i] = gui_apLive[--gui_numLive];
+            return;
+        }
+    }
+}
+
+static int gui_IsLive(const void* p)
+{
+    size_t i;
+    for ( i = gui_numLive; i-- > 0; ) // newest first: the ones in use are mostly the newest
+    {
+        if ( gui_apLive[i] == p )
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 typedef enum GuiObjType { GUI_OBJ_BITMAP = 1, GUI_OBJ_FONT, GUI_OBJ_BRUSH, GUI_OBJ_PEN } GuiObjType;
 
 typedef struct GuiObject
@@ -203,10 +252,18 @@ static void gui_InitStock(void)
     gui_defaultFontBold.lf.lfWeight = FW_BOLD;
 }
 
+static int gui_IsStock(const GuiObject* p)
+{
+    return p == &gui_stockBitmap || p == &gui_defaultFont
+           || (p >= gui_aStockBrushes && p < gui_aStockBrushes + sizeof(gui_aStockBrushes) / sizeof(gui_aStockBrushes[0]))
+           || (p >= gui_aStockPens && p < gui_aStockPens + sizeof(gui_aStockPens) / sizeof(gui_aStockPens[0]))
+           || (p >= gui_aSysBrushes && p < gui_aSysBrushes + sizeof(gui_aSysBrushes) / sizeof(gui_aSysBrushes[0]));
+}
+
 static GuiObject* gui_Obj(HGDIOBJ h, GuiObjType type)
 {
     GuiObject* p = (GuiObject*)h;
-    if ( !p || p->magic != GUI_OBJ_MAGIC || (type && p->type != type) )
+    if ( !p || (!gui_IsStock(p) && !gui_IsLive(p)) || p->magic != GUI_OBJ_MAGIC || (type && p->type != type) )
     {
         return NULL;
     }
@@ -216,7 +273,7 @@ static GuiObject* gui_Obj(HGDIOBJ h, GuiObjType type)
 static GuiDC* gui_DC(HDC hdc)
 {
     GuiDC* p = (GuiDC*)hdc;
-    return p && p->magic == GUI_DC_MAGIC ? p : NULL;
+    return p && gui_IsLive(p) && p->magic == GUI_DC_MAGIC ? p : NULL;
 }
 
 HBRUSH WINAPI GetSysColorBrush(int index)
@@ -272,6 +329,7 @@ HBRUSH WINAPI CreateSolidBrush(COLORREF color)
     GuiObject* p = calloc(1, sizeof(*p));
     if ( p )
     {
+        gui_Track(p);
         p->magic = GUI_OBJ_MAGIC;
         p->type = GUI_OBJ_BRUSH;
         p->color = color;
@@ -284,6 +342,7 @@ HPEN WINAPI CreatePen(int style, int width, COLORREF color)
     GuiObject* p = calloc(1, sizeof(*p));
     if ( p )
     {
+        gui_Track(p);
         p->magic = GUI_OBJ_MAGIC;
         p->type = GUI_OBJ_PEN;
         p->color = color;
@@ -303,6 +362,7 @@ HFONT WINAPI CreateFontIndirectA(const LOGFONTA* pLogFont)
     p = calloc(1, sizeof(*p));
     if ( p )
     {
+        gui_Track(p);
         p->magic = GUI_OBJ_MAGIC;
         p->type = GUI_OBJ_FONT;
         p->lf = *pLogFont;
@@ -393,6 +453,7 @@ HBITMAP WINAPI CreateDIBSection(HDC hdc, const BITMAPINFO* pInfo, UINT usage, vo
         free(p);
         return NULL;
     }
+    gui_Track(p);
     if ( p->bpp <= 8 )
     {
         colors = pInfo->bmiHeader.biClrUsed ? (int)pInfo->bmiHeader.biClrUsed : 1 << p->bpp;
@@ -491,6 +552,7 @@ BOOL WINAPI DeleteObject(HGDIOBJ h)
     {
         free(p->pBits);
     }
+    gui_Untrack(p);
     p->magic = 0;
     free(p);
     return TRUE;
@@ -518,6 +580,7 @@ static GuiDC* gui_NewDC(void)
         return NULL;
     }
     gui_InitStock();
+    gui_Track(p);
     p->magic = GUI_DC_MAGIC;
     p->pBitmap = &gui_stockBitmap;
     p->pFont = &gui_defaultFont;
@@ -552,6 +615,7 @@ BOOL WINAPI DeleteDC(HDC hdc)
     {
         return FALSE;
     }
+    gui_Untrack(p);
     p->magic = 0;
     free(p);
     return TRUE;
@@ -1866,10 +1930,14 @@ static HDC gui_BufferDC(void)
     if ( !pBitmap || !pDC )
     {
         free(pBitmap);
-        free(pDC);
+        if ( pDC )
+        {
+            DeleteDC((HDC)pDC);
+        }
         stdDisplay_UnlockBackBuffer();
         return NULL;
     }
+    gui_Track(pBitmap);
     pBitmap->magic = GUI_OBJ_MAGIC;
     pBitmap->type = GUI_OBJ_BITMAP;
     pBitmap->width = (int)w;

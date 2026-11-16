@@ -1,5 +1,6 @@
 /*
- * gamedialogs: the game's own dialogs, opened through their real entry points (PORT-PLAN.md P6.11 to P6.22).
+ * gamedialogs: the game's own dialogs, opened through their real entry points (PORT-PLAN.md P6.11 to P6.22), in the
+ * Win32 form they keep for runs with no platform menu (decision 21).
  *
  *   gamedialogs <data root>
  *
@@ -16,6 +17,7 @@
 
 #include <Jones3D/Display/jonesConfig.h>
 #include <Jones3D/Main/JonesMain.h>
+#include <sith/Dss/sithGamesave.h>
 #include <sith/types.h>
 
 #include <platform/common/host_dirs.h>
@@ -174,12 +176,35 @@ int main(int argc, char** argv)
     SHOW("display", jonesConfig_ShowDisplaySettingsDialog(stdWin95_GetWindow(), JonesMain_GetDisplayEnvironment(), JonesMain_GetDisplaySettings()));
     SHOW("controls", jonesConfig_ShowControlOptions(NULL));
     SHOW("statistics", jonesConfig_ShowStatisticsDialog(stdWin95_GetWindow(), &stats));
-    SHOW("levelcompleted", jonesConfig_ShowLevelCompletedDialog(stdWin95_GetWindow(), &balance, aItems, 0, 125, 10, 2, 300, 1000));
+    {
+        // The game shows this once a level is done, when the statistics already count it (JonesHud.c reads the
+        // finished level as curLevelNum - 1)
+        SithGameStatistics* pGameStats = sithGamesave_GetGameStatistics();
+        int curLevelNum = pGameStats ? pGameStats->curLevelNum : 0;
+        if ( pGameStats )
+        {
+            pGameStats->curLevelNum = 1;
+        }
+        SHOW("levelcompleted", jonesConfig_ShowLevelCompletedDialog(stdWin95_GetWindow(), &balance, aItems, 0, 125, 10, 2, 300, 1000));
+        if ( pGameStats )
+        {
+            pGameStats->curLevelNum = curLevelNum;
+        }
+    }
     SHOW("gameover", jonesConfig_ShowGameOverDialog(stdWin95_GetWindow(), aPath, 0, &hChannel));
     SHOW("insertcd", jonesConfig_ShowDialogInsertCD(stdWin95_GetWindow(), 1));
-    aPath[0] = 0;
-    SHOW("save", jonesConfig_GetSaveGameFilePath(stdWin95_GetWindow(), aPath));
-    SHOW("load", jonesConfig_GetLoadGameFilePath(stdWin95_GetWindow(), aPath));
+    // Saving and loading have no Win32 dialog to fall back to: the platform's menu is their file picker (decision 21)
+    // and GetSaveFileName/GetOpenFileName are not emulated, so where there is no menu (this headless run) they cancel.
+    {
+        int before = gamedialogs_seen;
+        int result;
+        aPath[0] = 0;
+        result = jonesConfig_GetSaveGameFilePath(stdWin95_GetWindow(), aPath);
+        CHECK(result != 1 && aPath[0] == 0, "save: returned %d with \"%s\" where it should cancel", result, aPath);
+        result = jonesConfig_GetLoadGameFilePath(stdWin95_GetWindow(), aPath);
+        CHECK(result != 1 && aPath[0] == 0, "load: returned %d with \"%s\" where it should cancel", result, aPath);
+        CHECK(gamedialogs_seen == before, "save and load: a dialog came up");
+    }
 
     J3DGui_SetModalHook(NULL);
     JonesMain_Shutdown();

@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game dialogs: save and load, store, controls | 10 of 41 | Replanned 2026-11-14 (decision 20); the dialog foundation is committed on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 16 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **107 of 162** | |
+| **All** | | **113 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -200,7 +200,21 @@ Decision made while replanning phase 6 (2026-11-14):
     over the Win32 emulation (decision 9) but are drawn in the launcher's look, with the system font, instead of
     Windows 98's. Rewriting those dialogs in SwiftUI was weighed and set aside: it would mean rewriting the logic of
     each one, not only its drawing. Original art (the launch picture, the dialog icons) is read from the player's
-    copy at run time and never shipped.
+    copy at run time and never shipped. (The second half, the dialogs redrawn over the emulation, was replaced two
+    days later by decision 21.)
+
+Decision made while doing phase 6 (2026-11-16):
+
+21. **The in-game menus are SwiftUI too.** Asked for once the first SwiftUI menus were seen over the game: the menus
+    the game raises while it runs (messages, exit, save and load, the options, game over, statistics, the store, the
+    controls) are SwiftUI views laid over the game window as a modal session, in the launcher's look
+    (`platform/apple/menu/`). Each `jonesConfig.c` entry point asks the platform's menu first
+    (`platform/common/j3dmenu.h`); what the dialog did around its controls (its strings, its checks, the settings it
+    applies and saves) stays in C, in a `#ifdef J3D_PORT` block in the entry point or in
+    `platform/apple/j3dmenu_apple.c`, so the rules are still retail's. The Win32 dialogs over the emulation
+    (decision 9, 6A) are kept, unrestyled, for runs that have no menu: headless runs, replays, the null platform, the
+    tests, and `J3D_MENUS=classic`. The file dialogs are the exception: saving and loading have no Win32 fallback and
+    cancel where there is no menu.
 
 ## 4. Target architecture
 
@@ -227,7 +241,8 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    ├─ common/SoundDriver_mix.c          voices on the engine clock, mixer    exists
    ├─ apple/audio_device_avf.m          AVAudioEngine output, 3D placement   exists
    ├─ common/insane_timer.c, insane_dsnd.c  INSANE's timer and audio sink    exists (asm→C beside the .asm files)
-   ├─ common/j3dgui/                    Win32 dialog emulation and widgets   exists (6A), new look in 6C
+   ├─ common/j3dgui/                    Win32 dialog emulation and widgets   exists (6A); the fallback since decision 21
+   ├─ common/j3dmenu.h, apple/menu/     SwiftUI in-game menus, j3dmenu_apple.c  exists (6C, 6D)
    ├─ apple/launcher/                   SwiftUI launcher and Options         phase 6 (6B)
    └─ apple/ (bundle, data locator)                                          phase 8
 ```
@@ -700,8 +715,10 @@ The phase now has two kinds of interface:
   They follow the Steam release's launcher (`Jones3D.exe`): its Launch dialog and its Display, Game Play, Sound and
   Control Options dialogs. A mockup of both is in `../launcher-mockup/` (outside this repository because it holds a
   copy of the retail launch picture).
-- **The dialogs the game raises while it runs stay on `j3dgui`** (6A), so `jonesConfig.c`'s logic is untouched, but
-  are drawn in the launcher's look instead of Windows 98's.
+- **The menus the game raises while it runs are SwiftUI as well** (decision 21, 2026-11-16), laid over the game window
+  in the launcher's look. `jonesConfig.c`'s entry points ask the platform's menu first and keep their own rules; the
+  Win32 dialogs over `j3dgui` (6A) remain, in their Windows 98 look, for runs with no menu (headless, replays, the
+  null platform, the tests, `J3D_MENUS=classic`).
 
 Original art is used wherever the player's copy holds it: the launch picture and the dialog icons. Text is drawn
 with the system font at a size that reads on a Retina display, never with the bitmap fonts of the Windows build.
@@ -709,9 +726,9 @@ with the system font at a size that reads on a Retina display, never with the bi
 Exit test: the launcher starts and resumes the game; every setting can be changed in Options and the game obeys it;
 every dialog reachable in a playthrough works and reads clearly; the game can be saved and loaded in-app.
 
-State on 2026-11-14: 6A is committed on the branch `phase6-dialogs` (`0f51db5`) and its test (`dialogs`) passes.
-Uncommitted work on that branch wires the game's own dialogs: the `gamedialogs` test brings twelve of them up and
-fails on two, save and load (P6.17). Nothing of 6B or 6C exists in the tree yet.
+State on 2026-11-16: 6A is committed on the branch `phase6-dialogs` (`0f51db5`). The SwiftUI menus exist for messages,
+exit, save and load, game play and sound options, game over, statistics and level completed; the `gamedialogs` test
+opens the Win32 form of every dialog. Nothing of 6B exists in the tree yet.
 
 #### 6A. Foundation (`platform/common/j3dgui/`) (complete, committed)
 
@@ -725,8 +742,8 @@ fails on two, save and load (P6.17). Nothing of 6B or 6C exists in the tree yet.
 - [x] **P6.4** Modal loop: `DialogBoxParamA` and `EndDialog`, `WM_INITDIALOG`, `WM_COMMAND`, `WM_NOTIFY` and
       `WM_CLOSE` dispatch, a nested loop that pumps SDL events and presents, as `DialogBoxParam` nested a message loop.
 - [x] **P6.5** Renderer: draw the dialog over the captured game frame in the back buffer, replacing
-      `JonesDialog.c`'s GDI compositing. Done with a GDI over 32-bit surfaces and Core Text, in the Windows 98 look
-      that P6.38 replaces.
+      `JonesDialog.c`'s GDI compositing. Done with a GDI over 32-bit surfaces and Core Text, in the Windows 98 look,
+      which stays for the fallback (decision 21).
 - [x] **P6.6** Controls 1: static text, push button, check box, radio button, group box, with keyboard (Tab,
       Return, Escape) and mouse. Controller navigation, which this step also named, was not done: P6.41.
 - [x] **P6.7** Controls 2: list box and combo box with item data (`LB_*`, `CB_*`).
@@ -783,38 +800,48 @@ The launcher writes the same settings the Steam launcher wrote to the registry, 
 - [ ] **P6.37** (S) Tests: settings written by the launcher's bridge are read back by the `boot` test; the
       launcher's `--snapshot` renders of each screen are kept as layout references, at 1× and 2×.
 
-#### 6C. The in-game dialogs' look (`j3dgui`)
+#### 6C. The in-game menus (SwiftUI, `platform/apple/menu/`)
 
-- [ ] **P6.38** (M) Replace the Windows 98 drawing in `gui_draw.c` and the controls with the launcher's look: dark
-      panels, the gold accent for the default button, focus and selection, switches for check boxes, and the system
-      font through `gui_text_ct.m`. Scale the templates' dialog units so body text is at least 13 points at the
-      window's size. The null build keeps fixed metrics, so its tests do not change with the look.
-- [ ] **P6.39** (S) One palette: the colours and metrics in a C header that both `j3dgui` and the launcher read, so
-      the two cannot drift.
-- [ ] **P6.40** (S) The original icons in the new look: drawn at whole multiples of their size without smoothing, on
-      a panel that suits them. Read every dialog at 1× and 2× and at the smallest window the game allows; no text
-      clipped, none below the size P6.38 sets.
+Replanned by decision 21: the restyle of `j3dgui`'s drawing this part first held (dark panels and the system font in
+`gui_draw.c`) is dropped; `j3dgui` keeps the Windows 98 look as the fallback.
 
-- [ ] **P6.41** (M) Controller navigation in the in-game dialogs: move focus with the stick or pad, accept and
-      cancel on the buttons the game's key set uses for them. Left out of P6.6.
+- [x] **P6.38** (M) The menu host and look: a borderless child window over the game window's content, run as a modal
+      session, with the game's last frame dimmed behind it and the menu scaled with the window (0.6 to 2 against a
+      960 by 720 layout); the launcher's colours, buttons, switches, sliders and choice bars; the C interface
+      (`j3dmenu_ui.h`) and the game's side (`j3dmenu_apple.c`); `J3D_MENU_TEST`, `J3D_MENU_AUTOCANCEL` and
+      `J3D_MENU_SHOT` to open and capture every menu unattended. Done 2026-11-16.
+- [ ] **P6.39** (S) One palette: the launcher and the menus build from the same Swift style files, so the two cannot
+      drift.
+- [ ] **P6.40** (S) The original art in the menus: the IQ picture with the game's own figures (done for statistics
+      and level completed, on a parchment panel because the figures are black); decide for the dialog icons
+      (`Indy3D.rc` names 43, P6.10). Read every menu at the smallest window the game allows and at 2×; no text
+      clipped, no body text below 13 points at 1×.
+- [ ] **P6.41** (M) Controller navigation in the menus: move focus with the stick or pad, accept and cancel on the
+      buttons the game's key set uses for them. Left out of P6.6.
 
 #### 6D. In-game dialogs, in order of how early the game needs them
 
-These are the dialogs `jonesConfig.c` raises while the game runs. The options dialogs among them (112, 113, 114,
-148, 111) change the same settings as the launcher's Options window; both must leave `settings.ini` in the same
-state.
+These are the dialogs `jonesConfig.c` raises while the game runs, each a SwiftUI menu (decision 21) with its Win32
+form kept as the fallback. The options dialogs among them (112, 113, 114, 148, 111) change the same settings as the
+launcher's Options window; both must leave `settings.ini` in the same state.
 
-- [ ] **P6.11** (S) Message box (template 121). The game already calls it at startup today.
+- [x] **P6.11** (S) Message box (template 121). The game already calls it at startup today. Done 2026-11-16.
 - [ ] **P6.12** (S) Confirmations: exit game (211), save overwrite and save messages (163, 214), purchase message
       (212), insert CD (167, which the data root should make unreachable).
 - [ ] **P6.13** (M) Developer dialog (101, 106): level list and options; gates `Start Mode` 2.
-- [ ] **P6.14** (S) Game play options (112).
-- [ ] **P6.15** (S) Sound settings (113).
+- [x] **P6.14** (S) Game play options (112). Done 2026-11-16: difficulty with the game's own level names up to the
+      highest unlocked, then the four switches; OK applies and saves them as the dialog's OK did.
+- [x] **P6.15** (S) Sound settings (113). Done 2026-11-16: the volume, heard when the slider is let go, and 3D sound
+      (off and greyed when the driver reports no 3D); retail's hidden reverse-stereo box is left out.
 - [ ] **P6.16** (M) Display settings (114) and advanced display settings (148), fed by the P2.3 mode list.
-- [ ] **P6.17** (L) Save game (154) and load game (159): replace `GetSaveFileName`/`GetOpenFileName` with an in-game
-      file list, and the GDI thumbnail in `sithGamesave` with a VBuffer. The two the `gamedialogs` test fails on
-      today.
-- [ ] **P6.18** (M) Game over (150), statistics (164), level completed (233).
+- [x] **P6.17** (L) Save game (154) and load game (159): replace `GetSaveFileName`/`GetOpenFileName` with an in-game
+      file list, and the GDI thumbnail in `sithGamesave` with a VBuffer. Done 2026-11-16 as the SwiftUI save and load
+      menu: the saves with their pictures, most recent first, retail's checks on a name (reserved names, overwrite,
+      progress lost); there is no Win32 fallback, so with no menu they cancel. The thumbnail stays a GDI bitmap of
+      the port's own GDI, read into the menu as pixels.
+- [x] **P6.18** (M) Game over (150), statistics (164), level completed (233). Done 2026-11-16: game over with retail's
+      restart save, music and load loop; statistics as a page a level plus the summary (shown first); level
+      completed, then the store. The IQ picture is the game's, with the points drawn by its own code.
 - [ ] **P6.19** (L) Indy's trading post (190): item list, cart, icons, purchase.
 - [ ] **P6.20** (L) Control options (111) with create scheme (116) and edit scheme (115).
 - [ ] **P6.21** (M) Assign key (117) and reassign key (120), which read raw input from `stdControl`.

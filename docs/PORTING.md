@@ -1469,3 +1469,67 @@ Left open: watching and listening to the intro by hand (audio/video sync, fullsc
 checksums; `jonesopn_5.snm` has no trigger on the Mac (no 512×384 mode). Kept as retail for the phase 8 fix series:
 the intro is chosen for 640 or 800 wide modes only, so larger modes get the 640×480 movie scaled up rather than the
 800×600 one; `SysShutdown`'s unsubscribe order.
+
+## Phase 6: launcher, options and in-game menus
+
+### The dialog layer (6A, P6.1 to P6.10)
+
+`platform/common/j3dgui/` implements the slice of Win32 the game's dialog code calls (`j3dgui.h` describes it): windows
+and dialogs built from `Indy3D.rc`'s 26 templates (`tools/rc2table.py` generates the tables), the default dialog
+procedure and its keyboard interface, the modal loop over the host's events, a GDI over 32-bit surfaces, the controls
+the templates use, and the 43 icons and bitmaps read from the player's `Indy3D.exe`. It is drawn in Windows 98's look.
+Since decision 21 it is the fallback for runs that have no SwiftUI menu, and the `dialogs` and `gamedialogs` tests run
+every template and every game dialog through it.
+
+- **Stale handles.** Retail's dialogs use GDI handles after deleting them: the level-completed dialog deletes its two
+  memory DCs on Close, then opens the store, and its `WM_PAINT` keeps selecting into them while the store is up.
+  Windows refused those calls. The GDI read the freed DC to check its magic number (ASan, `gamedialogs`). Every DC and
+  heap object is now kept in a table of live handles (`gui_gdi.c`), and a handle not in it is refused as Windows did.
+
+### The in-game menus (decision 21; P6.38, P6.11, P6.14, P6.15, P6.17, P6.18)
+
+Each `jonesConfig.c` entry point that has a menu calls `J3DMenu_*` (`platform/common/j3dmenu.h`) first, in a
+`#ifdef J3D_PORT` block; a nonzero return means the menu was shown and its result is the entry point's. The platform
+declines (returns 0) in a headless run, in a replay, before the game window is on screen, on the null platform and with
+`J3D_MENUS=classic`, and the entry point goes on to its Win32 dialog. On macOS the menus are SwiftUI views
+(`platform/apple/menu/`) behind a plain C interface (`j3dmenu_ui.h`, the Swift target's bridging header); the game's side
+of each (string-table text, checks, what OK applies) is in `platform/apple/j3dmenu_apple.c` or in the entry point.
+
+- **The host** (`MenuHost.swift`) lays a borderless child window over the game window's content and runs it as a modal
+  session, so the game's call returns with the answer as `DialogBoxParam` did. The last frame stays behind it, dimmed.
+  The layout is for a 960 by 720 window and is scaled with it, from 0.6 to 2. While a menu is up the mouse is the
+  player's (relative mode off, cursor shown); keys and motion that answered it are flushed before the game resumes.
+- **Options.** Game play (112) and sound (113) are forms of items (`FormMenu.swift`). The entry point fills a struct from
+  the game's state and, on OK, applies and saves it with the dialog's own calls (`wuRegistry_SaveIntEx` and the rest),
+  so `settings.ini` ends the same either way. Difficulty offers the game's level names up to
+  `jonesInventory_GetMaxDifficultyLevel`. The sound slider plays `mus_find.wav` at the volume where it is let go, as
+  `WM_HSCROLL`'s `SB_ENDSCROLL` did. Retail's reverse-stereo box is hidden in the template and is left out; its saved
+  value is written back unchanged.
+- **Save and load** (154, 159). One menu lists the save folder, most recent first, with each save's thumbnail, and a
+  name field when saving. Retail's `CDN_FILEOK` checks are kept: an empty name, a wildcard, a path or another extension
+  is refused; the level autosaves and the quick save cannot be saved over; an existing save is replaced only after a
+  question; loading over a live game asks first. `GetSaveFileName` and `GetOpenFileName` are not emulated, so these
+  two have no fallback and cancel where there is no menu (`gamedialogs` checks that).
+- **Game over** (150). `J3DMenu_IsAvailable` is asked first, because the entry point plays the music and finds the
+  level's restart save before showing the menu, as `jonesConfig_GameOverDialogInit` did. Restart is greyed when there
+  is no restart save. Load opens the load menu; cancelling it returns to game over, as the dialog stayed open. There is
+  no cancel button, as the dialog handled no `IDCANCEL`.
+- **Statistics** (164) and **level completed** (233) are pages of figures beside the IQ picture (`StatsMenu.swift`).
+  The picture is the game's (`iq.bmp` and its mask from the player's data) with the points drawn by
+  `jonesConfig_DrawStatisticDialogIQPoints` in the game's figures (`numbers.bmp`), once a page, and handed to Swift as
+  pixels; it sits on a parchment panel because the figures are black and were drawn for a light grey dialog.
+  Statistics has a page per level so far and the summary, shown first, with retail's titles. Level completed is
+  followed by the store, as the dialog's Close was.
+- **Statistics index 17.** The summary page is level 17, which retail read as `aLevelStatistic[17]`, one past the
+  array: the `totalLevelStats` that follows it. The menu and `jonesConfig_SetStatisticsDialogForLevel` now name it
+  (decision 18).
+- **Tests.** `J3D_MENU_TEST=<frame>` opens every menu once at that frame of a windowed run and prints what each
+  returned; `J3D_MENU_AUTOCANCEL=<seconds>` closes each unanswered; `J3D_MENU_SHOT=<prefix>` writes each as a PNG
+  first. The game's frame is not in the PNG (Metal drew it).
+
+### Test data
+
+The `Indy3D` test folder became a GOG install on 2026-11-15. With it, `saveload` and `saveload-3d` failed: a timed
+particle is alive at frame 300 of `00_cyn`, and a save leaves timed particles and debris out by design
+(`sithThing_CanSync`). The test now compares only what a save holds. `gamedialogs` sets the game's statistics to a
+finished level before opening level completed, as the game does; on level 0 the dialog read `aLevelStatistic[-1]`.

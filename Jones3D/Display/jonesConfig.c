@@ -5047,6 +5047,50 @@ LRESULT CALLBACK jonesConfig_LoadGameThumbnailPaintProc(HWND hWnd, UINT uMsg, WP
 
 int J3DAPI jonesConfig_ShowGamePlayOptions(HWND hWnd)
 {
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 21); OK applies and saves the
+        // settings as jonesConfig_GamePlayOptions_HandleWM_COMMAND's OK does
+        J3DMenuGamePlay options;
+        int menuResult;
+        options.difficulty    = sithGetGameDifficulty();
+        options.maxDifficulty = jonesInventory_GetMaxDifficultyLevel();
+        options.bShowHints    = sithOverlayMap_GetShowHints();
+        options.bMapRotation  = sithOverlayMap_GetMapRotation();
+        options.bDefaultRun   = jonesConfig_gamePlayOptions_bDefaultRun;
+        options.bShowText     = sithVoice_GetShowText();
+        if ( J3DMenu_ShowGamePlayOptions(&options, &menuResult) )
+        {
+            if ( menuResult == 1 )
+            {
+                sithVoice_ShowText(options.bShowText);
+                wuRegistry_SaveIntEx("Show Text", sithVoice_GetShowText());
+
+                sithOverlayMap_EnableMapRotation(options.bMapRotation);
+                wuRegistry_SaveIntEx("Map Rotation", sithOverlayMap_GetMapRotation());
+
+                sithOverlayMap_SetShowHints(options.bShowHints);
+                wuRegistry_SaveIntEx("Show Hints", sithOverlayMap_GetShowHints());
+
+                sithSetGameDifficulty(options.difficulty);
+                wuRegistry_SaveInt("Difficulty", sithGetGameDifficulty());
+
+                jonesConfig_gamePlayOptions_bDefaultRun = options.bDefaultRun;
+                wuRegistry_SaveIntEx("Default Run", jonesConfig_gamePlayOptions_bDefaultRun);
+                if ( jonesConfig_gamePlayOptions_bDefaultRun )
+                {
+                    sithControl_controlOptions |= 0x02;
+                }
+                else
+                {
+                    sithControl_controlOptions &= ~0x02;
+                }
+            }
+            return menuResult;
+        }
+    }
+#endif
+
     HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     int dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(112), hWnd, jonesConfig_GamePlayOptionsProc, 0);
     return dlgResult;
@@ -8400,8 +8444,52 @@ BOOL CALLBACK jonesConfig_SoundSettingsDialogProc(HWND hWnd, UINT uMsg, WPARAM w
 int J3DAPI jonesConfig_InitSoundSettingsDialog(HWND hDlg, int a2, LPARAM lParam);
 void J3DAPI jonesConfig_SoundSettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, LPARAM lParam, int notifyCode);
 
+#ifdef J3D_PORT
+// Port: the sound menu's slider was let go at volume: play mus_find.wav at it, as the dialog's WM_HSCROLL does
+static void jonesConfig_SoundSettingsTestVolume(int volume)
+{
+    tSoundHandle hSnd = Sound_GetSoundHandle(SITHWORLD_STATICINDEX(57)); // 57 - mus_find.wav
+    if ( jonesConfig_soundSettings_hSndChannel && (Sound_GetChannelFlags(jonesConfig_soundSettings_hSndChannel) & SOUND_CHANNEL_PLAYING) != 0 )
+    {
+        sithSoundMixer_StopSound(jonesConfig_soundSettings_hSndChannel);
+    }
+
+    jonesConfig_soundSettings_hSndChannel = 0;
+    if ( hSnd && jonesConfig_soundSettings_curSoundVolume != volume )
+    {
+        jonesConfig_soundSettings_hSndChannel = sithSoundMixer_PlaySound(hSnd, D3DVAL(volume / 100.0), 0.0f, (SoundPlayFlag)0);
+        jonesConfig_soundSettings_curSoundVolume = volume;
+    }
+}
+#endif
+
 int J3DAPI jonesConfig_ShowSoundSettingsDialog(HWND hWnd, JonesSoundSettings* pData)
 {
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 21); OK stores and saves the
+        // settings as jonesConfig_SoundSettings_HandleWM_COMMAND's OK does
+        J3DMenuSound settings;
+        int menuResult;
+        settings.volume       = (int)(pData->maxSoundVolume * 100.0f); // Port: narrowing cast, as TBM_SETPOS took it
+        settings.b3DAvailable = Sound_Has3DHW();
+        settings.b3DSound     = settings.b3DAvailable && pData->b3DHWSupport;
+        settings.pfTestVolume = jonesConfig_SoundSettingsTestVolume;
+        if ( J3DMenu_ShowSoundSettings(&settings, &menuResult) )
+        {
+            if ( menuResult == 1 )
+            {
+                pData->maxSoundVolume = (float)(settings.volume / 100.0);
+                pData->b3DHWSupport   = settings.b3DSound;
+                wuRegistry_SaveFloat("Sound Volume", (float)(settings.volume / 100.0));
+                wuRegistry_SaveIntEx("Sound 3D", pData->b3DHWSupport);
+                wuRegistry_SaveIntEx("ReverseSound", pData->bReverseSound); // the hidden box, unchanged
+            }
+            return menuResult;
+        }
+    }
+#endif
+
     HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     int dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(113), hWnd, jonesConfig_SoundSettingsDialogProc, (LPARAM)pData);
     return dlgResult;
@@ -8542,6 +8630,47 @@ void J3DAPI jonesConfig_SoundSettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, LP
 
 int J3DAPI jonesConfig_ShowGameOverDialog(HWND hWnd, char* pRestoreFilename, tSoundHandle hSndGameOVerMus, tSoundChannelHandle* pSndChnlMus)
 {
+#ifdef J3D_PORT
+    if ( J3DMenu_IsAvailable() )
+    {
+        // Port: the platform's own menu (PORT-PLAN.md Phase 6, decision 21), with what jonesConfig_GameOverDialogInit
+        // and jonesConfig_GameOverDialog_HandleWM_COMMAND did around the dialog: the level's starting save is the
+        // restart's, the music plays, and a load that is cancelled comes back to the menu.
+        char aFilename[128];
+        char aRestorePath[128];
+        LPSTR pFilePart;
+        int menuResult = 1179;
+
+        memset(aRestorePath, 0, sizeof(aRestorePath));
+        memset(aFilename, 0, sizeof(aFilename));
+        if ( sithWorld_pCurrentWorld )
+        {
+            sprintf(aFilename, "%s%s", sithGetAutoSaveFilePrefix(), sithGetCurrentWorldSaveName());
+            stdFnames_ChangeExt(aFilename, "nds");
+            SearchPath(sithGetSaveGamesDir(), aFilename, NULL, STD_ARRAYLEN(aRestorePath), aRestorePath, &pFilePart);
+        }
+
+        if ( hSndGameOVerMus )
+        {
+            sithSoundMixer_PlaySound(hSndGameOVerMus, 1.0f, 0.0f, (SoundPlayFlag)0); // retail keeps the channel to itself too
+        }
+
+        strcpy(pRestoreFilename, aRestorePath);
+        for ( ;; )
+        {
+            if ( !J3DMenu_ShowGameOver(strlen(aRestorePath) != 0, &menuResult) )
+            {
+                menuResult = 1179;
+                break;
+            }
+            if ( menuResult != 1178 || jonesConfig_GetLoadGameFilePath(hWnd, pRestoreFilename) == 1 )
+            {
+                break;
+            }
+        }
+        return menuResult;
+    }
+#endif
     GameOverDialogData data;
     int curresult;
     memset(&data, 0, sizeof(data));
@@ -8702,8 +8831,139 @@ void J3DAPI jonesConfig_GameOverDialog_HandleWM_COMMAND(HWND hWnd, int ctrlID, L
     }
 }
 
+#ifdef J3D_PORT
+// Port: the figures menus (statistics, level completed) of PORT-PLAN.md Phase 6, decision 21. The IQ picture with the
+// points drawn on it by jonesConfig_DrawStatisticDialogIQPoints, as the dialogs drew it, and their values formatted as
+// the dialogs formatted them.
+static JonesDialogImageInfo jonesConfig_menuImageInfo;
+
+static void jonesConfig_DrawMenuIQPicture(int iqPoints, void** phImage, void** phMask)
+{
+    JonesDialogImageInfo* apInfo[2] = { &jonesConfig_menuImageInfo, NULL };
+    if ( !jonesConfig_menuImageInfo.hdcFront )
+    {
+        jonesConfig_menuImageInfo.hdcFront = CreateCompatibleDC(NULL);
+        jonesConfig_menuImageInfo.hdcBack  = CreateCompatibleDC(NULL);
+    }
+
+    jonesConfig_DrawStatisticDialogIQPoints(NULL, apInfo, 164, iqPoints);
+    *phImage = jonesConfig_apDlgIcons[0]; // iq.bmp
+    *phMask  = jonesConfig_apDlgIcons[1]; // iqMask.bmp
+}
+
+static void jonesConfig_FreeMenuIQPicture(void)
+{
+    if ( jonesConfig_menuImageInfo.hBmp )
+    {
+        DeleteObject(jonesConfig_menuImageInfo.hBmp);
+    }
+
+    if ( jonesConfig_menuImageInfo.hdcFront )
+    {
+        DeleteDC(jonesConfig_menuImageInfo.hdcFront);
+        DeleteDC(jonesConfig_menuImageInfo.hdcBack);
+    }
+
+    memset(&jonesConfig_menuImageInfo, 0, sizeof(jonesConfig_menuImageInfo));
+}
+
+static void jonesConfig_AddMenuFigure(J3DMenuFigurePage* pPage, const char* pLabel, const char* pFormat, int value)
+{
+    if ( pPage->numRows < J3DMENU_FIGURES_MAXROWS )
+    {
+        pPage->apLabels[pPage->numRows] = pLabel;
+        snprintf(pPage->aaValues[pPage->numRows], sizeof(pPage->aaValues[0]), pFormat, value);
+        pPage->numRows++;
+    }
+}
+
+static void jonesConfig_AddMenuTime(J3DMenuFigurePage* pPage, const char* pLabel, int elapsedTime)
+{
+    int minutes = elapsedTime >> 8;
+    int seconds = elapsedTime ^ (minutes << 8);
+    if ( pPage->numRows < J3DMENU_FIGURES_MAXROWS )
+    {
+        pPage->apLabels[pPage->numRows] = pLabel;
+        snprintf(pPage->aaValues[pPage->numRows], sizeof(pPage->aaValues[0]), seconds < 10 ? "%i : 0%i" : "%i : %i", minutes, seconds);
+        pPage->numRows++;
+    }
+}
+
+// The statistics menu: a page for each level so far, with jonesConfig_StatisticsDialogProc's titles and
+// jonesConfig_SetStatisticsDialogForLevel's figures, then the whole game's, which is shown first.
+static int jonesConfig_ShowStatisticsMenu(SithGameStatistics* pStatistics, int* pResult)
+{
+    J3DMenuFigurePage aPages[JONESLEVEL_NUMLEVELS + 1];
+    int numPages = 0;
+    int lastPos  = pStatistics->curLevelNum + 1;
+    int pos;
+    int bShown;
+
+    memset(aPages, 0, sizeof(aPages));
+    for ( pos = 0; pos <= lastPos && numPages < (int)STD_ARRAYLEN(aPages); ++pos )
+    {
+        J3DMenuFigurePage* pPage = &aPages[numPages++];
+        const char* pTitleName;
+        const char* pTitleText;
+        int levelNum;
+        SithLevelStatistic* pLevelStatistics;
+
+        if ( pos == lastPos )
+        {
+            pTitleName  = jonesConfig_gameStatistics__aLevelNames[JONESLEVEL_BONUSLEVELNUM];
+            levelNum    = JONESLEVEL_BONUSLEVELNUM;
+            pPage->iqPoints = jonesInventory_GetTotalIQPoints();
+        }
+        else
+        {
+            if ( pos == jonesConfig_gameStatistics_curLevelNum && jonesConfig_gameStatistics_curLevelNum > 0 )
+            {
+                pTitleName = jonesConfig_gameStatistics__aLevelNames[JONESLEVEL_LASTLEVELNUM];
+            }
+            else
+            {
+                pTitleName = jonesConfig_gameStatistics__aLevelNames[pos < JONESLEVEL_NUMLEVELS ? pos : JONESLEVEL_BONUSLEVELNUM];
+            }
+
+            levelNum = pos < JONESLEVEL_NUMLEVELS ? pos : JONESLEVEL_BONUSLEVELNUM;
+        }
+
+        // Level 17 is the summary: retail's aLevelStatistic[17], one past the array, is totalLevelStats
+        pLevelStatistics = levelNum < (int)STD_ARRAYLEN(pStatistics->aLevelStatistic) ? &pStatistics->aLevelStatistic[levelNum] : &pStatistics->totalLevelStats;
+        if ( pos != lastPos )
+        {
+            pPage->iqPoints = pLevelStatistics->iqPoints;
+        }
+
+        pTitleText = jonesString_GetString(pTitleName);
+        snprintf(pPage->aTitle, sizeof(pPage->aTitle), "%s", pTitleText ? pTitleText : pTitleName);
+
+        jonesConfig_AddMenuFigure(pPage, "JONES_STR_CHS_DONE", "%i", pStatistics->curLevelNum);
+        jonesConfig_AddMenuTime(pPage, "JONES_STR_TIME_PASSED", pLevelStatistics->elapsedTime);
+        jonesConfig_AddMenuFigure(pPage, "JONES_STR_TREASURES", "%i", pLevelStatistics->numFoundTreasures);
+        jonesConfig_AddMenuFigure(pPage, "JONES_STR_HINTS_SEEN", "%i", pLevelStatistics->numSeenHints);
+        jonesConfig_AddMenuFigure(pPage, "JONES_STR_DFCLTYDROP", "%i", pLevelStatistics->difficultyPenalty);
+    }
+
+    bShown = J3DMenu_ShowFigures("JONES_STR_IQ", aPages, numPages, numPages - 1, jonesConfig_DrawMenuIQPicture, pResult);
+    jonesConfig_FreeMenuIQPicture();
+    return bShown;
+}
+#endif
+
 int J3DAPI jonesConfig_ShowStatisticsDialog(HWND hWnd, SithGameStatistics* pStatistics)
 {
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (PORT-PLAN.md Phase 6, decision 21)
+        int menuResult;
+        if ( pStatistics && jonesConfig_ShowStatisticsMenu(pStatistics, &menuResult) )
+        {
+            return menuResult;
+        }
+    }
+#endif
+
     intptr_t dwInitArg[3]; // Port: { JonesDialogImageInfo*, SithGameStatistics*, scroll position }, was int
     JonesDialogImageInfo imageInfo;
     int curresult;
@@ -8970,7 +9230,13 @@ int J3DAPI jonesConfig_SetStatisticsDialogForLevel(HWND hDlg, int levelNum, intp
     char aText[256];
 
     pStatistics = (SithGameStatistics*)a3[1];
+#ifdef J3D_PORT
+    // Port: the summary page is levelNum 17, which retail read as aLevelStatistic[17], one past the array: the
+    // totalLevelStats that follows it (decision 18)
+    pLevelStatistics = levelNum < (int)STD_ARRAYLEN(pStatistics->aLevelStatistic) ? &pStatistics->aLevelStatistic[levelNum] : &pStatistics->totalLevelStats;
+#else
     pLevelStatistics = &pStatistics->aLevelStatistic[levelNum];
+#endif
     curv3 = pLevelStatistics->elapsedTime >> 8;
     curv4 = pLevelStatistics->elapsedTime ^ (curv3 << 8);
     memset(aText, 0, sizeof(aText));
@@ -9208,6 +9474,41 @@ void J3DAPI jonesConfig_ClearStoreCart(HWND hDlg, tStoreCartState* pCart);
 
 int J3DAPI jonesConfig_ShowLevelCompletedDialog(HWND hWnd, int* pBalance, int* apItemsState, int a4, int elapsedTime, int qiPoints, int numFoundTrasures, int foundTrasureValue, int totalTreasureValue)
 {
+#ifdef J3D_PORT
+    if ( J3DMenu_IsAvailable() )
+    {
+        // Port: the platform's own menu (PORT-PLAN.md Phase 6, decision 21) with jonesConfig_InitLevelCompletedDialog's
+        // figures, then the store as jonesConfig_ChapterCompleteDialog_HandleWM_COMMAND opened it
+        SithGameStatistics* pStatistics = sithGamesave_GetGameStatistics();
+        if ( pStatistics && sithGamesave_LockGameStatistics() )
+        {
+            J3DMenuFigurePage page;
+            int menuResult = 1;
+
+            memset(&page, 0, sizeof(page));
+            jonesConfig_prevLevelNum = pStatistics->curLevelNum - 1;
+            page.iqPoints = jonesConfig_prevLevelNum >= 0 ? pStatistics->aLevelStatistic[jonesConfig_prevLevelNum].iqPoints : qiPoints;
+            jonesConfig_AddMenuTime(&page, "JONES_STR_TIME_PASSED", elapsedTime);
+            jonesConfig_AddMenuFigure(&page, "JONES_STR_TREASURES", "%i", numFoundTrasures);
+            jonesConfig_AddMenuFigure(&page, "JONES_STR_WORTH", "%i", foundTrasureValue);
+            jonesConfig_AddMenuFigure(&page, "JONES_STR_ALLWORTH", "%i", totalTreasureValue);
+            J3DMenu_ShowFigures("JONES_STR_CHPDONE", &page, 1, 0, jonesConfig_DrawMenuIQPicture, &menuResult);
+            jonesConfig_FreeMenuIQPicture();
+
+            // Show store dialog if not bonus level
+            if ( pStatistics->curLevelNum + 1 < JONESLEVEL_BONUSLEVELNUM )
+            {
+                jonesConfig_ShowStoreDialog(hWnd, pBalance, apItemsState, a4);
+            }
+
+            sithGamesave_UnlockGameStatistics();
+            return 1;
+        }
+
+        return jonesConfig_ShowStoreDialog(hWnd, pBalance, apItemsState, a4);
+    }
+#endif
+
     int curresult;
     JonesDialogImageInfo imageInfo;
 

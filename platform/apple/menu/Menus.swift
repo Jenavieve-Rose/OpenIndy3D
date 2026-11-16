@@ -13,6 +13,7 @@ private struct ChoiceMenu: View {
     let defaultIndex: Int
     let cancelIndex: Int
     let column: Bool
+    let disabledMask: UInt32
     let answer: (Int) -> Void
 
     var body: some View {
@@ -44,6 +45,7 @@ private struct ChoiceMenu: View {
         ForEach(Array(buttons.enumerated()), id: \.offset) { index, label in
             let button = Button(label) { answer(index) }
                 .buttonStyle(MenuButtonStyle(prominent: index == defaultIndex, large: column))
+                .disabled(disabledMask & (1 << UInt32(index)) != 0)
             if index == defaultIndex {
                 // Escape answers with the cancel button even when that is also the default one
                 button.keyboardShortcut(.defaultAction)
@@ -66,7 +68,7 @@ private struct ChoiceMenu: View {
 @_cdecl("J3DMenuUI_Choice")
 public func J3DMenuUI_Choice(_ gameWindow: UnsafeMutableRawPointer?, _ title: UnsafePointer<CChar>?, _ text: UnsafePointer<CChar>?,
                              _ buttons: UnsafePointer<UnsafePointer<CChar>?>?, _ numButtons: Int32, _ defaultIndex: Int32,
-                             _ cancelIndex: Int32, _ layout: Int32) -> Int32 {
+                             _ cancelIndex: Int32, _ layout: Int32, _ disabledMask: UInt32) -> Int32 {
     var labels: [String] = []
     if let buttons {
         for i in 0..<min(Int(numButtons), 8) {
@@ -78,7 +80,8 @@ public func J3DMenuUI_Choice(_ gameWindow: UnsafeMutableRawPointer?, _ title: Un
     return MainActor.assumeIsolated {
         Int32(runMenu(over: gameWindow) { answer in
             ChoiceMenu(title: titleText, text: bodyText, buttons: labels, defaultIndex: Int(defaultIndex),
-                       cancelIndex: Int(cancelIndex), column: layout == J3DMENU_CHOICE_COLUMN, answer: answer)
+                       cancelIndex: Int(cancelIndex), column: layout == J3DMENU_CHOICE_COLUMN, disabledMask: disabledMask,
+                       answer: answer)
         })
     }
 }

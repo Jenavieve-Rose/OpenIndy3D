@@ -27,6 +27,7 @@
 #include <sith/Gameplay/sithTime.h>
 #include <sith/Main/sithMain.h>
 #include <sith/World/sithSector.h>
+#include <sith/World/sithThing.h>
 #include <sith/World/sithWorld.h>
 #include <std/Win95/stdWin95.h>
 
@@ -75,7 +76,9 @@ static void saveload_Capture(SaveloadState* pState)
     for ( int i = 0; i <= pWorld->lastThingIdx && pState->numThings < SAVELOAD_MAXTHINGS; ++i )
     {
         const SithThing* pThing = &pWorld->aThings[i];
-        if ( !pThing->type )
+        // Only what a save holds: no free slots, and no timed debris or particles, which sithThing_CanSync leaves out
+        // (a level whose scripts have one alive at the save is not a failed round trip)
+        if ( !sithThing_CanSync(pThing) )
         {
             continue;
         }
