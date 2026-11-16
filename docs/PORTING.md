@@ -1505,6 +1505,12 @@ of each (string-table text, checks, what OK applies) is in `platform/apple/j3dme
   `jonesInventory_GetMaxDifficultyLevel`. The sound slider plays `mus_find.wav` at the volume where it is let go, as
   `WM_HSCROLL`'s `SB_ENDSCROLL` did. Retail's reverse-stereo box is hidden in the template and is left out; its saved
   value is written back unchanged.
+- **Display** (114 and 148, one menu). The resolutions are those `jonesConfig_InitDisplaySettingsDialog` lists (square
+  pixels, at least 512 by 384, of the current colour depth; the port's modes are all 32-bit), then performance level,
+  mip mapping, and fog with its density, greyed while fog is off. OK does both dialogs' OK. Left out: buffering, which
+  the Metal present path ignores (P2.6), and the device and rasterizer lists, which hold one entry each. Retail showed
+  the "takes effect after a restart" message for any performance level but very fast, because it compared with its own
+  copy after resetting it; the menu shows it when the level changed (decision 18).
 - **Save and load** (154, 159). One menu lists the save folder, most recent first, with each save's thumbnail, and a
   name field when saving. Retail's `CDN_FILEOK` checks are kept: an empty name, a wildcard, a path or another extension
   is refused; the level autosaves and the quick save cannot be saved over; an existing save is replaced only after a

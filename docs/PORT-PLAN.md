@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 16 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 17 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **113 of 162** | |
+| **All** | | **114 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -833,7 +833,10 @@ launcher's Options window; both must leave `settings.ini` in the same state.
       highest unlocked, then the four switches; OK applies and saves them as the dialog's OK did.
 - [x] **P6.15** (S) Sound settings (113). Done 2026-11-16: the volume, heard when the slider is let go, and 3D sound
       (off and greyed when the driver reports no 3D); retail's hidden reverse-stereo box is left out.
-- [ ] **P6.16** (M) Display settings (114) and advanced display settings (148), fed by the P2.3 mode list.
+- [x] **P6.16** (M) Display settings (114) and advanced display settings (148), fed by the P2.3 mode list. Done
+      2026-11-16 as one menu: the resolutions the dialog listed, performance level, mip mapping, fog and its density,
+      Default Settings. Buffering (ignored by the Metal present path), colour depth (one) and the device lists (one
+      each) are left out.
 - [x] **P6.17** (L) Save game (154) and load game (159): replace `GetSaveFileName`/`GetOpenFileName` with an in-game
       file list, and the GDI thumbnail in `sithGamesave` with a VBuffer. Done 2026-11-16 as the SwiftUI save and load
       menu: the saves with their pictures, most recent first, retail's checks on a name (reserved names, overwrite,

@@ -7545,6 +7545,157 @@ int J3DAPI jonesConfig_InitDisplaySettingsDialog(HWND hDlg, int a2, LPARAM lPara
 int J3DAPI jonesConfig_DisplaySettings_GetVideoModeNum(const JonesDisplaySettingsVideoMode* pVideoMode, const char* pText, int numVideoModes);
 void J3DAPI jonesConfig_DisplaySettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, LPARAM a3, int notifyCode);
 
+#ifdef J3D_PORT
+// Port: the display menu (PORT-PLAN.md Phase 6, decision 21) with what the display dialog (114) and its advanced
+// settings (148) did: the resolutions jonesConfig_InitDisplaySettingsDialog lists, of the current colour depth (the
+// port's modes are all 32-bit), and both dialogs' OK. The advanced dialog's buffering is left out (the Metal present
+// path owns its swap chain, P2.6), and so are its device and rasterizer lists (there is one of each).
+static int jonesConfig_ShowDisplaySettingsMenu(StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pSettings, int* pResult)
+{
+    static const int aPerfLevels[3] = { 0, 2, 4 }; // average, fast, very fast, as the dialog's radio buttons
+    StdDisplayInfo* pDisplayInfo;
+    StdVideoMode curVideoMode;
+    J3DMenuDisplay menu;
+    char (*aaNames)[64];
+    const char** apNames;
+    int* aModeNums;
+    const char* pFormat;
+    int perfLevel;
+    int i;
+    int j;
+
+    if ( !J3DMenu_IsAvailable() || !pDisplayEnv || pSettings->displayDeviceNum >= pDisplayEnv->numInfos )
+    {
+        return 0;
+    }
+
+    pDisplayInfo = &pDisplayEnv->aDisplayInfos[pSettings->displayDeviceNum];
+    if ( !pDisplayInfo->numModes || pSettings->videoModeNum >= pDisplayInfo->numModes )
+    {
+        return 0;
+    }
+
+    aaNames   = calloc(pDisplayInfo->numModes, sizeof(*aaNames));
+    apNames   = calloc(pDisplayInfo->numModes, sizeof(*apNames));
+    aModeNums = calloc(pDisplayInfo->numModes, sizeof(*aModeNums));
+    if ( !aaNames || !apNames || !aModeNums )
+    {
+        free(aaNames);
+        free(apNames);
+        free(aModeNums);
+        return 0;
+    }
+
+    memset(&menu, 0, sizeof(menu));
+    curVideoMode = pDisplayInfo->aModes[pSettings->videoModeNum];
+    pFormat = jonesString_GetString("JONES_STR_BYPIXELS");
+    if ( !pFormat || !strstr(pFormat, "%") )
+    {
+        pFormat = "%d x %d";
+    }
+
+    for ( i = 0; i < (int)pDisplayInfo->numModes; ++i )
+    {
+        const StdVideoMode* pMode = &pDisplayInfo->aModes[i];
+        if ( pMode->aspectRatio != 1.0f || pMode->rasterInfo.width < 512 || pMode->rasterInfo.height < 384
+             || pMode->rasterInfo.colorInfo.bpp != curVideoMode.rasterInfo.colorInfo.bpp
+             || !jonesConfig_DisplaySettings_Get3DDeviceSupportsBPP(pDisplayInfo, pSettings, pMode->rasterInfo.colorInfo.bpp) )
+        {
+            continue;
+        }
+
+        for ( j = 0; j < menu.numResolutions; ++j )
+        {
+            const StdVideoMode* pListed = &pDisplayInfo->aModes[aModeNums[j]];
+            if ( pListed->rasterInfo.width == pMode->rasterInfo.width && pListed->rasterInfo.height == pMode->rasterInfo.height )
+            {
+                break;
+            }
+        }
+
+        if ( j == menu.numResolutions )
+        {
+            snprintf(aaNames[j], sizeof(aaNames[j]), pFormat, pMode->rasterInfo.width, pMode->rasterInfo.height);
+            apNames[j]   = aaNames[j];
+            aModeNums[j] = i;
+            menu.numResolutions++;
+            if ( pMode->rasterInfo.width == curVideoMode.rasterInfo.width && pMode->rasterInfo.height == curVideoMode.rasterInfo.height )
+            {
+                menu.resolution = j;
+            }
+
+            if ( pMode->rasterInfo.width == 640 && pMode->rasterInfo.height == 480 )
+            {
+                menu.defaultResolution = j; // the dialog's Default Settings
+            }
+        }
+    }
+
+    perfLevel = wuRegistry_GetInt("Performance Level", 4);
+    menu.apResolutions = apNames;
+    menu.performance   = perfLevel == 0 ? 0 : perfLevel == 2 ? 1 : 2;
+    menu.filter        = pSettings->filter;
+    menu.bFog          = pSettings->bFog;
+    menu.fogDensity    = (int)sithRender_fogDensity; // Port: narrowing cast, as TBM_SETPOS took it
+
+    if ( menu.numResolutions == 0 || !J3DMenu_ShowDisplaySettings(&menu, pResult) )
+    {
+        free(aaNames);
+        free(apNames);
+        free(aModeNums);
+        return 0;
+    }
+
+    if ( *pResult == 1 )
+    {
+        // jonesConfig_AdvanceDisplaySettings_HandleWM_COMMAND's OK
+        pSettings->bFog       = menu.bFog;
+        sithRender_fogDensity = (float)menu.fogDensity;
+        pSettings->fogDensity = sithRender_fogDensity / 100.0f;
+        wuRegistry_SaveInt("Performance Level", aPerfLevels[menu.performance]);
+        if ( JonesMain_HasStarted() && aPerfLevels[menu.performance] != perfLevel )
+        {
+            // Retail compared against the very-fast level it had just reset its own copy to, so the message showed for
+            // any level but very fast; it was meant for a change (decision 18)
+            const char* pMsgText = jonesString_GetString("JONES_STR_PERFORMANCE");
+            if ( pMsgText )
+            {
+                jonesConfig_ShowMessageDialog(NULL, "JONES_STR_DPLY_OPTS", pMsgText, 136); // 136 - tv icon
+            }
+        }
+
+        pSettings->filter = (Std3DMipmapFilterType)menu.filter;
+
+        // jonesConfig_DisplaySettings_HandleWM_COMMAND's OK
+        pSettings->videoModeNum = aModeNums[menu.resolution];
+        pSettings->width  = pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.width;
+        pSettings->height = pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.height;
+
+        wuRegistry_SaveStr("Display", pDisplayInfo->displayDevice.aDriverName);
+        wuRegistry_SaveStr("3D Device", pDisplayInfo->aDevices[pSettings->device3DNum].deviceDescription);
+        wuRegistry_SaveInt("Width", pSettings->width);
+        wuRegistry_SaveInt("Height", pSettings->height);
+        wuRegistry_SaveInt("BPP", pDisplayInfo->aModes[pSettings->videoModeNum].rasterInfo.colorInfo.bpp);
+
+        wuRegistry_SaveFloat("Fog Density", sithRender_fogDensity / 100.0f);
+        wuRegistry_SaveIntEx("Buffering", pSettings->bBuffering);
+        wuRegistry_SaveIntEx("Fog", pSettings->bFog);
+        std3D_EnableFog(pSettings->bFog, sithRender_fogDensity);
+        if ( sithWorld_pCurrentWorld )
+        {
+            sithWorld_pCurrentWorld->state |= SITH_WORLD_STATE_UPDATE_FOG;
+        }
+
+        wuRegistry_SaveInt("Filter", pSettings->filter);
+    }
+
+    free(aaNames);
+    free(apNames);
+    free(aModeNums);
+    return 1;
+}
+#endif
+
 int J3DAPI jonesConfig_ShowDisplaySettingsDialog(HWND hWnd, StdDisplayEnvironment* pDisplayEnv, JonesDisplaySettings* pDSettings)
 {
     float curFogDensity;
@@ -7584,6 +7735,14 @@ int J3DAPI jonesConfig_ShowDisplaySettingsDialog(HWND hWnd, StdDisplayEnvironmen
     curSettings.lightMode = pDSettings->lightMode;
     curSettings.bClearBackBuffer = pDSettings->bClearBackBuffer;
 
+#ifdef J3D_PORT
+    // Port: the platform's own menu, when it has one (decision 21); what follows the dialog (restoring on Cancel) is
+    // the same for both
+    if ( jonesConfig_ShowDisplaySettingsMenu(pDisplayEnv, pDSettings, &dlgResult) )
+    {
+    }
+    else
+#endif
     dlgResult = JonesDialog_ShowDialog(MAKEINTRESOURCE(114), hWnd, jonesConfig_DisplaySettingsDialogProc, (LPARAM)&dlgData);
     if ( dlgData.aVideoModes )
     {

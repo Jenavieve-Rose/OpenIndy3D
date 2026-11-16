@@ -650,6 +650,94 @@ int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult)
     return 1;
 }
 
+// The display settings (templates 114 and 148 as one menu). Items: 0 resolution, 1 performance, 2 mip mapping, 3 fog,
+// 4 fog density, which is greyed while fog is off.
+static int menu_displayDefaultResolution;
+
+static int32_t menu_DisplayChanged(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex)
+{
+    (void)numItems;
+    if ( changedIndex == -1 )
+    {
+        // The two dialogs' Default Settings buttons
+        pItems[0].value = menu_displayDefaultResolution;
+        pItems[1].value = 2;
+        pItems[2].value = 1;
+        pItems[3].value = 1;
+        pItems[4].value = 100;
+    }
+    pItems[4].bDisabled = !pItems[3].value;
+    return 1;
+}
+
+int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
+{
+    MenuSession session;
+    const char* apPerformance[3];
+    const char* apFilters[3];
+    const char* apFogCaptions[2] = { "0%", "100%" };
+    J3DMenuItem aItems[5];
+
+    if ( !pSettings || pSettings->numResolutions <= 0 || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    apPerformance[0] = menu_String("JONES_STR_AVERAGE", "Average");
+    apPerformance[1] = menu_String("JONES_STR_FAST", "Fast");
+    apPerformance[2] = menu_String("JONES_STR_VFAST", "Very Fast");
+    apFilters[0] = menu_String("JONES_STR_NO_MIPMAP", "None");
+    apFilters[1] = menu_String("JONES_STR_BI_MIPMAP", "Bilinear");
+    apFilters[2] = menu_String("JONES_STR_TRI_MIPMAP", "Trilinear");
+
+    memset(aItems, 0, sizeof(aItems));
+    aItems[0].kind = J3DMENU_ITEM_STEPS;
+    aItems[0].pGroup = menu_String("JONES_STR_GMRES", "Game Resolution");
+    aItems[0].value = pSettings->resolution < 0 || pSettings->resolution >= pSettings->numResolutions ? 0 : pSettings->resolution;
+    aItems[0].apNames = pSettings->apResolutions;
+    aItems[0].numNames = pSettings->numResolutions;
+    aItems[0].bDisabled = pSettings->numResolutions < 2;
+    aItems[1].kind = J3DMENU_ITEM_CHOICE;
+    aItems[1].pGroup = menu_String("JONES_STR_ADVDSPLY_SET", "Advanced Display Settings");
+    aItems[1].pLabel = menu_String("JONES_STR_SPEED", "Performance Level");
+    aItems[1].value = pSettings->performance < 0 || pSettings->performance > 2 ? 2 : pSettings->performance;
+    aItems[1].apNames = apPerformance;
+    aItems[1].numNames = 3;
+    aItems[2].kind = J3DMENU_ITEM_CHOICE;
+    aItems[2].pLabel = menu_String("JONES_STR_MIPMAP", "Mip Mapping");
+    aItems[2].value = pSettings->filter < 0 || pSettings->filter > 2 ? 1 : pSettings->filter;
+    aItems[2].apNames = apFilters;
+    aItems[2].numNames = 3;
+    aItems[3].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[3].pGroup = menu_String("JONES_STR_FOGDENSITY", "Fog Density");
+    aItems[3].pLabel = menu_String("JONES_STR_FOG", "Fog");
+    aItems[3].value = pSettings->bFog != 0;
+    aItems[4].kind = J3DMENU_ITEM_SLIDER;
+    aItems[4].value = pSettings->fogDensity < 0 ? 0 : pSettings->fogDensity > 100 ? 100 : pSettings->fogDensity;
+    aItems[4].maxValue = 100;
+    aItems[4].apNames = apFogCaptions;
+    aItems[4].numNames = 2;
+    aItems[4].bDisabled = !aItems[3].value;
+
+    menu_displayDefaultResolution = pSettings->defaultResolution;
+    if ( J3DMenuUI_Form(session.pNSWindow, menu_String("JONES_STR_DPLY_OPTS", "Display Options"), aItems, 5,
+                        menu_String("JONES_STR_OK", "OK"), menu_String("JONES_STR_CANCEL", "Cancel"),
+                        menu_String("JONES_STR_DEFAULTSET", "Default Settings"), menu_DisplayChanged) )
+    {
+        pSettings->resolution = aItems[0].value;
+        pSettings->performance = aItems[1].value;
+        pSettings->filter = aItems[2].value;
+        pSettings->bFog = aItems[3].value;
+        pSettings->fogDensity = aItems[4].value;
+        *pResult = 1;
+    }
+    else
+    {
+        *pResult = 2;
+    }
+    menu_End(&session);
+    return 1;
+}
+
 /* ---- Game over --------------------------------------------------------------------------------------------------------- */
 
 // Template 150's three buttons, in its order: start the level again, load a save (the default), quit. There is no
@@ -849,6 +937,7 @@ void J3DMenu_AfterFrame(unsigned long numFrames)
     printf("J3D_MENU_TEST load: shown %d, result %d\n", bShown, result);
     // The rest through jonesConfig, as the game opens them, so what they prepare runs too; unanswered, each cancels
     printf("J3D_MENU_TEST game play: result %d\n", jonesConfig_ShowGamePlayOptions(stdWin95_GetWindow()));
+    printf("J3D_MENU_TEST display: result %d\n", jonesConfig_ShowDisplaySettingsDialog(stdWin95_GetWindow(), JonesMain_GetDisplayEnvironment(), JonesMain_GetDisplaySettings()));
     {
         JonesSoundSettings sound;
         memset(&sound, 0, sizeof(sound));

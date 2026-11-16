@@ -56,6 +56,23 @@ typedef struct J3DMenuSound
 } J3DMenuSound;
 int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult);
 
+// jonesConfig_ShowDisplaySettingsDialog and its advanced settings, as one menu: the resolution (one of apResolutions),
+// the performance level (0 average, 1 fast, 2 very fast), the mip-map filter (0 none, 1 bilinear, 2 trilinear) and
+// fog with its density (0 to 100). The defaults button sets defaultResolution, very fast, bilinear and fog at 100.
+// *pResult 1 (OK, the caller applies the settings) or 2.
+typedef struct J3DMenuDisplay
+{
+    const char* const* apResolutions;
+    int numResolutions;
+    int resolution;
+    int defaultResolution;
+    int performance;
+    int filter;
+    int bFog;
+    int fogDensity;
+} J3DMenuDisplay;
+int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult);
+
 // jonesConfig_ShowGameOverDialog's buttons: *pResult is 1177 (start the level again; offered only with bCanRestart),
 // 1178 (load a save) or 1179 (quit). The caller does what the button did.
 int J3DMenu_ShowGameOver(int bCanRestart, int* pResult);

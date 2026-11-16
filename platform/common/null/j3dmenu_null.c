@@ -53,6 +53,13 @@ int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult)
     return 0;
 }
 
+int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
+{
+    (void)pSettings;
+    (void)pResult;
+    return 0;
+}
+
 int J3DMenu_ShowGameOver(int bCanRestart, int* pResult)
 {
     (void)bCanRestart;
