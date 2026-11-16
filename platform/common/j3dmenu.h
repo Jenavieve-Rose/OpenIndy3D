@@ -20,6 +20,12 @@ extern "C" {
 // menu plays music first).
 int J3DMenu_IsAvailable(void);
 
+// A question with Yes and No, as the game's confirmations (for example template 212): *pResult 1 for Yes, 2 for No.
+int J3DMenu_Ask(const char* pTitle, const char* pText, int* pResult);
+
+// jonesConfig_ShowDialogInsertCD (template 167): pText with OK (*pResult 1) and Quit (2).
+int J3DMenu_ShowInsertCD(const char* pText, int* pResult);
+
 // jonesConfig_ShowMessageDialog. pTitle is a string-table name or the title itself.
 int J3DMenu_ShowMessage(const char* pTitle, const char* pText, int iconID, int* pResult);
 
@@ -72,6 +78,37 @@ typedef struct J3DMenuDisplay
     int fogDensity;
 } J3DMenuDisplay;
 int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult);
+
+// jonesConfig_ShowStoreDialog (template 190): what Indy carries, what the store sells, and the cart. The caller keeps
+// the rows and the figures; pfAction does what a button did (J3DMENU_STORE_ADD the available row index,
+// J3DMENU_STORE_RETURN the cart row index, J3DMENU_STORE_CLEAR, J3DMENU_STORE_DONE, which is also Escape) and returns
+// nonzero to close the store. aIconIDs holds each item's icon (an Indy3D.rc ID), by item number.
+#define J3DMENU_STORE_ADD    1
+#define J3DMENU_STORE_RETURN 2
+#define J3DMENU_STORE_CLEAR  3
+#define J3DMENU_STORE_DONE   4
+#define J3DMENU_STORE_MAXROWS 256
+typedef struct J3DMenuStoreRow
+{
+    int item;
+    char aName[128];
+    int value;                      // how many (owned), or the price
+} J3DMenuStoreRow;
+typedef struct J3DMenuStore
+{
+    const int* aIconIDs;
+    int numItems;
+    J3DMenuStoreRow aOwned[J3DMENU_STORE_MAXROWS];
+    int numOwned;
+    J3DMenuStoreRow aAvailable[J3DMENU_STORE_MAXROWS];
+    int numAvailable;
+    J3DMenuStoreRow aCart[J3DMENU_STORE_MAXROWS];
+    int numCart;
+    int total;
+    int balance;
+    int (*pfAction)(struct J3DMenuStore* pStore, int action, int index);
+} J3DMenuStore;
+int J3DMenu_ShowStore(J3DMenuStore* pStore, int* pResult);
 
 // jonesConfig_ShowGameOverDialog's buttons: *pResult is 1177 (start the level again; offered only with bCanRestart),
 // 1178 (load a save) or 1179 (quit). The caller does what the button did.

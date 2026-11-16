@@ -475,6 +475,19 @@ static GuiIcon* gui_SharedIcon(int id)
     return p;
 }
 
+int J3DGui_GetIconPixels(HICON hIcon, int* pWidth, int* pHeight, const uint32_t** ppPixels)
+{
+    GuiIcon* p = gui_Icon(hIcon);
+    if ( !p )
+    {
+        return 0;
+    }
+    *pWidth = p->width;
+    *pHeight = p->height;
+    *ppPixels = p->pPixels;
+    return 1;
+}
+
 HICON WINAPI LoadIconA(HINSTANCE hInstance, LPCSTR pName)
 {
     (void)hInstance;

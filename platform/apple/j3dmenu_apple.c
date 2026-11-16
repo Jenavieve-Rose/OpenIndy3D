@@ -28,6 +28,7 @@
 #include <std/Win95/stdWin95.h>
 
 #include <platform/common/host_path.h>
+#include <platform/common/j3dgui/j3dgui.h>
 #include <platform/common/host_record.h>
 #include <platform/common/stdDisplay_common.h>
 
@@ -168,6 +169,34 @@ int J3DMenu_ShowMessage(const char* pTitle, const char* pText, int iconID, int* 
     menu_Message(&session, menu_String(pTitle, pTitle), pText);
     menu_End(&session);
     *pResult = 1;
+    return 1;
+}
+
+int J3DMenu_Ask(const char* pTitle, const char* pText, int* pResult)
+{
+    MenuSession session;
+    if ( !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    *pResult = menu_Confirm(&session, menu_String(pTitle, pTitle), pText) ? 1 : 2;
+    menu_End(&session);
+    return 1;
+}
+
+int J3DMenu_ShowInsertCD(const char* pText, int* pResult)
+{
+    MenuSession session;
+    const char* apButtons[2];
+    if ( !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    apButtons[0] = menu_String("JONES_STR_OK", "OK");
+    apButtons[1] = menu_String("JONES_STR_QUIT", "Quit");
+    *pResult = J3DMenuUI_Choice(session.pNSWindow, menu_String("JONES_STR_INSERTCD", "Insert CD"), pText, apButtons, 2, 0, 1,
+                                J3DMENU_CHOICE_ROW, 0) == 0 ? 1 : 2;
+    menu_End(&session);
     return 1;
 }
 
@@ -738,6 +767,140 @@ int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
     return 1;
 }
 
+/* ---- The store ------------------------------------------------------------------------------------------------------- */
+
+#define MENU_STORE_ICON 32 // the item icons are 16 by 16 in the dialog's lists; their resources carry 32 by 32 too
+
+_Static_assert(J3DMENU_UI_STORE_ADD == J3DMENU_STORE_ADD && J3DMENU_UI_STORE_RETURN == J3DMENU_STORE_RETURN
+               && J3DMENU_UI_STORE_CLEAR == J3DMENU_STORE_CLEAR && J3DMENU_UI_STORE_DONE == J3DMENU_STORE_DONE,
+               "the store's actions are numbered alike on both sides");
+
+static J3DMenuStore* menu_pStore;
+static J3DMenuStoreRowUI menu_aStoreRows[3][J3DMENU_STORE_MAXROWS];
+
+static int32_t menu_StoreAction(int32_t action, int32_t index, J3DMenuStoreState* pState)
+{
+    int32_t bClose = 0;
+    int i;
+    if ( action != J3DMENU_UI_STORE_READ && menu_pStore->pfAction )
+    {
+        bClose = menu_pStore->pfAction(menu_pStore, action, index) != 0;
+    }
+    for ( i = 0; i < menu_pStore->numOwned; ++i )
+    {
+        menu_aStoreRows[0][i] = (J3DMenuStoreRowUI){ menu_pStore->aOwned[i].item, menu_pStore->aOwned[i].aName, menu_pStore->aOwned[i].value };
+    }
+    for ( i = 0; i < menu_pStore->numAvailable; ++i )
+    {
+        menu_aStoreRows[1][i] = (J3DMenuStoreRowUI){ menu_pStore->aAvailable[i].item, menu_pStore->aAvailable[i].aName, menu_pStore->aAvailable[i].value };
+    }
+    for ( i = 0; i < menu_pStore->numCart; ++i )
+    {
+        menu_aStoreRows[2][i] = (J3DMenuStoreRowUI){ menu_pStore->aCart[i].item, menu_pStore->aCart[i].aName, menu_pStore->aCart[i].value };
+    }
+    pState->pOwned = menu_aStoreRows[0];
+    pState->numOwned = menu_pStore->numOwned;
+    pState->pAvailable = menu_aStoreRows[1];
+    pState->numAvailable = menu_pStore->numAvailable;
+    pState->pCart = menu_aStoreRows[2];
+    pState->numCart = menu_pStore->numCart;
+    pState->total = menu_pStore->total;
+    pState->balance = menu_pStore->balance;
+    return bClose;
+}
+
+// Each item's icon, from the player's Indy3D.exe through j3dgui, which scales it to MENU_STORE_ICON pixels.
+static uint8_t* menu_StoreIcons(const int* aIconIDs, int numItems)
+{
+    uint8_t* pIcons = calloc((size_t)numItems, MENU_STORE_ICON * MENU_STORE_ICON * 4);
+    int i;
+    if ( !pIcons )
+    {
+        return NULL;
+    }
+    for ( i = 0; i < numItems; ++i )
+    {
+        HICON hIcon = (HICON)LoadImageA(NULL, MAKEINTRESOURCE(aIconIDs[i]), IMAGE_ICON, MENU_STORE_ICON, MENU_STORE_ICON, 0);
+        const uint32_t* pPixels;
+        int width;
+        int height;
+        int x;
+        int y;
+        if ( !hIcon || !J3DGui_GetIconPixels(hIcon, &width, &height, &pPixels) || width <= 0 || height <= 0 )
+        {
+            if ( hIcon )
+            {
+                DestroyIcon(hIcon);
+            }
+            continue;
+        }
+        for ( y = 0; y < MENU_STORE_ICON; ++y )
+        {
+            for ( x = 0; x < MENU_STORE_ICON; ++x )
+            {
+                uint32_t c = pPixels[(y * height / MENU_STORE_ICON) * width + x * width / MENU_STORE_ICON];
+                uint8_t* pOut = pIcons + ((size_t)i * MENU_STORE_ICON * MENU_STORE_ICON + (size_t)y * MENU_STORE_ICON + (size_t)x) * 4;
+                pOut[0] = (uint8_t)(c >> 16);
+                pOut[1] = (uint8_t)(c >> 8);
+                pOut[2] = (uint8_t)c;
+                pOut[3] = (uint8_t)(c >> 24);
+            }
+        }
+        DestroyIcon(hIcon); // LoadImage's copy, scaled to the size asked for
+    }
+    return pIcons;
+}
+
+int J3DMenu_ShowStore(J3DMenuStore* pStore, int* pResult)
+{
+    MenuSession session;
+    J3DMenuStoreUI ui;
+    uint8_t* pIcons;
+    char aaLabels[12][128];
+    static const char* const aaNames[12][2] = {
+        { "JONES_STR_STORE", "Trading Post" }, { "JONES_STR_CURRENT", "Current Inventory" },
+        { "JONES_STR_AVAILABLE", "Available Items" }, { "JONES_STR_CARTITEMS", "Items to Buy" },
+        { "JONES_STR_COUNT", "Count" }, { "JONES_STR_COST", "Cost" }, { "JONES_STR_BALANCE", "Total" },
+        { "JONES_STR_CREDIT", "Balance" }, { "JONES_STR_ADD_ITEM", "Add Item" }, { "JONES_STR_RETURN_ITEM", "Return Item" },
+        { "JONES_STR_CLEAR", "Clear" }, { "JONES_STR_DONE", "Done" }
+    };
+    int i;
+
+    if ( !pStore || menu_pStore || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    for ( i = 0; i < 12; ++i )
+    {
+        snprintf(aaLabels[i], sizeof(aaLabels[i]), "%s", menu_String(aaNames[i][0], aaNames[i][1]));
+    }
+    pIcons = pStore->aIconIDs ? menu_StoreIcons(pStore->aIconIDs, pStore->numItems) : NULL;
+    memset(&ui, 0, sizeof(ui));
+    ui.pTitle = aaLabels[0];
+    ui.pOwnedTitle = aaLabels[1];
+    ui.pAvailableTitle = aaLabels[2];
+    ui.pCartTitle = aaLabels[3];
+    ui.pCountLabel = aaLabels[4];
+    ui.pCostLabel = aaLabels[5];
+    ui.pTotalLabel = aaLabels[6];
+    ui.pBalanceLabel = aaLabels[7];
+    ui.pAddLabel = aaLabels[8];
+    ui.pReturnLabel = aaLabels[9];
+    ui.pClearLabel = aaLabels[10];
+    ui.pDoneLabel = aaLabels[11];
+    ui.pIcons = pIcons;
+    ui.iconSize = MENU_STORE_ICON;
+    ui.numIcons = pIcons ? pStore->numItems : 0;
+
+    menu_pStore = pStore;
+    J3DMenuUI_Store(session.pNSWindow, &ui, menu_StoreAction);
+    menu_pStore = NULL;
+    free(pIcons);
+    menu_End(&session);
+    *pResult = 1;
+    return 1;
+}
+
 /* ---- Game over --------------------------------------------------------------------------------------------------------- */
 
 // Template 150's three buttons, in its order: start the level again, load a save (the default), quit. There is no
@@ -885,6 +1048,9 @@ int J3DMenu_ShowFigures(const char* pTitle, const J3DMenuFigurePage* pPages, int
     return 1;
 }
 
+// Not in jonesConfig.h: the game reaches the store only from the level-completed dialog
+int J3DAPI jonesConfig_ShowStoreDialog(HWND hWnd, int* pBalance, int* pItemsState, int a4);
+
 /* ---- For tests --------------------------------------------------------------------------------------------------------- */
 
 void J3DMenu_AfterFrame(unsigned long numFrames)
@@ -937,6 +1103,19 @@ void J3DMenu_AfterFrame(unsigned long numFrames)
     printf("J3D_MENU_TEST load: shown %d, result %d\n", bShown, result);
     // The rest through jonesConfig, as the game opens them, so what they prepare runs too; unanswered, each cancels
     printf("J3D_MENU_TEST game play: result %d\n", jonesConfig_ShowGamePlayOptions(stdWin95_GetWindow()));
+    {
+        // The store as after the first level: everything on sale, a little of each carried (the state's layout:
+        // jonesConfig_StoreInitItemList)
+        int aState[64];
+        int balance = 1400;
+        int k;
+        memset(aState, 0, sizeof(aState));
+        for ( k = 0; k < 14; ++k )
+        {
+            aState[k] = 1 | ((k % 3) << 4);
+        }
+        printf("J3D_MENU_TEST store: result %d\n", jonesConfig_ShowStoreDialog(stdWin95_GetWindow(), &balance, aState, 11));
+    }
     printf("J3D_MENU_TEST display: result %d\n", jonesConfig_ShowDisplaySettingsDialog(stdWin95_GetWindow(), JonesMain_GetDisplayEnvironment(), JonesMain_GetDisplaySettings()));
     {
         JonesSoundSettings sound;

@@ -89,6 +89,54 @@ typedef struct J3DMenuStats
     const char* pCloseLabel;
 } J3DMenuStats;
 
+// The store (J3DMenuUI_Store). The state is read through the action callback: J3DMENU_UI_STORE_READ fills it, and
+// every other action (the store's buttons, numbered as j3dmenu.h's J3DMENU_STORE_*) fills it again after doing its
+// work; a nonzero return closes the store. The codes are j3dmenu.h's J3DMENU_STORE_* (j3dmenu_apple.c checks).
+#define J3DMENU_UI_STORE_READ   0
+#define J3DMENU_UI_STORE_ADD    1
+#define J3DMENU_UI_STORE_RETURN 2
+#define J3DMENU_UI_STORE_CLEAR  3
+#define J3DMENU_UI_STORE_DONE   4
+typedef struct J3DMenuStoreRowUI
+{
+    int32_t item;
+    const char* pName;
+    int32_t value;
+} J3DMenuStoreRowUI;
+
+typedef struct J3DMenuStoreState
+{
+    const J3DMenuStoreRowUI* pOwned;
+    int32_t numOwned;
+    const J3DMenuStoreRowUI* pAvailable;
+    int32_t numAvailable;
+    const J3DMenuStoreRowUI* pCart;
+    int32_t numCart;
+    int32_t total;
+    int32_t balance;
+} J3DMenuStoreState;
+
+typedef int32_t (*J3DMenuStoreAction)(int32_t action, int32_t index, J3DMenuStoreState* pState);
+
+typedef struct J3DMenuStoreUI
+{
+    const char* pTitle;
+    const char* pOwnedTitle;
+    const char* pAvailableTitle;
+    const char* pCartTitle;
+    const char* pCountLabel;
+    const char* pCostLabel;
+    const char* pTotalLabel;
+    const char* pBalanceLabel;
+    const char* pAddLabel;
+    const char* pReturnLabel;
+    const char* pClearLabel;
+    const char* pDoneLabel;
+    const uint8_t* pIcons;          // numIcons icons of iconSize by iconSize, R, G, B, A, by item number; or NULL
+    int32_t iconSize;
+    int32_t numIcons;
+} J3DMenuStoreUI;
+
 #ifndef J3DMENU_SWIFT // implemented in Swift (@_cdecl); these are the prototypes for C
 
 // A title, a text and up to eight buttons. Returns the index of the button chosen. defaultIndex is the button Return
@@ -104,6 +152,9 @@ int32_t J3DMenuUI_Form(void* pGameWindow, const char* pTitle, J3DMenuItem* pItem
 
 // Pages of figures with a Close button, and arrows to turn the pages when there are several.
 void J3DMenuUI_Stats(void* pGameWindow, const J3DMenuStats* pStats);
+
+// The store, until pfAction returns nonzero.
+void J3DMenuUI_Store(void* pGameWindow, const J3DMenuStoreUI* pUI, J3DMenuStoreAction pfAction);
 
 // The save and load menu. Returns 1 with the chosen name in pOutName (J3DMENU_NAME_SIZE bytes), else 0.
 int32_t J3DMenuUI_PickSave(void* pGameWindow, const J3DMenuSavePicker* pPicker, char* pOutName);

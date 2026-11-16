@@ -1516,6 +1516,15 @@ of each (string-table text, checks, what OK applies) is in `platform/apple/j3dme
   is refused; the level autosaves and the quick save cannot be saved over; an existing save is replaced only after a
   question; loading over a live game asks first. `GetSaveFileName` and `GetOpenFileName` are not emulated, so these
   two have no fallback and cancel where there is no menu (`gamedialogs` checks that).
+- **The store** (190). Three lists, as the dialog's: what Indy carries (count), what is on sale and the cart (price),
+  with each item's icon read from the player's `Indy3D.exe` at 32 pixels. The rules are `jonesConfig.c`'s: the cart's
+  counts live in the low word of each item's state as the dialog left them, adding checks the balance and shows the
+  Peru map's messages, Done (and Escape, the dialog's `IDCANCEL`) asks the purchase question when the balance allows.
+  The question's text is built by one function both forms use (`jonesConfig_MakePurchaseText`). Item names are copied
+  into the rows: `jonesString_GetString` returns a buffer the next call overwrites.
+- **Confirmations.** Insert CD (167) is a menu that closes on OK only once the CD asked for is current, as the dialog
+  did; with the data root holding every CD's files it is reached only when a level file is missing. The developer
+  dialog (101) stays Win32: it opens before the game window, for developers.
 - **Game over** (150). `J3DMenu_IsAvailable` is asked first, because the entry point plays the music and finds the
   level's restart save before showing the menu, as `jonesConfig_GameOverDialogInit` did. Restart is greyed when there
   is no restart save. Load opens the load menu; cancelling it returns to game over, as the dialog stayed open. There is

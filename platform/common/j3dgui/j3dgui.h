@@ -14,6 +14,12 @@
 extern "C" {
 #endif
 
+/* ---- For the platform's menus -------------------------------------------------------------------------------------- */
+
+// An icon's pixels (0xAARRGGBB, alpha 0 or 255, top row first), as LoadIcon made it from the player's Indy3D.exe or
+// its stand-in. Returns 0 for a handle that is not an icon. The pixels belong to the icon.
+int J3DGui_GetIconPixels(HICON hIcon, int* pWidth, int* pHeight, const uint32_t** ppPixels);
+
 /* ---- For the event loop ---------------------------------------------------------------------------------------------- */
 
 // Nonzero while a modal dialog or message box is open: keyboard and mouse input belongs to it.

@@ -60,6 +60,28 @@ int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
     return 0;
 }
 
+int J3DMenu_ShowInsertCD(const char* pText, int* pResult)
+{
+    (void)pText;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_Ask(const char* pTitle, const char* pText, int* pResult)
+{
+    (void)pTitle;
+    (void)pText;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_ShowStore(J3DMenuStore* pStore, int* pResult)
+{
+    (void)pStore;
+    (void)pResult;
+    return 0;
+}
+
 int J3DMenu_ShowGameOver(int bCanRestart, int* pResult)
 {
     (void)bCanRestart;

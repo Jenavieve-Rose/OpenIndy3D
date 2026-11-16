@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 17 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 21 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **114 of 162** | |
+| **All** | | **118 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -826,9 +826,13 @@ form kept as the fallback. The options dialogs among them (112, 113, 114, 148, 1
 launcher's Options window; both must leave `settings.ini` in the same state.
 
 - [x] **P6.11** (S) Message box (template 121). The game already calls it at startup today. Done 2026-11-16.
-- [ ] **P6.12** (S) Confirmations: exit game (211), save overwrite and save messages (163, 214), purchase message
-      (212), insert CD (167, which the data root should make unreachable).
-- [ ] **P6.13** (M) Developer dialog (101, 106): level list and options; gates `Start Mode` 2.
+- [x] **P6.12** (S) Confirmations: exit game (211), save overwrite and save messages (163, 214), purchase message
+      (212), insert CD (167, which the data root should make unreachable). Done 2026-11-16: exit and insert CD are
+      menus; the purchase question is `J3DMenu_Ask` from the store; 163 and 214 were raised only by the Win32 file
+      dialogs' hooks, and the save menu asks the same questions with the same strings.
+- [x] **P6.13** (M) Developer dialog (101, 106): level list and options; gates `Start Mode` 2. Done 2026-11-16: it
+      stays a Win32 dialog, as a developer's tool raised before the game window exists (the launcher is the player's
+      way in); `gamedialogs` opens it. 106 has no caller (linker-discarded in retail).
 - [x] **P6.14** (S) Game play options (112). Done 2026-11-16: difficulty with the game's own level names up to the
       highest unlocked, then the four switches; OK applies and saves them as the dialog's OK did.
 - [x] **P6.15** (S) Sound settings (113). Done 2026-11-16: the volume, heard when the slider is let go, and 3D sound
@@ -845,10 +849,15 @@ launcher's Options window; both must leave `settings.ini` in the same state.
 - [x] **P6.18** (M) Game over (150), statistics (164), level completed (233). Done 2026-11-16: game over with retail's
       restart save, music and load loop; statistics as a page a level plus the summary (shown first); level
       completed, then the store. The IQ picture is the game's, with the points drawn by its own code.
-- [ ] **P6.19** (L) Indy's trading post (190): item list, cart, icons, purchase.
+- [x] **P6.19** (L) Indy's trading post (190): item list, cart, icons, purchase. Done 2026-11-16: the three lists
+      with the game's item icons, add (also by double-click), return, clear, total and balance, the Peru map and
+      can't-afford messages, and the purchase question on Done or Escape. Buying by hand is untested (the unattended
+      test closes menus unanswered).
 - [ ] **P6.20** (L) Control options (111) with create scheme (116) and edit scheme (115).
 - [ ] **P6.21** (M) Assign key (117) and reassign key (120), which read raw input from `stdControl`.
-- [ ] **P6.22** (S) Confirm templates 104, 105 and 118 are unreferenced and leave them out.
+- [x] **P6.22** (S) Confirm templates 104, 105 and 118 are unreferenced and leave them out. Done 2026-11-16: no
+      code names them (104 and 105 are DirectPlay's join and connection dialogs, 118 an exit dialog); they stay in the
+      generated tables, which `dialogs` builds, and nothing opens them.
 - [ ] **P6.23** (S) Restore retail's `Start Mode`, `Debug Mode` and `Verbosity` defaults, which were changed in
       phase 1 only because no GUI existed. The launcher now sets `Start Mode` (P6.30).
 - [ ] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling (128-byte file-dialog

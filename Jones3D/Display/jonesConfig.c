@@ -9824,6 +9824,168 @@ void J3DAPI jonesConfig_ChapterCompleteDialog_HandleWM_COMMAND(HWND hWnd, int wP
     }
 }
 
+#ifdef J3D_PORT
+// Port: the store menu (PORT-PLAN.md Phase 6, decision 21) with the store dialog's rules: the lists
+// jonesConfig_StoreInitItemList fills, jonesConfig_AddStoreCartItem's checks and messages, the cart's counts in the low
+// word of each item's state, and the purchase question on Done. The available list was single-selection.
+static void jonesConfig_MakePurchaseText(const tStoreCartState* pCart, char* aText);
+static tStoreCartState* jonesConfig_pMenuCart;
+static int jonesConfig_aStoreIconIDs[STD_ARRAYLEN(JonesHud_aStoreItems)];
+
+static int jonesConfig_StoreMenuAction(J3DMenuStore* pStore, int action, int index)
+{
+    tStoreCartState* pCart = jonesConfig_pMenuCart;
+    int i;
+
+    switch ( action )
+    {
+        case J3DMENU_STORE_ADD:
+        {
+            const J3DMenuStoreRow* pRow;
+            int storeIndex;
+            int cost;
+            int bBonusMap;
+            const char* pDlgText;
+            if ( index < 0 || index >= pStore->numAvailable || pStore->numCart >= J3DMENU_STORE_MAXROWS )
+            {
+                return 0;
+            }
+
+            pRow       = &pStore->aAvailable[index];
+            storeIndex = pRow->item;
+            cost       = JonesHud_aStoreItems[storeIndex].price;
+            bBonusMap  = JonesHud_aStoreItems[storeIndex].menuID == JONESHUD_MENU_INVITEM_BONUSMAP;
+            if ( pCart->balance < cost )
+            {
+                pDlgText = jonesString_GetString(bBonusMap ? "JONES_STR_NOPERU" : "JONES_STR_CANTBUY1");
+                if ( pDlgText )
+                {
+                    jonesConfig_ShowMessageDialog(NULL, "JONES_STR_STORE", pDlgText, 191);
+                }
+                return 0;
+            }
+
+            if ( bBonusMap )
+            {
+                pDlgText = jonesString_GetString("JONES_STR_PERU");
+                if ( pDlgText )
+                {
+                    jonesConfig_ShowMessageDialog(NULL, "JONES_STR_STORE", pDlgText, 191);
+                }
+            }
+
+            pStore->aCart[pStore->numCart++] = *pRow;
+            pCart->apItemsState[storeIndex] = (pCart->apItemsState[storeIndex] & 0xFFFF0000) | ((pCart->apItemsState[storeIndex] & 0xFFFF) + 1);
+            pCart->total   += cost;
+            pCart->balance -= cost;
+            break;
+        }
+
+        case J3DMENU_STORE_RETURN:
+        {
+            int storeIndex;
+            if ( index < 0 || index >= pStore->numCart )
+            {
+                return 0;
+            }
+
+            storeIndex = pStore->aCart[index].item;
+            pCart->apItemsState[storeIndex] = (pCart->apItemsState[storeIndex] & 0xFFFF0000) | ((pCart->apItemsState[storeIndex] & 0xFFFF) - 1);
+            pCart->total   -= pStore->aCart[index].value;
+            pCart->balance += pStore->aCart[index].value;
+            memmove(&pStore->aCart[index], &pStore->aCart[index + 1], (size_t)(pStore->numCart - index - 1) * sizeof(pStore->aCart[0]));
+            pStore->numCart--;
+            break;
+        }
+
+        case J3DMENU_STORE_CLEAR:
+            for ( i = 0; i < pStore->numCart; ++i )
+            {
+                int storeIndex = pStore->aCart[i].item;
+                pCart->apItemsState[storeIndex] = (pCart->apItemsState[storeIndex] & 0xFFFF0000) | ((pCart->apItemsState[storeIndex] & 0xFFFF) - 1);
+            }
+
+            pCart->balance += pCart->total;
+            pCart->total   = 0;
+            pStore->numCart = 0;
+            break;
+
+        case J3DMENU_STORE_DONE:
+            if ( pCart->balance >= 0 )
+            {
+                char aText[512];
+                int answer = 2;
+                memset(aText, 0, sizeof(aText));
+                jonesConfig_MakePurchaseText(pCart, aText);
+                if ( !J3DMenu_Ask("JONES_STR_STORE", aText, &answer) || answer != 1 )
+                {
+                    return 0;
+                }
+            }
+
+            return 1;
+    }
+
+    pStore->total   = pCart->total;
+    pStore->balance = pCart->balance;
+    return 0;
+}
+
+static int jonesConfig_ShowStoreMenu(tStoreCartState* pCart, int* pResult)
+{
+    J3DMenuStore* pStore;
+    int bShown;
+    int i;
+
+    if ( !J3DMenu_IsAvailable() )
+    {
+        return 0;
+    }
+
+    pStore = calloc(1, sizeof(*pStore));
+    if ( !pStore )
+    {
+        return 0;
+    }
+
+    for ( i = 0; i < (int)STD_ARRAYLEN(JonesHud_aStoreItems); ++i )
+    {
+        int state = pCart->apItemsState[i];
+        jonesConfig_aStoreIconIDs[i] = JonesHud_aStoreItems[i].iconID;
+        if ( (state & 0xFFF0) >> 4 ) // current inventory
+        {
+            J3DMenuStoreRow* pRow = &pStore->aOwned[pStore->numOwned++];
+            const char* pName = jonesString_GetString(JonesHud_aStoreItems[i].aName); // valid until the next call: copied
+            pRow->item  = i;
+            pRow->value = (state & 0xFFF0) >> 4;
+            snprintf(pRow->aName, sizeof(pRow->aName), "%s", pName ? pName : JonesHud_aStoreItems[i].aName);
+        }
+
+        if ( state & 0xF ) // available
+        {
+            J3DMenuStoreRow* pRow = &pStore->aAvailable[pStore->numAvailable++];
+            const char* pName = jonesString_GetString(JonesHud_aStoreItems[i].aClipName);
+            pRow->item  = i;
+            pRow->value = JonesHud_aStoreItems[i].price;
+            snprintf(pRow->aName, sizeof(pRow->aName), "%s", pName ? pName : JonesHud_aStoreItems[i].aClipName);
+        }
+
+        pCart->apItemsState[i] &= ~0xFFFFu; // the low word counts the cart from now on
+    }
+
+    pCart->total     = 0;
+    pStore->aIconIDs = jonesConfig_aStoreIconIDs;
+    pStore->numItems = (int)STD_ARRAYLEN(JonesHud_aStoreItems);
+    pStore->balance  = pCart->balance;
+    pStore->pfAction = jonesConfig_StoreMenuAction;
+    jonesConfig_pMenuCart = pCart;
+    bShown = J3DMenu_ShowStore(pStore, pResult);
+    jonesConfig_pMenuCart = NULL;
+    free(pStore);
+    return bShown;
+}
+#endif
+
 int J3DAPI jonesConfig_ShowStoreDialog(HWND hWnd, int* pBalance, int* pItemsState, int a4)
 {
     int curresult;
@@ -9834,6 +9996,15 @@ int J3DAPI jonesConfig_ShowStoreDialog(HWND hWnd, int* pBalance, int* pItemsStat
     cart.balance         = *pBalance;
     cart.apItemsState    = pItemsState;
     cart.unknown20       = a4;
+
+#ifdef J3D_PORT
+    // Port: the platform's own menu, when it has one (decision 21)
+    if ( jonesConfig_ShowStoreMenu(&cart, &curresult) )
+    {
+        *pBalance = cart.balance;
+        return curresult;
+    }
+#endif
 
     curresult = JonesDialog_ShowDialog(MAKEINTRESOURCE(190), hWnd, jonesConfig_StoreDialogProc, (LPARAM)&cart);
     *pBalance  = cart.balance;
@@ -10483,14 +10654,13 @@ BOOL CALLBACK jonesConfig_PurchaseMessageBoxProc(HWND hWnd, UINT uMsg, WPARAM wP
     return bResult;
 }
 
-int J3DAPI jonesConfig_InitPurchaseMessageBox(HWND hDlg, int a2, LPARAM lParam)
+// Port: the purchase question's text, shared with the store menu (decision 21); was the body of
+// jonesConfig_InitPurchaseMessageBox
+static void jonesConfig_MakePurchaseText(const tStoreCartState* pCart, char* aText)
 {
     const char* pCurrentFormat;
-    char aText[512];
-    tStoreCartState* pCart = (tStoreCartState*)lParam;
     char szCurTotalText[256];
 
-    memset(aText, 0, sizeof(aText));
 
     if ( !pCart->total )
     {
@@ -10533,7 +10703,15 @@ int J3DAPI jonesConfig_InitPurchaseMessageBox(HWND hDlg, int a2, LPARAM lParam)
             strcat(aText, pCurrentFormat);
         }
     }
+}
 
+int J3DAPI jonesConfig_InitPurchaseMessageBox(HWND hDlg, int a2, LPARAM lParam)
+{
+    char aText[512];
+    tStoreCartState* pCart = (tStoreCartState*)lParam;
+
+    memset(aText, 0, sizeof(aText));
+    jonesConfig_MakePurchaseText(pCart, aText);
     jonesConfig_SetTextControl(hDlg, GetDlgItem(hDlg, 1191), aText);
     return 1;
 }
@@ -10544,6 +10722,24 @@ int J3DAPI jonesConfig_ShowDialogInsertCD(HWND hWnd, LPARAM dwInitParam)
     HINSTANCE hInstance;
 
     ShowCursor(1);
+#ifdef J3D_PORT
+    {
+        // Port: the platform's own menu, when it has one (decision 21). OK closes only once the CD asked for is the
+        // current one, as jonesConfig_InsertCD_HandleWM_COMMAND did. The port reads every CD's files from the data
+        // root, so this is reached only when a level file is missing from it.
+        const char* pText = jonesString_GetString((int)dwInitParam == 2 ? "JONES_STR_INSERT2" : "JONES_STR_INSERT1");
+        char aText[256];
+        snprintf(aText, sizeof(aText), "%s", pText ? pText : "Please insert the game CD.");
+        while ( J3DMenu_ShowInsertCD(aText, &btnNum) )
+        {
+            if ( btnNum != 1 || (int)dwInitParam == JonesFile_GetCurrentCDNum() )
+            {
+                ShowCursor(0);
+                return btnNum;
+            }
+        }
+    }
+#endif
     hInstance = (HINSTANCE)GetWindowLongPtr(hWnd, GWL_HINSTANCE);
     btnNum = JonesDialog_ShowDialog(MAKEINTRESOURCE(167), hWnd, jonesConfig_DialogInsertCDProc, dwInitParam);
     return btnNum; // 1 - ok or 2 - quit 

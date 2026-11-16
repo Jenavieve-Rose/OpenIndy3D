@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+void J3DAPI JonesDevDialog_LoadSettings(StdDisplayEnvironment* pDisplayEnv, JonesState* pConfig); // JonesDevDialog.c
+
 static int gamedialogs_failures = 0;
 static int gamedialogs_seen = 0;
 static const char* gamedialogs_pDumpDir = NULL;
@@ -193,6 +195,14 @@ int main(int argc, char** argv)
     }
     SHOW("gameover", jonesConfig_ShowGameOverDialog(stdWin95_GetWindow(), aPath, 0, &hChannel));
     SHOW("insertcd", jonesConfig_ShowDialogInsertCD(stdWin95_GetWindow(), 1));
+    {
+        // The developer dialog (101) that Start Mode 2 opens before the game window exists; it stays a Win32 dialog
+        // (P6.13). Its settings as JonesMain_Startup loads them.
+        static JonesState devState;
+        memset(&devState, 0, sizeof(devState));
+        JonesDevDialog_LoadSettings(JonesMain_GetDisplayEnvironment(), &devState);
+        SHOW("developer", JonesDevDialog_ShowDevDialog(stdWin95_GetWindow(), &devState));
+    }
     // Saving and loading have no Win32 dialog to fall back to: the platform's menu is their file picker (decision 21)
     // and GetSaveFileName/GetOpenFileName are not emulated, so where there is no menu (this headless run) they cancel.
     {
