@@ -145,6 +145,9 @@ int J3DAPI stdFileUtil_FileExists(const char* pFilename)
     hwndFind = FindFirstFileA(pFilename, &findFileData);
     if ( hwndFind != INVALID_HANDLE_VALUE )
     {
+#ifdef J3D_PORT
+        FindClose(hwndFind); // Port: retail leaked the search handle on every call (leaks, PORT-PLAN.md P7.9)
+#endif
         return 1;
     }
 

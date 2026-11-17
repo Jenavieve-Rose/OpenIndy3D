@@ -41,7 +41,10 @@
  * quicksave message uses. Timers on other windows belong to the dialogs of Phase 6 and are refused.
  *
  * J3D_FRAMES=<n> (jones3d --frames <n>) ends the run after n passes of the game loop by delivering WM_CLOSE, and
- * wkernel_Run then returns 0, as the null backend does. Such a run stays active when its window loses focus. J3D_HEADLESS selects SDL's "dummy" video driver unless
+ * wkernel_Run then returns 0, as the null backend does. Such a run stays active when its window loses focus.
+ *
+ * J3D_FRAME_STATS=1 prints the wall time of the game loop's passes at exit: mean, median, 95th and 99th percentiles and
+ * the worst, presenting and the wait for the display included (PORT-PLAN.md P7.9). J3D_HEADLESS selects SDL's "dummy" video driver unless
  * SDL_VIDEO_DRIVER names one, so a headless run opens no window but runs this same event loop.
  */
 #include <stdint.h>
@@ -802,6 +805,46 @@ static int wkernel_Pump(int bWait)
     return 0;
 }
 
+/* ---- Frame statistics (J3D_FRAME_STATS, PORT-PLAN.md P7.9) ---------------------------------------------------------- */
+
+// The wall time of each pass of the game loop, presenting and waiting for the display included; printed at exit.
+#define WKERNEL_MAXFRAMESTATS 262144
+static uint64_t* wkernel_pFrameNs = NULL;
+static size_t    wkernel_numFrameStats = 0;
+
+static int wkernel_CompareU64(const void* pA, const void* pB)
+{
+    const uint64_t a = *(const uint64_t*)pA;
+    const uint64_t b = *(const uint64_t*)pB;
+    return (a > b) - (a < b);
+}
+
+static void wkernel_PrintFrameStats(void)
+{
+    if ( !wkernel_pFrameNs || wkernel_numFrameStats < 2 )
+    {
+        return;
+    }
+
+    // The first passes load the level and play the intro; the rest are frames
+    size_t first = wkernel_numFrameStats > 60 ? 30 : 1;
+    size_t num = wkernel_numFrameStats - first;
+    uint64_t* pSorted = wkernel_pFrameNs + first;
+    uint64_t total = 0;
+    for ( size_t i = 0; i < num; ++i )
+    {
+        total += pSorted[i];
+    }
+    qsort(pSorted, num, sizeof(*pSorted), wkernel_CompareU64);
+#define WKERNEL_MS(ns) ((double)(ns) / 1e6)
+    fprintf(stderr, "Frame stats: %zu frames (after the first %zu), mean %.2f ms, median %.2f, p95 %.2f, p99 %.2f, worst %.2f\n",
+        num, first, WKERNEL_MS(total / num), WKERNEL_MS(pSorted[num / 2]), WKERNEL_MS(pSorted[num * 95 / 100]),
+        WKERNEL_MS(pSorted[num * 99 / 100]), WKERNEL_MS(pSorted[num - 1]));
+#undef WKERNEL_MS
+    free(wkernel_pFrameNs);
+    wkernel_pFrameNs = NULL;
+}
+
 /* ---- Window procedure --------------------------------------------------------------------------------------------- */
 
 static LRESULT wkernel_MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -918,8 +961,14 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     unsigned long maxFrames = pFrames ? strtoul(pFrames, NULL, 10) : 0; // 0: no limit
     unsigned long numFrames = 0;
 
+    if ( getenv("J3D_FRAME_STATS") )
+    {
+        wkernel_pFrameNs = malloc(sizeof(*wkernel_pFrameNs) * WKERNEL_MAXFRAMESTATS);
+    }
+
     while ( result == 0 )
     {
+        const uint64_t frameStart = wkernel_pFrameNs ? SDL_GetTicksNS() : 0;
         if ( (maxFrames && numFrames == maxFrames) || J3DRecord_ShouldQuit() )
         {
             // The window is closed as if by its close button; the run counts as complete. (A replay that went out of
@@ -932,7 +981,12 @@ int J3DAPI wkernel_Run(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         ++numFrames;
         J3DHost_AfterFrame(numFrames); // --screenshot-at
         J3DMenu_AfterFrame(numFrames); // J3D_MENU_TEST
+        if ( wkernel_pFrameNs && wkernel_numFrameStats < WKERNEL_MAXFRAMESTATS )
+        {
+            wkernel_pFrameNs[wkernel_numFrameStats++] = SDL_GetTicksNS() - frameStart;
+        }
     }
+    wkernel_PrintFrameStats();
 
     wkernel_DestroyWindow();
     SDL_Quit();
