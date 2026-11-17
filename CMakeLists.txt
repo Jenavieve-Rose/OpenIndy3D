@@ -345,6 +345,11 @@ if(J3D_PLATFORM STREQUAL "apple")
         set(J3D_ICON_FILE "")
     endif()
 
+    # The About window's text and the license and notices, in the app (P8.12)
+    set(J3D_BUNDLE_DOCS ${J3D_ROOT}/platform/apple/bundle/Credits.html ${J3D_ROOT}/LICENSE ${J3D_ROOT}/NOTICE)
+    set_source_files_properties(${J3D_BUNDLE_DOCS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources HEADER_FILE_ONLY TRUE)
+    target_sources(jones3d PRIVATE ${J3D_BUNDLE_DOCS})
+
     set_target_properties(jones3d PROPERTIES
         OUTPUT_NAME ${J3D_PRODUCT_NAME}
         MACOSX_BUNDLE TRUE

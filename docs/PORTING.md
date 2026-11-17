@@ -1909,3 +1909,13 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
 - Tests: `crash` (a headless game sent SIGSEGV mid-level dies of it, leaves the log with the signal, a backtrace and
   the level's load lines, and the next run reports it once); the launcher test's `options` run starts with a pending
   crash and checks the notice is shown and cleared.
+
+### Notices and packaging (P8.12, P8.13)
+
+- `README.md` (players and builders), `platform/apple/bundle/Credits.html` (the standard About window, which SDL's app
+  menu opens), and `LICENSE` and `NOTICE` in the app's Resources. `NOTICE` adds SDL 3, now linked into the app.
+- `tools/package.sh` signs a copy of the app with the Hardened Runtime and `OpenIndy3D.entitlements` (empty: the app
+  loads only system libraries and generates no code; Metal compiles the present shader), verifies it, packs a UDZO
+  disk image with a link to Applications and the README, signs that, and with `J3D_NOTARY_PROFILE` submits it to the
+  notary service and staples it. Default identity `-` (ad hoc). The packaged app was run from the image under the
+  Hardened Runtime, in a window: Metal, level 2, its autosave.

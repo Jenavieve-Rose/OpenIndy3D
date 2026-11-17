@@ -1072,9 +1072,16 @@ has no developer tools.
       signal it writes them with a backtrace to `~/Library/Logs/OpenIndy3D/Crash.log` and lets the signal end the
       game, so macOS still writes its report. The next run says where the log is (an alert with Show in Finder).
       `crash` test; the launcher test covers the alert.
-- [ ] **P8.12** (S) README and in-app notices: a retail copy is required, AGPL source offer, credits.
-- [ ] **P8.13** (M) Hardened Runtime, code signing, notarization, and a disk image.
-- [ ] **P8.14** (S) Clean-machine test on macOS 13 (the deployment target) and on the current release.
+- [x] **P8.12** (S) README and in-app notices: a retail copy is required, AGPL source offer, credits. Done:
+      `README.md`; the About window's `Credits.html`, with `LICENSE` and `NOTICE` in the app; `NOTICE` credits SDL 3,
+      now built in. The first-run question says a retail copy is needed.
+- [ ] **P8.13** (M) Hardened Runtime, code signing, notarization, and a disk image. Tooling done: `tools/package.sh`
+      signs with the Hardened Runtime (no entitlements needed) and a timestamp, refuses a non-system library, makes
+      and signs the disk image, and notarizes and staples it given a `notarytool` profile. Checked with an ad-hoc
+      signature: the app runs from the image (windowed, Metal, a level saved). Open: this Mac has no Developer ID, so
+      no notarized image yet, and the icon is the retail box art, to replace before a public release.
+- [ ] **P8.14** (S) Clean-machine test on macOS 13 (the deployment target) and on the current release. By hand,
+      after P8.13: the binary's minimum is 13.0 and it links only system libraries; a Mac on 13 is needed to run it.
 
 ### Phase 9: Stretch (not counted)
 

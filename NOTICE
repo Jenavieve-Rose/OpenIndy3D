@@ -20,6 +20,9 @@ It is derived from, and credits:
 
   * zlib 1.0.9 by Jean-loup Gailly and Mark Adler, vendored as modified by LucasArts for INSANE. zlib license.
 
+  * SDL 3 (https://libsdl.org), (c) Sam Lantinga and contributors, built into the app as a static library. zlib
+    license.
+
 
 "Indiana Jones" and "LucasArts" are trademarks of their respective owners. This project is not affiliated with or
 endorsed by Lucasfilm, LucasArts or The Walt Disney Company.

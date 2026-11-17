@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The app's entitlements under the Hardened Runtime (PORT-PLAN.md P8.13): none. It loads only system libraries,
+     generates no code (the Metal shaders are compiled by Metal), and asks for no protected resource. -->
+<plist version="1.0">
+<dict/>
+</plist>
