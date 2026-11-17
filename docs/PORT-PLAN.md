@@ -1130,6 +1130,11 @@ Linux and Windows; offering the portable platform layer to OpenJones3D. Started 
 - [ ] **P9.4** (L) An SDL_GPU backend for Linux and Windows.
 - [ ] **P9.5** (S) Offer the portable platform layer to OpenJones3D.
 
+P9.1 to P9.3 are on `main` (at `a9baf3d`), merged by fast-forward on 2026-11-17: two commits from the branch
+`phase9-stretch`, the three steps (`eb03a17`) and the audit with the docs (`a9baf3d`). At `a9baf3d` everything builds
+and every test passes in the apple (42 tests), null (34), sanitizer (42) and debug-asserts (42) trees
+(`tools/check.sh --asserts`), and in the arm64 and x86_64 trees of `tools/universal.sh --test` (42 each).
+
 ## Complete Phase 9 Code Audit (P9.1 to P9.3)
 
 Done 2026-11-17 for the three steps finished; details in `docs/PORTING.md`, "Phase 9 code audit".
