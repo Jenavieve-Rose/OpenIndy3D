@@ -1,7 +1,7 @@
 #ifndef RDROID_TYPES_H
 #define RDROID_TYPES_H
 #include <j3dcore/types.h>
-#include <d3dtypes.h>
+#include <std/Win95/stdDirectX.h> // Port: was <d3dtypes.h> (PORT-PLAN.md P7.6)
 #include <j3dcore/j3d.h>
 #include <std/types.h>
 

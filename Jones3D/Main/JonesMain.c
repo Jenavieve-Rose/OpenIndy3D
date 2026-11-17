@@ -470,12 +470,16 @@ void J3DAPI JonesDevDialog_LoadSettings(StdDisplayEnvironment* pDisplayEnv, Jone
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
+#ifndef J3D_PORT
+    // Port: no single-instance mutex (PORT-PLAN.md P7.7). Launch Services keeps one copy of an app running, and the
+    // tests run several copies of the game at once, each with its own settings and folders.
     JonesMain_mainMutex = CreateMutex(NULL, TRUE, "INDY3D");
     if ( GetLastError() == ERROR_ALREADY_EXISTS )
     {
         CloseHandle(JonesMain_mainMutex);
         return -1;
     }
+#endif
 
     return wkernel_Run(hInstance, hPrevInstance, lpCmdLine, nShowCmd, "Jones 3D");
 }
@@ -1500,10 +1504,12 @@ void J3DAPI JonesMain_Shutdown(void)
 
     JonesMain_bStartup = 0;
 
+#ifndef J3D_PORT // Port: no mutex, see WinMain
     if ( JonesMain_mainMutex )
     {
         CloseHandle(JonesMain_mainMutex);
     }
+#endif
 }
 
 void J3DAPI JonesMain_PauseGame(void)

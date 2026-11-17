@@ -1,10 +1,7 @@
 #ifndef STD_TYPES_H
 #define STD_TYPES_H
 #include <j3dcore/types.h>
-#include <d3d.h>
-#include <ddraw.h>
-#include <dinput.h>
-#include <dplay.h>
+#include <std/Win95/stdDirectX.h> // Port: was the DirectX SDK headers (PORT-PLAN.md P7.6)
 #include <j3dcore/j3d.h>
 
 J3D_EXTERN_C_START

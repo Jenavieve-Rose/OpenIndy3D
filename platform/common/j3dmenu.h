@@ -147,6 +147,10 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice);
 // Nonzero once the player quit from the launcher: the game's startup then stops, which is a normal exit, not a failure.
 int J3DMenu_QuitAtLaunch(void);
 
+// The HUD's Help (JonesHud_OpenHelp): opens the manual the launcher's Help opens (manual.pdf in the data folder) in the
+// system's viewer. Returns 0 when there is none or this platform cannot (PORT-PLAN.md P7.7).
+int J3DMenu_OpenHelp(void);
+
 /* The controls (templates 111, 115, 116, 117, 120). jonesConfig.c keeps the control sets and retail's rules; the
  * platform shows them and reports the buttons, through an action callback that changes the state and fills it again.
  * Plain C types only: platform/apple/menu/j3dmenu_ui.h includes this part for Swift. */

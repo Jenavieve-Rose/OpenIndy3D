@@ -4,8 +4,9 @@
  * user32 / gdi32 / comctl32 / comdlg32 / shell32 / ole32 vocabulary used by the game shell (jonesConfig.c,
  * JonesDialog.c, JonesDevDialog.c, JonesMain.c). Part of win32_shim.h; see that file for the rules.
  *
- * Phase 6 replaces the null implementations with the j3dgui dialog emulation (PORT-PLAN.md 5.6), which is why the
- * message and control constants keep their real Win32 values: the dialog code switches on them.
+ * j3dgui (platform/common/j3dgui/), the dialog emulation of phase 6, implements the dialog, control and GDI functions,
+ * and wkernel the game window's; the message and control constants keep their real Win32 values because the dialog
+ * code switches on them. Kept by decision 22; only what compiled code calls is declared (PORT-PLAN.md P7.7).
  */
 
 #ifdef __cplusplus
@@ -1286,15 +1287,11 @@ typedef struct _OFNOTIFYA { NMHDR hdr; LPOPENFILENAMEA lpOFN; LPSTR pszFile; } O
 #define VK_OEM_102    0xE2  // the extra key left of Z on ISO keyboards
 
 /* ----------------------------------------------------------------------------------------------------------------
- * Functions (null implementations in platform/common/null/win32_null.c)
+ * Functions (implemented by j3dgui and wkernel; FormatMessageA by crt_posix.c)
  * -------------------------------------------------------------------------------------------------------------- */
 /* Windows and dialogs */
 HWND     WINAPI GetDlgItem(HWND, int);
 int      WINAPI GetDlgCtrlID(HWND);
-UINT     WINAPI GetDlgItemTextA(HWND, int, LPSTR, int);
-BOOL     WINAPI SetDlgItemTextA(HWND, int, LPCSTR);
-UINT     WINAPI GetDlgItemInt(HWND, int, BOOL*, BOOL);
-BOOL     WINAPI SetDlgItemInt(HWND, int, UINT, BOOL);
 LRESULT  WINAPI SendDlgItemMessageA(HWND, int, UINT, WPARAM, LPARAM);
 BOOL     WINAPI CheckDlgButton(HWND, int, UINT);
 UINT     WINAPI IsDlgButtonChecked(HWND, int);
@@ -1311,15 +1308,8 @@ LONG_PTR WINAPI SetWindowLongPtrA(HWND, int, LONG_PTR);
 LRESULT  WINAPI SendMessageA(HWND, UINT, WPARAM, LPARAM);
 BOOL     WINAPI PostMessageA(HWND, UINT, WPARAM, LPARAM);
 void     WINAPI PostQuitMessage(int);
-BOOL     WINAPI PeekMessageA(LPMSG, HWND, UINT, UINT, UINT);
-BOOL     WINAPI GetMessageA(LPMSG, HWND, UINT, UINT);
-BOOL     WINAPI TranslateMessage(const MSG*);
-LRESULT  WINAPI DispatchMessageA(const MSG*);
 LRESULT  WINAPI DefWindowProcA(HWND, UINT, WPARAM, LPARAM);
 LRESULT  WINAPI CallWindowProcA(WNDPROC, HWND, UINT, WPARAM, LPARAM);
-ATOM     WINAPI RegisterClassA(const WNDCLASSA*);
-ATOM     WINAPI RegisterClassExA(const WNDCLASSEXA*);
-BOOL     WINAPI UnregisterClassA(LPCSTR, HINSTANCE);
 HWND     WINAPI CreateWindowExA(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 BOOL     WINAPI DestroyWindow(HWND);
 BOOL     WINAPI ShowWindow(HWND, int);
@@ -1354,7 +1344,6 @@ HWND     WINAPI SetActiveWindow(HWND);
 HWND     WINAPI GetFocus(void);
 HWND     WINAPI SetFocus(HWND);
 HWND     WINAPI GetWindow(HWND, UINT);
-HWND     WINAPI FindWindowA(LPCSTR, LPCSTR);
 BOOL     WINAPI EnumChildWindows(HWND, WNDENUMPROC, LPARAM);
 BOOL     WINAPI InvalidateRect(HWND, const RECT*, BOOL);
 BOOL     WINAPI ValidateRect(HWND, const RECT*);
@@ -1381,12 +1370,9 @@ HWND     WINAPI GetCapture(void);
 SHORT    WINAPI GetAsyncKeyState(int);
 SHORT    WINAPI GetKeyState(int);
 int      WINAPI GetKeyNameTextA(LONG, LPSTR, int);
-UINT     WINAPI MapVirtualKeyA(UINT, UINT);
 HCURSOR  WINAPI LoadCursorA(HINSTANCE, LPCSTR);
 HICON    WINAPI LoadIconA(HINSTANCE, LPCSTR);
 HANDLE   WINAPI LoadImageA(HINSTANCE, LPCSTR, UINT, int, int, UINT);
-HBITMAP  WINAPI LoadBitmapA(HINSTANCE, LPCSTR);
-int      WINAPI LoadStringA(HINSTANCE, UINT, LPSTR, int);
 BOOL     WINAPI DestroyIcon(HICON);
 BOOL     WINAPI DestroyCursor(HCURSOR);
 BOOL     WINAPI GetIconInfo(HICON, PICONINFO);
@@ -1410,18 +1396,9 @@ int      WINAPI SetScrollInfo(HWND, int, const SCROLLINFO*, BOOL);
 BOOL     WINAPI GetScrollInfo(HWND, int, LPSCROLLINFO);
 int      WINAPI MulDiv(int, int, int);
 DWORD    WINAPI FormatMessageA(DWORD, LPCVOID, DWORD, DWORD, LPSTR, DWORD, va_list*);
-HLOCAL   WINAPI LocalAlloc(UINT, SIZE_T);
-HLOCAL   WINAPI LocalFree(HLOCAL);
-HGLOBAL  WINAPI GlobalAlloc(UINT, SIZE_T);
-HGLOBAL  WINAPI GlobalFree(HGLOBAL);
-LPVOID   WINAPI GlobalLock(HGLOBAL);
-BOOL     WINAPI GlobalUnlock(HGLOBAL);
 DWORD    WINAPI SearchPathA(LPCSTR, LPCSTR, LPCSTR, DWORD, LPSTR, LPSTR*);
 BOOL     WINAPI GetComputerNameA(LPSTR, LPDWORD);
-BOOL     WINAPI GetUserNameA(LPSTR, LPDWORD);
-BOOL     WINAPI GetExitCodeProcess(HANDLE, LPDWORD);
 void     WINAPI DebugBreak(void);
-BOOL     WINAPI IsDebuggerPresent(void);
 
 /* GDI */
 HDC      WINAPI GetDC(HWND);
@@ -1437,8 +1414,6 @@ int      WINAPI GetObjectA(HANDLE, int, LPVOID);
 HBITMAP  WINAPI CreateCompatibleBitmap(HDC, int, int);
 HBITMAP  WINAPI CreateBitmap(int, int, UINT, UINT, const void*);
 HBITMAP  WINAPI CreateDIBSection(HDC, const BITMAPINFO*, UINT, void**, HANDLE, DWORD);
-int      WINAPI GetDIBits(HDC, HBITMAP, UINT, UINT, LPVOID, LPBITMAPINFO, UINT);
-int      WINAPI SetDIBits(HDC, HBITMAP, UINT, UINT, const void*, const BITMAPINFO*, UINT);
 int      WINAPI StretchDIBits(HDC, int, int, int, int, int, int, int, int, const void*, const BITMAPINFO*, UINT, DWORD);
 int      WINAPI SetDIBitsToDevice(HDC, int, int, DWORD, DWORD, int, int, UINT, UINT, const void*, const BITMAPINFO*, UINT);
 BOOL     WINAPI GetBitmapDimensionEx(HBITMAP, LPSIZE);
@@ -1474,13 +1449,9 @@ HFONT    WINAPI CreateFontA(int, int, int, int, int, DWORD, DWORD, DWORD, DWORD,
 HFONT    WINAPI CreateFontIndirectA(const LOGFONTA*);
 int      WINAPI AddFontResourceA(LPCSTR);
 BOOL     WINAPI RemoveFontResourceA(LPCSTR);
-HRGN     WINAPI CreateRectRgn(int, int, int, int);
-int      WINAPI SelectClipRgn(HDC, HRGN);
 BOOL     WINAPI GdiFlush(void);
 
 /* comctl32 */
-void       WINAPI InitCommonControls(void);
-BOOL       WINAPI InitCommonControlsEx(const INITCOMMONCONTROLSEX*);
 HIMAGELIST WINAPI ImageList_Create(int, int, UINT, int, int);
 BOOL       WINAPI ImageList_Destroy(HIMAGELIST);
 int        WINAPI ImageList_Add(HIMAGELIST, HBITMAP, HBITMAP);
@@ -1503,16 +1474,8 @@ BOOL       WINAPI ImageList_DragShowNolock(BOOL);
 /* comdlg32 / shell32 / ole32 */
 BOOL    WINAPI GetOpenFileNameA(LPOPENFILENAMEA);
 BOOL    WINAPI GetSaveFileNameA(LPOPENFILENAMEA);
-DWORD   WINAPI CommDlgExtendedError(void);
-BOOL    WINAPI ShellExecuteExA(LPSHELLEXECUTEINFOA);
-HINSTANCE WINAPI ShellExecuteA(HWND, LPCSTR, LPCSTR, LPCSTR, LPCSTR, INT);
-HRESULT WINAPI CoInitialize(LPVOID);
-void    WINAPI CoUninitialize(void);
-HRESULT WINAPI CoCreateInstance(REFCLSID, void*, DWORD, REFIID, LPVOID*);
 
 /* ANSI aliases */
-#define GetDlgItemText       GetDlgItemTextA
-#define SetDlgItemText       SetDlgItemTextA
 #define SendDlgItemMessage   SendDlgItemMessageA
 #define DialogBoxParam       DialogBoxParamA
 #define CreateDialogParam    CreateDialogParamA
@@ -1524,14 +1487,8 @@ HRESULT WINAPI CoCreateInstance(REFCLSID, void*, DWORD, REFIID, LPVOID*);
 #define SetWindowLongPtr     SetWindowLongPtrA
 #define SendMessage          SendMessageA
 #define PostMessage          PostMessageA
-#define PeekMessage          PeekMessageA
-#define GetMessage           GetMessageA
-#define DispatchMessage      DispatchMessageA
 #define DefWindowProc        DefWindowProcA
 #define CallWindowProc       CallWindowProcA
-#define RegisterClass        RegisterClassA
-#define RegisterClassEx      RegisterClassExA
-#define UnregisterClass      UnregisterClassA
 #define CreateWindowEx       CreateWindowExA
 #define CreateWindowA(c, n, s, x, y, w, h, p, m, i, l) CreateWindowExA(0, c, n, s, x, y, w, h, p, m, i, l)
 #define CreateWindow         CreateWindowA
@@ -1539,20 +1496,15 @@ HRESULT WINAPI CoCreateInstance(REFCLSID, void*, DWORD, REFIID, LPVOID*);
 #define GetWindowText        GetWindowTextA
 #define GetWindowTextLength  GetWindowTextLengthA
 #define GetClassName         GetClassNameA
-#define FindWindow           FindWindowA
 #define MessageBox           MessageBoxA
 #define SystemParametersInfo SystemParametersInfoA
 #define GetKeyNameText       GetKeyNameTextA
-#define MapVirtualKey        MapVirtualKeyA
 #define LoadCursor           LoadCursorA
 #define LoadIcon             LoadIconA
 #define LoadImage            LoadImageA
-#define LoadBitmap           LoadBitmapA
-#define LoadString           LoadStringA
 #define FormatMessage        FormatMessageA
 #define SearchPath           SearchPathA
 #define GetComputerName      GetComputerNameA
-#define GetUserName          GetUserNameA
 #define CreateDC             CreateDCA
 #define GetObject            GetObjectA
 #define TextOut              TextOutA
@@ -1569,8 +1521,6 @@ HRESULT WINAPI CoCreateInstance(REFCLSID, void*, DWORD, REFIID, LPVOID*);
 #define RemoveFontResource   RemoveFontResourceA
 #define GetOpenFileName      GetOpenFileNameA
 #define GetSaveFileName      GetSaveFileNameA
-#define ShellExecuteEx       ShellExecuteExA
-#define ShellExecute         ShellExecuteA
 
 #ifdef __cplusplus
 }

@@ -34,6 +34,10 @@
 #include <platform/common/stdDisplay_common.h>
 
 #include <dirent.h>
+#include <spawn.h>
+#include <sys/wait.h>
+
+extern char** environ; // posix_spawn's environment (unistd.h declares it only with _GNU_SOURCE-like settings)
 #include <platform/common/host_dirs.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1113,6 +1117,27 @@ static uint8_t* menu_LoadLaunchPicture(size_t* pSize)
 int J3DMenu_QuitAtLaunch(void)
 {
     return menu_bQuitAtLaunch;
+}
+
+int J3DMenu_OpenHelp(void)
+{
+    char aPath[1100];
+    char* aArgs[] = { "/usr/bin/open", aPath, NULL };
+    pid_t pid;
+    int status;
+
+    // Not in a run nobody watches: a test or a replay must not open a viewer
+    if ( !J3DMenu_IsAvailable() || !menu_FindHelp(aPath, sizeof(aPath)) )
+    {
+        return 0;
+    }
+
+    // open(1) hands the file to its viewer and returns at once, as ShellExecuteEx did
+    if ( posix_spawn(&pid, aArgs[0], NULL, NULL, aArgs, environ) != 0 )
+    {
+        return 0;
+    }
+    return waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
 int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)

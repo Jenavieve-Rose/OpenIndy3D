@@ -68,6 +68,12 @@ int J3DAPI stdGob_LoadEntry(Gob* pGob, const char* pFilename, int numFileHandles
     pGob->numHandles = numFileHandles;
     pGob->pCurHandle = NULL;
 
+#ifdef J3D_PORT
+    // Port: GOBs are read through file handles only (PORT-PLAN.md P7.7). Retail's mapping path was never taken either:
+    // its one caller, JonesFile_Open, passes bMapFile 0 ("after file mapping is fixed in stdGob").
+    (void)bMMapFile;
+    bNeedFileOpen = 1;
+#else
     if ( bMMapFile )
     {
         pGob->hFile = CreateFileA(pGob->aFilePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, NULL);
@@ -104,6 +110,8 @@ int J3DAPI stdGob_LoadEntry(Gob* pGob, const char* pFilename, int numFileHandles
     {
         bNeedFileOpen = 1;
     }
+
+#endif
 
     if ( bNeedFileOpen )
     {
@@ -192,6 +200,7 @@ void J3DAPI stdGob_FreeEntry(Gob* pGob)
 {
 #line 355
     STD_ASSERTREL(pGob!=NULL);
+#ifndef J3D_PORT // Port: never mapped, see stdGob_LoadEntry
     if ( pGob->bFileMap )
     {
         UnmapViewOfFile(pGob->pBase);
@@ -199,6 +208,7 @@ void J3DAPI stdGob_FreeEntry(Gob* pGob)
         CloseHandle(pGob->hFile);
         return;
     }
+#endif
 
     if ( pGob->directory.aEntries )
     {

@@ -1,45 +1,32 @@
-#ifndef J3D_PLATFORM_WIN32_SHIM_DX_H
-#define J3D_PLATFORM_WIN32_SHIM_DX_H
+#ifndef STD_WIN95_STDDIRECTX_H
+#define STD_WIN95_STDDIRECTX_H
 /*
- * DirectX 6 vocabulary (DirectDraw, Direct3D, DirectInput, DirectPlay) still named by engine headers. (DirectSound
- * left in P4.11: the sound module names its own opaque handles, sound/types.h.)
- * Part of win32_shim.h; see that file for the rules.
- *
- * COM interfaces are opaque: nothing outside the replaced platform files calls through them. The structs embedded by
- * value in std/types.h (tSystemTexture, tVSurface, StdDisplayDevice, Device3D, StdTextureFormat, StdInputDevice) keep
- * their DirectX names and the fields engine code reads, so those types still compile until the platform layer gives
- * them native replacements (Phases 2 to 4).
- *
- * Values that are part of the game's data are kept exact: DIK_* scancodes are stored in key bindings and named in the
- * .kfg keyset files (PORT-PLAN.md section 2.1), so the table below is the real DirectInput set.
+ * The DirectX 6 vocabulary the engine keeps (PORT-PLAN.md P7.6, decision 22). It used to come from the DirectX SDK
+ * headers, then from the port's stand-ins for them (platform/apple/shim/win32_shim_dx.h, deleted in phase 7); it is
+ * declared here, beside std3D.h, stdDisplay.h, stdControl.h and stdComm.h, because it is part of those modules'
+ * interfaces and of the game's data, not a dependence on Windows:
+ *   - the pre-transformed vertex rdroid hands to std3D (D3DTLVERTEX), and rdroid's D3DVAL arithmetic macros;
+ *   - the device and surface descriptions std/types.h embeds (StdDisplayDevice, Device3D, StdTextureFormat, ...), which
+ *     the platform backends fill in;
+ *   - the DirectInput keyboard scancodes (DIK_*), which key bindings store and the .kfg key set files name;
+ *   - DirectPlay's player id (DPID), the address of every message in sith's message layer.
+ * Only what the compiled engine and platform name is here. COM interfaces are opaque. Widths are LLP64, as in the
+ * SDK: DWORD and LONG are 32-bit.
  */
+#include <Windows.h> // DWORD, LONG, GUID and the other Win32 base types (decision 22)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ----------------------------------------------------------------------------------------------------------------
- * Opaque COM interfaces
+ * COM interfaces: opaque, named by the device and texture handles in std/types.h. Nothing calls through them.
  * -------------------------------------------------------------------------------------------------------------- */
-#define J3D_DX_INTERFACE(name) typedef struct name name; typedef name* LP##name
-J3D_DX_INTERFACE(IUnknown);
 typedef struct IDirectDraw4           IDirectDraw4,           *LPDIRECTDRAW4;
-typedef struct IDirectDraw            IDirectDraw,            *LPDIRECTDRAW;
 typedef struct IDirectDrawSurface4    IDirectDrawSurface4,    *LPDIRECTDRAWSURFACE4;
-typedef struct IDirectDrawSurface     IDirectDrawSurface,     *LPDIRECTDRAWSURFACE;
-typedef struct IDirectDrawPalette     IDirectDrawPalette,     *LPDIRECTDRAWPALETTE;
-typedef struct IDirectDrawClipper     IDirectDrawClipper,     *LPDIRECTDRAWCLIPPER;
-typedef struct IDirectDrawGammaControl IDirectDrawGammaControl, *LPDIRECTDRAWGAMMACONTROL;
-typedef struct IDirect3D3             IDirect3D3,             *LPDIRECT3D3;
-typedef struct IDirect3DDevice3       IDirect3DDevice3,       *LPDIRECT3DDEVICE3;
-typedef struct IDirect3DViewport3     IDirect3DViewport3,     *LPDIRECT3DVIEWPORT3;
 typedef struct IDirect3DTexture2      IDirect3DTexture2,      *LPDIRECT3DTEXTURE2;
-typedef struct IDirectInputA          IDirectInputA,          *LPDIRECTINPUTA, *LPDIRECTINPUT;
-typedef struct IDirectInputDeviceA    IDirectInputDeviceA,    *LPDIRECTINPUTDEVICEA, *LPDIRECTINPUTDEVICE;
-typedef struct IDirectInputDevice2A   IDirectInputDevice2A,   *LPDIRECTINPUTDEVICE2A, *LPDIRECTINPUTDEVICE2;
-typedef struct IDirectPlay4           IDirectPlay4,           *LPDIRECTPLAY4, *LPDIRECTPLAY4A;
-typedef struct IDirectPlayLobby3      IDirectPlayLobby3,      *LPDIRECTPLAYLOBBY3, *LPDIRECTPLAYLOBBY3A;
-#undef J3D_DX_INTERFACE
+typedef struct IDirectInputDeviceA    IDirectInputDeviceA,    *LPDIRECTINPUTDEVICEA;
+typedef struct IDirectInputDevice2A   IDirectInputDevice2A,   *LPDIRECTINPUTDEVICE2A;
 
 /* ----------------------------------------------------------------------------------------------------------------
  * Direct3D (d3dtypes.h)
@@ -50,15 +37,8 @@ typedef uint32_t D3DCOLOR, *LPD3DCOLOR;
 #define D3DDivide(a, b)      (float)((double)(a) / (double)(b))
 #define D3DMultiply(a, b)    ((a) * (b))
 #define RGBA_MAKE(r, g, b, a) ((D3DCOLOR)(((a) << 24) | ((r) << 16) | ((g) << 8) | (b)))
-#define RGB_MAKE(r, g, b)     ((D3DCOLOR)(((r) << 16) | ((g) << 8) | (b)))
 #define D3DRGBA(r, g, b, a) \
     ((D3DCOLOR)((((int32_t)((a) * 255)) << 24) | (((int32_t)((r) * 255)) << 16) | (((int32_t)((g) * 255)) << 8) | (int32_t)((b) * 255)))
-#define D3DRGB(r, g, b) \
-    (0xff000000L | (((int32_t)((r) * 255)) << 16) | (((int32_t)((g) * 255)) << 8) | (int32_t)((b) * 255))
-#define RGBA_GETALPHA(rgb) ((rgb) >> 24)
-#define RGBA_GETRED(rgb)   (((rgb) >> 16) & 0xff)
-#define RGBA_GETGREEN(rgb) (((rgb) >> 8) & 0xff)
-#define RGBA_GETBLUE(rgb)  ((rgb) & 0xff)
 
 /* The pre-transformed, lit vertex rdroid hands to std3D. Its layout is the contract with the Phase 2 Metal backend. */
 typedef struct _D3DTLVERTEX
@@ -242,38 +222,6 @@ typedef struct DIDEVICEINSTANCEA
 } DIDEVICEINSTANCEA, DIDEVICEINSTANCE, *LPDIDEVICEINSTANCEA, *LPDIDEVICEINSTANCE;
 typedef const DIDEVICEINSTANCEA* LPCDIDEVICEINSTANCEA;
 
-typedef struct _DIJOYSTATE
-{
-    LONG  lX, lY, lZ, lRx, lRy, lRz;
-    LONG  rglSlider[2];
-    DWORD rgdwPOV[4];
-    BYTE  rgbButtons[32];
-} DIJOYSTATE, *LPDIJOYSTATE;
-
-typedef struct _DIMOUSESTATE
-{
-    LONG lX, lY, lZ;
-    BYTE rgbButtons[4];
-} DIMOUSESTATE, *LPDIMOUSESTATE;
-
-typedef struct DIDEVICEOBJECTDATA
-{
-    DWORD dwOfs;
-    DWORD dwData;
-    DWORD dwTimeStamp;
-    DWORD dwSequence;
-} DIDEVICEOBJECTDATA, *LPDIDEVICEOBJECTDATA;
-
-#define DIJOFS_X            offsetof(DIJOYSTATE, lX)
-#define DIJOFS_Y            offsetof(DIJOYSTATE, lY)
-#define DIJOFS_Z            offsetof(DIJOYSTATE, lZ)
-#define DIJOFS_RX           offsetof(DIJOYSTATE, lRx)
-#define DIJOFS_RY           offsetof(DIJOYSTATE, lRy)
-#define DIJOFS_RZ           offsetof(DIJOYSTATE, lRz)
-#define DIJOFS_SLIDER(n)    (offsetof(DIJOYSTATE, rglSlider) + (n) * sizeof(LONG))
-#define DIJOFS_POV(n)       (offsetof(DIJOYSTATE, rgdwPOV) + (n) * sizeof(DWORD))
-#define DIJOFS_BUTTON(n)    (offsetof(DIJOYSTATE, rgbButtons) + (n))
-
 /* DirectInput keyboard scancodes (PC set 1). Stored in key bindings and .kfg files: values must not change. */
 #define DIK_ESCAPE          0x01
 #define DIK_1               0x02
@@ -427,26 +375,15 @@ typedef struct DIDEVICEOBJECTDATA
 #define DIK_PGDN            DIK_NEXT
 
 /* ----------------------------------------------------------------------------------------------------------------
- * DirectPlay (dplay.h). The game has no multiplayer, but DPID is the player id type throughout sith's message layer.
+ * DirectPlay: the game has no multiplayer, but DPID addresses every message in sith's message layer (stdComm.h).
  * -------------------------------------------------------------------------------------------------------------- */
 typedef DWORD DPID, *LPDPID;
-#define DPID_SYSMSG        0
 #define DPID_ALLPLAYERS    0
-#define DPID_SERVERPLAYER  1
 #define DPID_UNKNOWN       0xFFFFFFFF
 #define DPSEND_GUARANTEED  0x00000001
-#define DPSEND_HIGHPRIORITY 0x00000002
-#define DPSEND_OPENSTREAM  0x00000008
-#define DPSEND_CLOSESTREAM 0x00000010
-#define DPSEND_ASYNC       0x00000200
-#define DPRECEIVE_ALL      0x00000001
-#define DPRECEIVE_TOPLAYER 0x00000002
-#define DPRECEIVE_FROMPLAYER 0x00000004
-#define DPRECEIVE_PEEK     0x00000008
-#define DP_OK              S_OK
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* J3D_PLATFORM_WIN32_SHIM_DX_H */
+#endif /* STD_WIN95_STDDIRECTX_H */

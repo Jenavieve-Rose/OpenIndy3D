@@ -2,8 +2,8 @@
  * POSIX implementations of the MSVC CRT and kernel32 calls the engine makes that have an obvious, exact POSIX
  * equivalent: the _findfirst family, string case helpers, time, sleeping, directories and file deletion.
  *
- * These are real implementations, not null stubs. Everything with no clean equivalent (windows, GDI, the registry,
- * file mapping, threads) lives in null/win32_null.c instead.
+ * These are real implementations, not null stubs. Windows, dialogs and GDI are j3dgui's and wkernel's; what had no
+ * equivalent and no caller left was deleted in phase 7 with null/win32_null.c (PORT-PLAN.md P7.7, decision 22).
  */
 #include <ctype.h>
 #include <dirent.h>
@@ -584,6 +584,22 @@ DWORD WINAPI GetLastError(void)
 void WINAPI SetLastError(DWORD dwErrCode)
 {
     crt_lastError = dwErrCode;
+}
+
+// Only FORMAT_MESSAGE_FROM_SYSTEM, the one use (JonesDialog's error prints): the error number, which is all the port's
+// GetLastError knows (PORT-PLAN.md P7.7).
+DWORD WINAPI FormatMessageA(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId, LPSTR lpBuffer,
+                            DWORD nSize, va_list* pArguments)
+{
+    (void)lpSource;
+    (void)dwLanguageId;
+    (void)pArguments;
+    if ( !(dwFlags & FORMAT_MESSAGE_FROM_SYSTEM) || (dwFlags & FORMAT_MESSAGE_ALLOCATE_BUFFER) || !lpBuffer || !nSize )
+    {
+        return 0;
+    }
+    int len = snprintf(lpBuffer, nSize, "error %u\n", (unsigned int)dwMessageId);
+    return len < 0 ? 0 : (DWORD)(len < (int)nSize ? len : (int)nSize - 1);
 }
 
 void WINAPI OutputDebugStringA(LPCSTR lpOutputString)

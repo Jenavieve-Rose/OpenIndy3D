@@ -1357,3 +1357,18 @@ int WINAPI MessageBoxA(HWND hwnd, LPCSTR pText, LPCSTR pCaption, UINT type)
     }
     return (int)result;
 }
+
+/* The common file dialogs. Saving and loading are the platform's menus (J3DMenu_GetSaveGameFilePath and
+ * J3DMenu_GetLoadGameFilePath, decision 21); there is no Win32 file dialog to fall back on, so a run with no menu
+ * answers as a cancelled dialog, which the game handles (PORT-PLAN.md P6.17, P7.7). */
+BOOL WINAPI GetOpenFileNameA(LPOPENFILENAMEA pOfn)
+{
+    (void)pOfn;
+    return FALSE;
+}
+
+BOOL WINAPI GetSaveFileNameA(LPOPENFILENAMEA pOfn)
+{
+    (void)pOfn;
+    return FALSE;
+}

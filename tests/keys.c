@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include <Windows.h>
+#include <std/Win95/stdDirectX.h> // DIK_*
 
 #include <platform/common/host_keys.h>
 

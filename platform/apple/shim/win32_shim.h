@@ -1,18 +1,24 @@
 #ifndef J3D_PLATFORM_WIN32_SHIM_H
 #define J3D_PLATFORM_WIN32_SHIM_H
 /*
- * Win32 / DirectX vocabulary for otherwise-portable code (PORT-PLAN.md, Phase 0).
+ * The Win32 vocabulary the port keeps (PORT-PLAN.md decision 22): the base types and the kernel32 and CRT functions
+ * the imported code names, each implemented for real by the port (platform/common/crt_posix.c), and through
+ * win32_shim_gui.h the user32, gdi32 and comctl32 API that the port's Win32 emulation implements (j3dgui, the game
+ * window's wkernel). Nothing here is a call that silently does nothing: tools/gen_null_platform.py stops with an error
+ * on a declared function nobody implements, apart from the null build's window-message queue.
  *
- * This header exists so the decomp compiles before every Windows reference is cleaned out. Everything here is debt:
- * each type and function should disappear as the module that names it is ported, and the header is deleted in
- * Phase 7. Rules:
+ * Phase 0 created it as debt, to be deleted in phase 7. Phase 7 deleted what could go: the DirectX part (now the
+ * engine's own Libs/std/Win95/stdDirectX.h), the stand-ins for headers nothing includes, every declaration nothing
+ * calls, and win32_null.c. What stays is used by design: the dialog shell keeps its Win32 dialog procedures over
+ * j3dgui (decisions 9 and 21), the game window procedure takes Win32 messages from wkernel, and the engine's structures
+ * use the Win32 integer and handle types. The stand-in names (Windows.h, CommCtrl.h, ...) are kept so the imported
+ * sources include what they always did. Rules:
  *   - Types only have the members the engine actually touches, with Win32 names, so field accesses compile.
  *   - Handles are opaque pointers, so they are 64-bit like the pointers they really are.
  *   - Widths follow Windows LLP64: DWORD and LONG are 32-bit on every platform.
- *   - Functions are declared here and implemented by the null platform (platform/common/null/win32_null.c), which
- *     returns failure or does nothing.
+ *   - A function is declared here only if compiled code calls it, and it is implemented by crt_posix.c or j3dgui.
  *
- * The stand-in headers next to this file (Windows.h, ddraw.h, dinput.h, ...) all just include it.
+ * The stand-in headers next to this file (Windows.h, CommCtrl.h, windowsx.h, ...) all just include it.
  */
 #include <stddef.h>
 #include <stdint.h>
@@ -320,31 +326,13 @@ typedef intptr_t (WINAPI* FARPROC)(void);
 
 DWORD   WINAPI GetLastError(void);
 void    WINAPI SetLastError(DWORD dwErrCode);
-HANDLE  WINAPI CreateMutexA(LPSECURITY_ATTRIBUTES, BOOL, LPCSTR);
-#define CreateMutex CreateMutexA
-BOOL    WINAPI ReleaseMutex(HANDLE);
-BOOL    WINAPI CloseHandle(HANDLE);
-DWORD   WINAPI WaitForSingleObject(HANDLE, DWORD);
 void    WINAPI Sleep(DWORD);
 DWORD   WINAPI GetTickCount(void);
 DWORD   WINAPI timeGetTime(void);
-BOOL    WINAPI QueryPerformanceCounter(LARGE_INTEGER*);
-BOOL    WINAPI QueryPerformanceFrequency(LARGE_INTEGER*);
 void    WINAPI GetLocalTime(LPSYSTEMTIME);
 void    WINAPI GetSystemTime(LPSYSTEMTIME);
-void    WINAPI GlobalMemoryStatus(LPMEMORYSTATUS);
-BOOL    WINAPI GetVersionExA(LPOSVERSIONINFOA);
-#define GetVersionEx GetVersionExA
 void    WINAPI OutputDebugStringA(LPCSTR);
 #define OutputDebugString OutputDebugStringA
-HMODULE WINAPI GetModuleHandleA(LPCSTR);
-#define GetModuleHandle GetModuleHandleA
-DWORD   WINAPI GetModuleFileNameA(HMODULE, LPSTR, DWORD);
-#define GetModuleFileName GetModuleFileNameA
-HMODULE WINAPI LoadLibraryA(LPCSTR);
-#define LoadLibrary LoadLibraryA
-BOOL    WINAPI FreeLibrary(HMODULE);
-FARPROC WINAPI GetProcAddress(HMODULE, LPCSTR);
 DWORD   WINAPI GetCurrentDirectoryA(DWORD, LPSTR);
 #define GetCurrentDirectory GetCurrentDirectoryA
 BOOL    WINAPI SetCurrentDirectoryA(LPCSTR);
@@ -355,13 +343,7 @@ BOOL    WINAPI RemoveDirectoryA(LPCSTR);
 #define RemoveDirectory RemoveDirectoryA
 BOOL    WINAPI DeleteFileA(LPCSTR);
 #define DeleteFile DeleteFileA
-BOOL    WINAPI CopyFileA(LPCSTR, LPCSTR, BOOL);
-#define CopyFile CopyFileA
-DWORD   WINAPI GetFileAttributesA(LPCSTR);
-#define GetFileAttributes GetFileAttributesA
 #define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
-UINT    WINAPI GetDriveTypeA(LPCSTR);
-#define GetDriveType GetDriveTypeA
 #define DRIVE_UNKNOWN 0
 #define DRIVE_NO_ROOT_DIR 1
 #define DRIVE_REMOVABLE 2
@@ -369,48 +351,12 @@ UINT    WINAPI GetDriveTypeA(LPCSTR);
 #define DRIVE_REMOTE 4
 #define DRIVE_CDROM 5
 #define DRIVE_RAMDISK 6
-DWORD   WINAPI GetLogicalDrives(void);
-DWORD   WINAPI GetLogicalDriveStringsA(DWORD, LPSTR);
-#define GetLogicalDriveStrings GetLogicalDriveStringsA
-BOOL    WINAPI GetVolumeInformationA(LPCSTR, LPSTR, DWORD, LPDWORD, LPDWORD, LPDWORD, LPSTR, DWORD);
-#define GetVolumeInformation GetVolumeInformationA
-BOOL    WINAPI GetDiskFreeSpaceA(LPCSTR, LPDWORD, LPDWORD, LPDWORD, LPDWORD);
-#define GetDiskFreeSpace GetDiskFreeSpaceA
 HANDLE  WINAPI FindFirstFileA(LPCSTR, LPWIN32_FIND_DATAA);
 #define FindFirstFile FindFirstFileA
 BOOL    WINAPI FindNextFileA(HANDLE, LPWIN32_FIND_DATAA);
 #define FindNextFile FindNextFileA
 BOOL    WINAPI FindClose(HANDLE);
-BOOL    WINAPI FileTimeToLocalFileTime(const FILETIME*, LPFILETIME);
-BOOL    WINAPI FileTimeToSystemTime(const FILETIME*, LPSYSTEMTIME);
-HANDLE  WINAPI CreateFileA(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
-#define CreateFile CreateFileA
-DWORD   WINAPI GetFileSize(HANDLE, LPDWORD);
-HANDLE  WINAPI CreateFileMappingA(HANDLE, LPSECURITY_ATTRIBUTES, DWORD, DWORD, DWORD, LPCSTR);
-#define CreateFileMapping CreateFileMappingA
-LPVOID  WINAPI MapViewOfFile(HANDLE, DWORD, DWORD, DWORD, SIZE_T);
-BOOL    WINAPI UnmapViewOfFile(LPCVOID);
-HANDLE  WINAPI CreateThread(LPSECURITY_ATTRIBUTES, SIZE_T, LPTHREAD_START_ROUTINE, LPVOID, DWORD, LPDWORD);
-BOOL    WINAPI SetThreadPriority(HANDLE, int);
-HANDLE  WINAPI GetCurrentThread(void);
-void    WINAPI InitializeCriticalSection(LPCRITICAL_SECTION);
-void    WINAPI DeleteCriticalSection(LPCRITICAL_SECTION);
-void    WINAPI EnterCriticalSection(LPCRITICAL_SECTION);
-void    WINAPI LeaveCriticalSection(LPCRITICAL_SECTION);
-int     WINAPI MultiByteToWideChar(UINT, DWORD, LPCSTR, int, LPWSTR, int);
-int     WINAPI WideCharToMultiByte(UINT, DWORD, LPCWSTR, int, LPSTR, int, LPCSTR, LPBOOL);
 #define CP_ACP 0
-UINT    WINAPI GetPrivateProfileIntA(LPCSTR, LPCSTR, int, LPCSTR);
-DWORD   WINAPI GetPrivateProfileStringA(LPCSTR, LPCSTR, LPCSTR, LPSTR, DWORD, LPCSTR);
-BOOL    WINAPI WritePrivateProfileStringA(LPCSTR, LPCSTR, LPCSTR, LPCSTR);
-#define GetPrivateProfileInt GetPrivateProfileIntA
-#define GetPrivateProfileString GetPrivateProfileStringA
-#define WritePrivateProfileString WritePrivateProfileStringA
-DWORD   WINAPI GetEnvironmentVariableA(LPCSTR, LPSTR, DWORD);
-#define GetEnvironmentVariable GetEnvironmentVariableA
-LPSTR   WINAPI GetCommandLineA(void);
-#define GetCommandLine GetCommandLineA
-void    WINAPI ExitProcess(UINT);
 
 /* ----------------------------------------------------------------------------------------------------------------
  * MSVC CRT names
@@ -485,6 +431,5 @@ int      _mkdir(const char* path);
 #endif
 
 #include "win32_shim_gui.h"
-#include "win32_shim_dx.h"
 
 #endif /* J3D_PLATFORM_WIN32_SHIM_H */

@@ -44,6 +44,8 @@
 #include <std/General/stdUtil.h>
 #include <std/Win95/stdControl.h>
 #include <std/Win95/stdDisplay.h>
+
+#include <platform/common/j3dmenu.h>
 #include <std/Win95/stdWin95.h>
 
 #include <w32util/wuRegistry.h>
@@ -3539,6 +3541,7 @@ void J3DAPI JonesHud_MenuActivateItem(void)
             } break;
 
             case JONESHUD_MENU_HELP:
+#ifndef J3D_PORT // Port: no help process to watch, see JonesHud_OpenHelp
                 if ( JonesHud_hProcessHelp )
                 {
                     DWORD exitCode;
@@ -3549,6 +3552,7 @@ void J3DAPI JonesHud_MenuActivateItem(void)
                         JonesHud_hProcessHelp = NULL;
                     }
                 }
+#endif
 
                 JonesHud_hProcessHelp = JonesHud_OpenHelp(JonesHud_hProcessHelp);
                 dlgResult = 2;
@@ -4270,6 +4274,13 @@ int J3DAPI JonesHud_ShowLevelCompleted(void)
 
 HANDLE J3DAPI JonesHud_OpenHelp(HANDLE process)
 {
+#ifdef J3D_PORT
+    // Port: retail opened the Windows help file (SITHSTRING_HELPFILE, a .chm) with ShellExecuteEx, which the port
+    // cannot; the platform opens the manual the launcher's Help opens. There is no process to watch (PORT-PLAN.md P7.7).
+    (void)process;
+    J3DMenu_OpenHelp();
+    return NULL;
+#else
     HANDLE hProc;
     wchar_t* pwHelpFile;
     char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (PORT-PLAN.md P1.30)
@@ -4304,6 +4315,7 @@ HANDLE J3DAPI JonesHud_OpenHelp(HANDLE process)
     }
 
     return hProc;
+#endif
 }
 
 void J3DAPI JonesHud_ShowGameOverDialog(int bPlayDiedMusic)

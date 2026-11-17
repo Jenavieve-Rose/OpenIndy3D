@@ -105,6 +105,11 @@ int J3DMenu_QuitAtLaunch(void)
     return 0;
 }
 
+int J3DMenu_OpenHelp(void)
+{
+    return 0;
+}
+
 int J3DMenu_EditControlSet(J3DMenuControlSet* pSet, int* pResult)
 {
     (void)pSet;

@@ -59,13 +59,19 @@ int J3DAPI stdPlatform_InitServices(tHostServices* pHS)
     pHS->pLockHandle   = stdPlatform_LockHandle;
     pHS->pUnlockHandle = stdPlatform_UnlockHandle;
 
+#ifdef J3D_PORT
+    return 0; // Port: there is no COM to start (PORT-PLAN.md P7.7); S_OK, as CoInitialize returned
+#else
     return CoInitialize(0);
+#endif
 }
 
 void J3DAPI stdPlatform_ClearServices(tHostServices* pHS)
 {
     memset(pHS, 0, sizeof(tHostServices));
+#ifndef J3D_PORT // Port: no COM, see stdPlatform_InitServices
     CoUninitialize();
+#endif
 }
 
 unsigned int J3DAPI stdPlatform_GetTimeMsec(void)

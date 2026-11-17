@@ -5,7 +5,8 @@
 #include <string.h>
 #include <strings.h>
 
-#include <Windows.h> // DIK_* (the shim's dinput subset)
+#include <Windows.h>
+#include <std/Win95/stdDirectX.h> // DIK_*
 
 #include "host_keys.h"
 
