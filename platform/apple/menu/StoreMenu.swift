@@ -98,7 +98,7 @@ private struct StoreMenu: View {
     private func remove(_ index: Int) { perform(J3DMENU_UI_STORE_RETURN, index) }
 
     private func perform(_ code: Int32, _ index: Int) {
-        if model.perform(code, index) { answer(1) }
+        menuAfterAction { if model.perform(code, index) { answer(1) } } // the game can answer with a message
     }
 
     private var figures: some View {

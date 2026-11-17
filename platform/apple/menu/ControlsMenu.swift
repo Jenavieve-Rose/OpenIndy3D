@@ -139,7 +139,8 @@ private struct ControlOptionsMenu: View {
     }
 
     private func act(_ action: Int32, _ value: Int = 0) {
-        if model.perform(action, value) { answer(1) }
+        // Edit opens the control set over this menu
+        menuAfterAction { if model.perform(action, value) { answer(1) } }
     }
 }
 
@@ -377,7 +378,8 @@ private struct ControlSetMenu: View {
     }
 
     private func act(_ action: Int32) {
-        if model.perform(action) { answer(1) }
+        // Add and Change wait for a key or a button over this menu, and a refusal or a question can follow
+        menuAfterAction { if model.perform(action) { answer(1) } }
     }
 }
 
@@ -571,7 +573,8 @@ public func J3DMenuUI_Capture(_ gameWindow: UnsafeMutableRawPointer?, _ title: U
     let actionText = menuString(action)
     let cancel = menuString(cancelLabel)
     return MainActor.assumeIsolated {
-        let result = runMenu(over: gameWindow) { answer in
+        // The controller's buttons are what it waits for, not Return and Escape
+        let result = runMenu(over: gameWindow, padKeys: false) { answer in
             CaptureMenu(title: titleText, prompt: promptText, action: actionText, cancelLabel: cancel, input: input, answer: answer)
         }
         return result == 1 ? 1 : 0

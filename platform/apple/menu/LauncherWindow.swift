@@ -53,8 +53,22 @@ private func runWindow<Content: View>(title: String, parent: NSWindow?, closeVal
         NSApp.stopModal()
     }
     .preferredColorScheme(.dark))
-    window.contentView = host
-    window.setContentSize(host.fittingSize)
+    // The content in a plain view of its own, which a menu opened from this window (runMenu) is laid over as a sibling:
+    // a view added inside the SwiftUI hosting view was never drawn, though it took the clicks
+    let size = host.fittingSize
+    let container = NSView(frame: NSRect(origin: .zero, size: size))
+    container.wantsLayer = true
+    host.frame = container.bounds
+    host.autoresizingMask = [.width, .height]
+    container.addSubview(host)
+    window.contentView = container
+    window.setContentSize(size)
+    // The hidden title bar's height stays above the content, as it did when the hosting view was the content view
+    let titleBar = container.bounds.height - window.contentLayoutRect.height
+    if titleBar > 0 {
+        window.setContentSize(NSSize(width: size.width, height: size.height + titleBar))
+        host.frame = NSRect(origin: .zero, size: size)
+    }
     if let parent {
         let p = parent.frame
         window.setFrameOrigin(NSPoint(x: p.midX - window.frame.width / 2, y: p.midY - window.frame.height / 2))
@@ -275,7 +289,7 @@ private struct LauncherView: View {
             let timer = Timer(timeInterval: 0.5, repeats: false) { _ in
                 MainActor.assumeIsolated {
                     onOptions()
-                    answer(Int(J3DMENU_LAUNCH_QUIT))
+                    menuAfterAction { answer(Int(J3DMENU_LAUNCH_QUIT)) } // after Options, which waits its turn too
                 }
             }
             RunLoop.main.add(timer, forMode: .modalPanel)
@@ -346,7 +360,8 @@ public func J3DMenuUI_Launcher(_ uiPointer: UnsafePointer<J3DMenuLauncherUI>?) -
             LauncherView(picture: picture, labels: labels, resumeDetail: resume, status: status, version: version,
                          onOptions: {
                              launcherWindow = launcherWindow ?? NSApp.modalWindow
-                             pfOptions?(launcherWindow.map { Unmanaged.passUnretained($0).toOpaque() })
+                             let window = launcherWindow
+                             menuAfterAction { pfOptions?(window.map { Unmanaged.passUnretained($0).toOpaque() }) }
                          },
                          onHelp: { if let helpPath { NSWorkspace.shared.open(URL(fileURLWithPath: helpPath)) } },
                          hasHelp: helpPath != nil,

@@ -1981,3 +1981,31 @@ an in-game menu took the focus from the game, so its options could not be change
 - The launcher's Options window is unchanged; with the game window no longer on screen behind the launcher, nothing
   else can take the keyboard or the mouse from it. `J3D_MENU_TEST_LAUNCHER_PRESS=options` presses its Options button
   once the launcher is up, and the launcher test checks it opens; it could open only before the launcher before.
+
+### Menus that open menus, and keys under a menu (after phase 8)
+
+Reported by hand: nothing in the launcher's Options window could be clicked, its Control Options button locked the
+window, rebinding a control froze the game, and in game a name typed into a menu came out with every key doubled.
+
+- SwiftUI runs a button's action from inside its own update and holds back every update and action of every view until
+  that returns. A menu run from an action (Options from the launcher's button, the control set from Edit, the wait for
+  a key from Add or Change) drew but took no clicks, and the wait for a key never started; a sample showed the Options
+  window's modal session under `UpdateGroup.dispatchActions`. `menuAfterAction` (`MenuHost.swift`) runs such an action
+  once the click is dispatched, and is skipped when its menu has closed or another is over it by then.
+- A menu laid inside the launcher's Options window was added to the SwiftUI hosting view, which never drew it though it
+  took the clicks. `runWindow` now puts the content in a plain view, and menus go over it as siblings; the hidden title
+  bar's height is kept, so the window looks as before.
+- The wait for a controller button turned stdControl on to read the pads, which captured the mouse (relative mode) ten
+  times a second now that the game window keeps the focus under a menu. `J3DControl_SetMenuUp` (`stdControl_sdl.c`)
+  leaves the mouse alone while a menu is up. That wait no longer turns the controller's buttons into Return and Escape
+  (`runMenu(padKeys:)`), since they are what it waits for.
+- SDL sees every key the game window gets, a menu's included, and its text input (on for the game's `WM_CHAR`) typed
+  each one into the menu's text field again. `menu_Begin` turns it off while a menu is up and `menu_End` back on.
+- `jonesString_GetString`'s text does not outlive the next lookup: the wait for a key showed the action's name as its
+  prompt, the reassign question's lines were garbled, and the new key set's prompt read "Control Options". The prompt
+  and format strings are copied first (`jonesConfig_MenuAssign`, `J3DMenu_AskName`, `J3DMenu_ShowMessage`,
+  `J3DMenu_Ask`).
+
+Checked: clicks injected in the process through the launcher, Options, Control Options, a set and a rebind to a saved
+key set; the Exit menu's Exit Game closing the game; the launcher, dialogs, gamedialogs and input tests; and by hand in
+game (rebinding, Save and Exit, Exit, typing a set's name).

@@ -11189,12 +11189,15 @@ static int jonesConfig_MenuAssign(JonesControlsScheme* pScheme, int actionId, in
         int function;
         int otherAction = -1;
         size_t otherBind = 0;
+        char aPrompt[256];
 
         memset(&jonesConfig_menuCapture, 0, sizeof(jonesConfig_menuCapture));
         jonesConfig_menuCapture.actionId = actionId;
         jonesConfig_menuCapture.pScheme  = pScheme;
         jonesConfig_menuCapture.listID   = bController ? 1006 : 1005;
-        if ( !J3DMenu_CaptureControl(jonesConfig_MenuString(bController ? "JONES_STR_NEXTBUTTON" : "JONES_STR_NEXTKEY"),
+        // A copy: jonesString_GetString's result does not outlive the next call, which here is the action's name
+        snprintf(aPrompt, sizeof(aPrompt), "%s", jonesConfig_MenuString(bController ? "JONES_STR_NEXTBUTTON" : "JONES_STR_NEXTKEY"));
+        if ( !J3DMenu_CaptureControl(aPrompt,
                                      jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[actionId]),
                                      jonesConfig_MenuCaptureInput, &result)
              || result != 1 )
@@ -11219,7 +11222,9 @@ static int jonesConfig_MenuAssign(JonesControlsScheme* pScheme, int actionId, in
         if ( otherAction == actionId )
         {
             char aMsg[512];
-            snprintf(aMsg, sizeof(aMsg), "\"%s\" %s %s.", jonesConfig_menuCapture.aControlName, jonesConfig_MenuString("JONES_STR_SAMEMAP"),
+            char aSame[256];
+            snprintf(aSame, sizeof(aSame), "%s", jonesConfig_MenuString("JONES_STR_SAMEMAP"));
+            snprintf(aMsg, sizeof(aMsg), "\"%s\" %s %s.", jonesConfig_menuCapture.aControlName, aSame,
                      jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[actionId]));
             jonesConfig_MenuMessage(aMsg);
             return 0;
@@ -11231,14 +11236,18 @@ static int jonesConfig_MenuAssign(JonesControlsScheme* pScheme, int actionId, in
             char aQuoted[300];
             char aText[1024];
             char aLine[512];
+            char aFormat[256];
             int answer = 2;
             snprintf(aQuoted, sizeof(aQuoted), "\"%s\" ", jonesConfig_menuCapture.aControlName);
             snprintf(aText, sizeof(aText), jonesConfig_MenuString("JONES_STR_NEWMAP"), aQuoted);
             strcat(aText, "\n");
-            snprintf(aLine, sizeof(aLine), jonesConfig_MenuString("JONES_STR_FROM"), jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[otherAction]));
+            // Each format is copied first: jonesString_GetString's result does not outlive the next call
+            snprintf(aFormat, sizeof(aFormat), "%s", jonesConfig_MenuString("JONES_STR_FROM"));
+            snprintf(aLine, sizeof(aLine), aFormat, jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[otherAction]));
             strncat(aText, aLine, sizeof(aText) - strlen(aText) - 1);
             strncat(aText, " ", sizeof(aText) - strlen(aText) - 1);
-            snprintf(aLine, sizeof(aLine), jonesConfig_MenuString("JONES_STR_TO"), jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[actionId]));
+            snprintf(aFormat, sizeof(aFormat), "%s", jonesConfig_MenuString("JONES_STR_TO"));
+            snprintf(aLine, sizeof(aLine), aFormat, jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[actionId]));
             strncat(aText, aLine, sizeof(aText) - strlen(aText) - 1);
             strncat(aText, "\n\n", sizeof(aText) - strlen(aText) - 1);
             strncat(aText, jonesConfig_MenuString("JONES_STR_REMAP"), sizeof(aText) - strlen(aText) - 1);
@@ -11290,7 +11299,9 @@ static int jonesConfig_ControlSetMenuAction(J3DMenuControlSet* pSet, int action,
                 if ( JONESCONTROL_ACTION_GETNUMBINDS(pAction) >= JONESCONTROL_ACTION_MAXBINDS )
                 {
                     char aMsg[512];
-                    snprintf(aMsg, sizeof(aMsg), jonesConfig_MenuString("JONES_STR_EXCEED"), jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[row]));
+                    char aFormat[256];
+                    snprintf(aFormat, sizeof(aFormat), "%s", jonesConfig_MenuString("JONES_STR_EXCEED")); // outlives the next lookup
+                    snprintf(aMsg, sizeof(aMsg), aFormat, jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[row]));
                     jonesConfig_MenuMessage(aMsg);
                     break;
                 }

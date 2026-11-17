@@ -37,6 +37,7 @@
 #include <platform/common/j3dgui/j3dgui.h>
 #include <platform/common/host_record.h>
 #include <platform/common/stdDisplay_common.h>
+#include <platform/apple/stdControl_sdl.h>
 
 #include <dirent.h>
 #include <spawn.h>
@@ -60,6 +61,7 @@ typedef struct MenuSession
     void* pNSWindow;
     bool bRelativeMouse;
     bool bCursorVisible;
+    bool bTextInput;
 } MenuSession;
 
 // The game window's NSWindow when a menu can be laid over it in this run: not headless, not in a replay (which holds
@@ -192,6 +194,14 @@ static int menu_Begin(MenuSession* pSession)
     }
     pSession->bRelativeMouse = SDL_GetWindowRelativeMouseMode(pWindow);
     pSession->bCursorVisible = SDL_CursorVisible();
+    J3DControl_SetMenuUp(1); // stdControl leaves the mouse alone until the menu closes
+    // SDL's text input off while the menu is up: SDL sees every key the game window gets, the menu's included, and its
+    // text input typed each character into the menu's text field a second time
+    pSession->bTextInput = SDL_TextInputActive(pWindow);
+    if ( pSession->bTextInput )
+    {
+        SDL_StopTextInput(pWindow);
+    }
     SDL_SetWindowRelativeMouseMode(pWindow, false);
     SDL_ShowCursor();
     return 1;
@@ -205,6 +215,7 @@ static void menu_End(MenuSession* pSession)
     {
         return;
     }
+    J3DControl_SetMenuUp(0);
     SDL_SetWindowRelativeMouseMode(pSession->pWindow, pSession->bRelativeMouse);
     if ( !pSession->bCursorVisible )
     {
@@ -213,9 +224,14 @@ static void menu_End(MenuSession* pSession)
     // The keys and the mouse motion that answered the menu are not the game's.
     SDL_PumpEvents();
     SDL_FlushEvents(SDL_EVENT_KEY_DOWN, SDL_EVENT_KEY_UP);
+    SDL_FlushEvents(SDL_EVENT_TEXT_INPUT, SDL_EVENT_TEXT_INPUT);
     SDL_FlushEvents(SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_WHEEL);
     SDL_ResetKeyboard();
     SDL_GetRelativeMouseState(&dx, &dy);
+    if ( pSession->bTextInput )
+    {
+        SDL_StartTextInput(pSession->pWindow);
+    }
 }
 
 // A string-table entry, or the fallback when the table has none, as a label: without the '&' that marks a Win32
@@ -271,12 +287,15 @@ static int menu_Confirm(MenuSession* pSession, const char* pTitle, const char* p
 int J3DMenu_ShowMessage(const char* pTitle, const char* pText, int iconID, int* pResult)
 {
     MenuSession session;
+    char aText[2048];
     (void)iconID;
     if ( !menu_Begin(&session) )
     {
         return 0;
     }
-    menu_Message(&session, menu_String(pTitle, pTitle), pText);
+    // The text first: it can be jonesString_GetString's, which the title's lookup replaces
+    snprintf(aText, sizeof(aText), "%s", pText ? pText : "");
+    menu_Message(&session, menu_String(pTitle, pTitle), aText);
     menu_End(&session);
     *pResult = 1;
     return 1;
@@ -285,11 +304,13 @@ int J3DMenu_ShowMessage(const char* pTitle, const char* pText, int iconID, int* 
 int J3DMenu_Ask(const char* pTitle, const char* pText, int* pResult)
 {
     MenuSession session;
+    char aText[2048];
     if ( !menu_Begin(&session) )
     {
         return 0;
     }
-    *pResult = menu_Confirm(&session, menu_String(pTitle, pTitle), pText) ? 1 : 2;
+    snprintf(aText, sizeof(aText), "%s", pText ? pText : ""); // before the title's lookup, as in J3DMenu_ShowMessage
+    *pResult = menu_Confirm(&session, menu_String(pTitle, pTitle), aText) ? 1 : 2;
     menu_End(&session);
     return 1;
 }
@@ -1543,8 +1564,9 @@ int J3DMenu_AskName(const char* pTitle, const char* pPrompt, char* pName, int si
     {
         return 0;
     }
-    snprintf(aTitle, sizeof(aTitle), "%s", menu_String(pTitle, pTitle));
+    // The prompt first: it can be jonesString_GetString's text, which the title's lookup replaces
     snprintf(aPrompt, sizeof(aPrompt), "%s", pPrompt ? pPrompt : "");
+    snprintf(aTitle, sizeof(aTitle), "%s", menu_String(pTitle, pTitle));
     snprintf(aOk, sizeof(aOk), "%s", menu_String("JONES_STR_OK", "OK"));
     *pResult = J3DMenuUI_AskName(session.pNSWindow, aTitle, aPrompt, aOk, menu_String("JONES_STR_CANCEL", "Cancel"), pName, size) ? 1 : 2;
     menu_End(&session);

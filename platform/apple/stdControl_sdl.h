@@ -12,4 +12,9 @@ void J3DControl_HandleEvent(const SDL_Event* pEvent);
 // Called by wkernel_sdl.c when the game window gains or loses focus, so the mouse is captured only while it has it.
 void J3DControl_SetWindowFocus(int bFocus);
 
+// Called by j3dmenu_apple.c as a menu over the game window opens (1) and closes (0); they nest. The mouse is not captured
+// while one is up: the game window keeps the focus under a menu, and the wait for a control button turns the controls on
+// to read the pads.
+void J3DControl_SetMenuUp(int bUp);
+
 #endif

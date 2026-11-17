@@ -113,6 +113,7 @@ static ControlPad      control_aAppliedPads[STDCONTROL_MAX_JOYSTICK_DEVICES]; //
 static ControlSlot     control_aSlots[STDCONTROL_MAX_JOYSTICK_DEVICES];
 static int             control_bDevicesChanged = 0;
 static int             control_bWindowFocus    = 1;
+static int             control_menuDepth       = 0; // menus up over the game window (J3DControl_SetMenuUp)
 static int             control_bMouseCaptured  = 0;
 static float           control_mouseScale      = 1.0f;
 static float           control_mouseRemX       = 0.0f; // the fraction of a point not yet reported
@@ -494,7 +495,7 @@ static void control_UpdateMouseCapture(void)
 {
     SDL_Window* pWindow = (SDL_Window*)stdWin95_GetWindow();
     const int bWant = stdControl_bOpen && stdControl_bControlsActive && stdControl_bReadMouse && control_bWindowFocus
-        && pWindow && !J3DRecord_IsReplaying() && !control_IsHeadless();
+        && control_menuDepth == 0 && pWindow && !J3DRecord_IsReplaying() && !control_IsHeadless();
     if ( bWant == control_bMouseCaptured )
     {
         return;
@@ -519,6 +520,16 @@ static void control_UpdateMouseCapture(void)
 void J3DControl_SetWindowFocus(int bFocus)
 {
     control_bWindowFocus = bFocus;
+    control_UpdateMouseCapture();
+}
+
+void J3DControl_SetMenuUp(int bUp)
+{
+    control_menuDepth += bUp ? 1 : -1;
+    if ( control_menuDepth < 0 )
+    {
+        control_menuDepth = 0;
+    }
     control_UpdateMouseCapture();
 }
 

@@ -47,6 +47,23 @@ final class MenuLayer {
     return NSApp.modalWindow == nil || NSApp.modalWindow === layer.window
 }
 
+/// Runs `body` once SwiftUI has finished dispatching the click or key that called this, for an action that can open a
+/// menu over the one in front (Options from the launcher, a control set from the control options, the wait for a key
+/// from a control set). SwiftUI calls a button's action from inside its own update, and holds back every update and
+/// action of every view until that returns; a menu run from there (runMenu, runWindow) drew but took no clicks, and
+/// one that waits for input (CaptureMenu) never started. Skipped when that menu has closed or another is over it by
+/// then (a second click on a button that closed it).
+@MainActor
+func menuAfterAction(_ body: @escaping @MainActor () -> Void) {
+    let layer = menuFrontLayer()
+    RunLoop.main.perform(inModes: [.default, .modalPanel, .eventTracking]) {
+        MainActor.assumeIsolated {
+            guard menuFrontLayer() === layer, layer?.isDone != true else { return }
+            body()
+        }
+    }
+}
+
 /// The menu's view takes the keyboard from the game's view while it is up.
 private final class MenuHostingView<Content: View>: NSHostingView<Content> {
     override var acceptsFirstResponder: Bool { true }
@@ -63,9 +80,11 @@ func menuString(_ pointer: UnsafePointer<CChar>?) -> String {
 }
 
 /// Shows `content` inside the game window (or any window: the launcher's Options lays its menus in its own) until it
-/// calls its `answer` closure; returns what it passed, or -1 when there is no window to show it in.
+/// calls its `answer` closure; returns what it passed, or -1 when there is no window to show it in. `padKeys`: the
+/// controller moves and answers it as keys do (menuPadTimer); not for the wait for a control, which reads the
+/// controller's buttons itself.
 @MainActor
-func runMenu<Content: View>(over gameWindowPointer: UnsafeMutableRawPointer?,
+func runMenu<Content: View>(over gameWindowPointer: UnsafeMutableRawPointer?, padKeys: Bool = true,
                             @ViewBuilder content: (_ answer: @escaping (Int) -> Void) -> Content) -> Int {
     guard let gameWindowPointer else { return -1 }
     let gameWindow = Unmanaged<NSWindow>.fromOpaque(gameWindowPointer).takeUnretainedValue()
@@ -100,7 +119,7 @@ func runMenu<Content: View>(over gameWindowPointer: UnsafeMutableRawPointer?,
     gameWindow.makeKeyAndOrderFront(nil)
     gameWindow.makeFirstResponder(host)
     let unattended = menuUnattendedTimer(for: layer)
-    let pad = menuPadTimer(for: layer)
+    let pad = padKeys ? menuPadTimer(for: layer) : nil
     let arrows = menuArrowMonitor(for: layer)
 
     // The wait: this window's events, and the timers of the modal mode, until the menu answers. Clicks and keys meant
@@ -118,7 +137,7 @@ func runMenu<Content: View>(over gameWindowPointer: UnsafeMutableRawPointer?,
     }
 
     unattended?.invalidate()
-    pad.invalidate()
+    pad?.invalidate()
     NSEvent.removeMonitor(arrows)
     menuPopLayer(layer)
     host.removeFromSuperview()

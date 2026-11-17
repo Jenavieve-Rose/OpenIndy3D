@@ -127,7 +127,7 @@ struct FormItemsView: View {
                 captions(item.names)
             }
         case J3DMENU_ITEM_BUTTON:
-            Button(item.label) { model.notify(index) }
+            Button(item.label) { menuAfterAction { model.notify(index) } } // it can open a menu
                 .buttonStyle(MenuButtonStyle(fullWidth: true))
         case J3DMENU_ITEM_LIST:
             HStack(spacing: 12) {
