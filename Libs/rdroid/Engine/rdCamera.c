@@ -244,6 +244,18 @@ int J3DAPI rdCamera_BuildFOV(rdCamera* pCamera)
 
             t = stdMath_Tan(pCamera->fov / 2.0f);
             pCamera->focalLength = hwidth / t;
+#ifdef J3D_FIXES
+            // Fix (OpenJones3D 972acb3f): the field of view is the 4:3 picture's. Retail took it across the width
+            // whatever the canvas's shape, so a wider picture showed the same width and less height. On a picture
+            // wider than 4:3 the focal length is scaled so the height seen is the 4:3 one and the sides show more; a
+            // narrower picture keeps retail's width, and shows more height, rather than lose its sides. (OpenJones3D
+            // scales both ways.) "Wider" is by more than 1%: a canvas's rectangle may be inclusive, which makes a 4:3
+            // one measure a hair wider, and 4:3 must stay exactly retail's.
+            if ( hwidth * RD_REF_HEIGHT > 1.01f * hheight * RD_REF_WIDTH )
+            {
+                pCamera->focalLength *= (RD_REF_WIDTH / RD_REF_HEIGHT) / (hwidth / hheight);
+            }
+#endif
 
             if ( rdCamera_bOverlayDepthRange )
             {

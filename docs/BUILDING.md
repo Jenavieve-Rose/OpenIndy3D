@@ -222,6 +222,7 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_INSANE_LOG` | `1` prints the movie player's (INSANE's) messages to stderr, including which movie it plays. |
 | `J3D_INSANE_MEMLOG` | `1` prints every allocation of the movie player's debug allocator to stdout. |
 | `VSync`, `Frame Limit` (settings) | Vsync on or off (default on) and a frame limit in frames a second (default 0, none), from the launcher's Options (P8.7). |
+| `J3D_HEADLESS_SIZE` | `<w>x<h>` (apple builds, headless runs): the desktop size instead of SDL's dummy 1024x768, to render wide pictures on the virtual clock, with `J3D_REG_Width` and `J3D_REG_Height` (P8.9). |
 | `J3D_FRAME_STATS` | `1` (apple builds) prints the game loop's frame times at exit: mean, median, 95th and 99th percentiles, worst; presenting and the wait for the display included (PORT-PLAN.md P7.9). |
 
 ## Tests

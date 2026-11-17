@@ -23,8 +23,8 @@ confused with section numbers.
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
 | 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 41 of 41 | Complete 2026-11-16 (decisions 20 and 21), audited, merged into `main`; menus by hand open |
 | 7 | Full-game verification, shim reduced (decision 22) | 8 of 10 | Code complete and audited 2026-11-17; playthrough (P7.4) and DREAMM A/B (P7.5) by hand open |
-| 8 | Signed `.app`, data locator, fixes and polish | 11 of 14 | Audited 2026-11-17; widescreen (P8.9), notarization with a Developer ID (P8.13) and the macOS 13 test (P8.14) open |
-| **All** | | **157 of 162** | |
+| 8 | Signed `.app`, data locator, fixes and polish | 12 of 14 | Audited 2026-11-17; notarization with a Developer ID (P8.13) and the macOS 13 test (P8.14) open |
+| **All** | | **158 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -1056,13 +1056,15 @@ has no developer tools.
       life, each with its upstream commit. Done: `docs/UPSTREAM-FIXES.md`, against upstream's history (`a675b39`):
       each entry applied, already right in the decomp, already fixed by the port, not applicable (code the port
       replaces), not applied (quality of life, behaviour changes) or open, with its commit.
-- [ ] **P8.9** (L) Apply the series behind a build option that defaults on, in groups, each retested: crash and
+- [x] **P8.9** (L) Apply the series behind a build option that defaults on, in groups, each retested: crash and
       memory fixes; COG stack and sound-handle fixes; raised limits (128 sounds, mesh and sector limits); widescreen
-      and HUD scaling. Three of four groups done: `J3D_FIXES` (default on) holds 40-odd fixes in 22 files, each marked
-      `Fix (OpenJones3D <commit>)`; 128 sounds and 4,096 visible sectors (the mesh limits are not reached by retail
-      data). Restored sound handles now equal the saved ones (the `saveload` tests check it). Every test passes with
-      the fixes, and with `J3D_FIXES=OFF` in a null tree. Open: widescreen and HUD scaling, which need the projection
-      and HUD changes together and a pass over every level; the game ships pillarboxed 4:3 meanwhile (P2.20).
+      and HUD scaling. Done: `J3D_FIXES` (default on) holds the fixes, each marked `Fix (OpenJones3D <commit>)`
+      (`docs/UPSTREAM-FIXES.md`); 128 sounds and 4,096 visible sectors (the mesh limits are not reached by retail
+      data); restored sound handles equal the saved ones. Widescreen: a picture wider than 4:3 shows the 4:3 height
+      and more at the sides (retail cut the height), the indicators stay round, the inventory-changed item keeps its
+      place; 4:3 is unchanged. Checked with 1920x1080 shots of every level, the inventory and the map
+      (`J3D_HEADLESS_SIZE`); the display test pins the focal lengths. Every test passes with the fixes and with
+      `J3D_FIXES=OFF`.
 - [x] **P8.10** (S) Keyboard and controller glyphs in the control dialogs. Done: a control set's chips show SF
       Symbols for a gamepad's buttons, d-pad, sticks and triggers, the mouse, and the arrows, modifiers and editing
       keys (`J3DMenuUI_ControlGlyph`), with the name as tooltip and for VoiceOver; letters, digits and a plain
@@ -1094,8 +1096,8 @@ Done 2026-11-17; details in `docs/PORTING.md`, "Phase 8 code audit".
 - [x] Both builds of the fixes: `J3D_FIXES=OFF` passes every test with retail's behaviour (null tree, 30 tests).
 - [x] Behaviour: every test passes in the apple (37), null (31), sanitizer (37) and debug-asserts (37) trees, layout
       audit 0; the packaged app runs from its disk image under the Hardened Runtime.
-- Open: widescreen and HUD scaling (P8.9), Developer ID signing, notarization and an original icon (P8.13), the
-      macOS 13 clean-machine test (P8.14).
+- [x] Widescreen (P8.9, after the audit): 4:3 unchanged by construction; 1920x1080 shots of every level checked.
+- Open: Developer ID signing, notarization and an original icon (P8.13), the macOS 13 clean-machine test (P8.14).
 
 ### Phase 9: Stretch (not counted)
 
@@ -1199,7 +1201,7 @@ guide.
 | 5 | Movies complete | 2 to 3 weeks | Complete 2026-11-13, audited: the intro plays with sound; every movie decodes headlessly; watching by hand open |
 | 6 | Launcher, Options, all dialogs, save and load in-app | 4 to 6 weeks | Complete 2026-11-16, audited: SwiftUI launcher, Options and in-game menus, Win32 dialogs as the fallback; using them by hand open |
 | 7 | Full playthrough verified | 2 to 3 weeks | Code complete 2026-11-17, audited: every level saves and restores, renders, runs with the asserts and the sanitizers; the playthrough and DREAMM A/B by hand open |
-| 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | 11 of 14, audited 2026-11-17: the app, data locator, OpenJones3D's fixes (but widescreen), crash log, packaging; Developer ID notarization and the macOS 13 test open |
+| 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | 12 of 14, audited 2026-11-17: the app, data locator, OpenJones3D's fixes and widescreen, crash log, packaging; Developer ID notarization and the macOS 13 test open |
 
 Ordering: phase 2 needs 1C (P1.17, P1.18) but not 1D. Phases 3, 4 and 5 are independent of each other once phase 2
 lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.

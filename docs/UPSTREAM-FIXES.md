@@ -102,14 +102,17 @@ Not applied. They change how the game plays rather than fix a fault, and OpenJon
 
 | Entry | Commit | Status |
 | --- | --- | --- |
-| Camera projection with the aspect ratio (Z, screen space, focal length); ceiling sky; sprite orientation | v0.1, 2a200d5, 1f2208c2, 1e86d451, 972acb3f, 4142482c | open |
-| Inventory menu position and scale, the changed-item animation, health and endurance indicators at other aspect ratios; health indicator alpha | v0.1, e32a52d | open |
-| End credits at other resolutions; the credits music fade | v0.1, 3d9ba287 | open |
-| Fading plate models at 21:9 | 5d705fb, bf2c4f7 | open (OpenJones3D's own models; not the retail data's) |
+| Camera focal length by the canvas's shape: on a wide picture retail showed the 4:3 width and cut the height | 972acb3f | applied, for pictures more than 1% wider than 4:3 only; a narrower one keeps retail's width (OpenJones3D scales both ways, which cuts a portrait picture's sides) |
+| Health and endurance indicators stretched with the screen's shape | v0.1 | applied, with the smaller of the two scales (OpenJones3D takes the width's, which enlarges them on wide screens) |
+| The inventory-changed item's place at the right | v0.1 | applied |
+| Inventory menu position and scale on wide screens | v0.1, 4902ea35 | not needed: with the focal length fixed the row sits as at 4:3, its items in proportion (checked at 1920x1080); OpenJones3D's scale and Z changes answer its own camera code |
+| Projection with the camera's aspect ratio (`OrthoProject`, `PerspProject`, `rdClip`, the sky's horizon scale) | 1e86d451, 1f2208c2 | not applied: the aspect ratio is 1 but in the underwater wobble (`sithRender`), and the Z changes correct OpenJones3D's own transcription |
+| Ceiling sky texture offset; sprite orientation | 2a200d5, 4142482c | already right (OpenJones3D's own transcription) |
+| End credits at other resolutions; the credits music fade | v0.1, 3d9ba287 | not applied: the credits are centred on the canvas and their icons a fixed 64-pixel square, so the shape does not distort them; the larger icons at high resolution are a change of look |
+| Fading plate models at 21:9 | 5d705fb, bf2c4f7 | n/a (OpenJones3D's own models, not in the retail data) |
 
-The port shows the 4:3 picture pillarboxed (P2.20), where the HUD is laid out as retail laid it out, so nothing is
-wrong as it ships. Widescreen needs the projection and HUD changes together and a pass over every level and menu, so it
-is left whole for a later step rather than applied in part.
+Checked with `J3D_HEADLESS_SIZE=1920x1080` shots of all 17 levels, the inventory and the map; at 4:3 sizes every change
+is a no-op by construction (the display test pins the focal lengths).
 
 ## Not fixes
 

@@ -1888,8 +1888,7 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
 - `sithThing_ScaleCombatDamage` read an explosion's damage type through an unset pointer; it is now the weapon's, or
   none, in both builds (decision 18).
 - Not applied: OpenJones3D's quality-of-life changes (far looping sounds, AI movement, jump-rollback fall speed and the
-  rest), which change how the game plays. Open: widescreen and HUD scaling, the 2D line fixes for the overlay map, the
-  far sound on restore.
+  rest), which change how the game plays. Open: the 2D line fixes for the overlay map, the far sound on restore.
 
 ### Control glyphs and crash handling (P8.10, P8.11)
 
@@ -1920,6 +1919,27 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
   notary service and staples it. Default identity `-` (ad hoc). The packaged app was run from the image under the
   Hardened Runtime, in a window: Metal, level 2, its autosave.
 
+### Widescreen (P8.9's last group)
+
+- `rdCamera_BuildFOV` took the focal length from the canvas's half width whatever its shape, so a 16:9 picture showed
+  the 4:3 picture's width and cut a quarter of its height. With `J3D_FIXES`, a canvas more than 1% wider than 4:3 has
+  its focal length scaled by (4/3) / (its shape): it shows the 4:3 height and more at the sides. Everything that
+  projects reads the same focal length (`rdClip`, `rdModel3`, the sky's horizon scale, picking), so it all follows.
+  The 1% matters: canvas rectangles are inclusive, so a 640x480 one measures 639 by 479, a hair wider than 4:3, and
+  without it 4:3 itself was nudged (a focal length of 319.33 for 319.5). A picture narrower than 4:3 keeps retail's
+  width (OpenJones3D's version scales it too, which cuts a portrait picture's sides).
+- The HUD's indicators took their width from the width's scale and their height from the height's, so they turned
+  into ellipses on a wide picture; they now use the smaller scale both ways. The inventory-changed item's camera-space
+  place is multiplied by the picture's shape against 4:3, so it stays at the right. The inventory row needed nothing:
+  its camera is the same `rdCamera`, its items come out in proportion and placed as at 4:3.
+- At 4:3 every change is a no-op by construction (the camera branch is not taken, both scales are equal, the shape
+  factor is 1).
+- `J3D_HEADLESS_SIZE=<w>x<h>` gives a headless apple run that desktop size instead of SDL's dummy 1024x768, so wide
+  pictures can be rendered on the virtual clock. Checked with 1920x1080 shots of all 17 levels
+  (`J3D_HEADLESS_SIZE=1920x1080 J3D_REG_Width=1920 J3D_REG_Height=1080 tools/level_shots.sh ...`), the inventory and
+  the map. The display test pins the focal lengths: 319.5 at 640x480, 511.5 at 1024x1280, 719.33 at 1920x1080 (959.5
+  without the fixes).
+
 ### Phase 8 code audit
 
 1. **Warnings and static analysis.** No compiler or linker warning in any tree (the SDL3 linker warning every apple
@@ -1938,5 +1958,4 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
 4. **The product.** The app from `tools/package.sh` (ad-hoc signature, Hardened Runtime) runs from its disk image in a
    window: Metal, a level, its save. The executable needs macOS 13.0 and links only system libraries.
 
-Left open: widescreen and HUD scaling (P8.9's fourth group), signing with a Developer ID and notarization, an
-original icon (P8.13), the clean-machine test on macOS 13 (P8.14), and the by-hand checks of phase 7.
+Left open: signing with a Developer ID and notarization, an original icon (P8.13), the clean-machine test on macOS 13 (P8.14), and the by-hand checks of phase 7.

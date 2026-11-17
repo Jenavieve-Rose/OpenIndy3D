@@ -11,6 +11,8 @@
  *   - VBufferConvertColorFormat from the materials' 16-bit formats (RGB565, ARGB1555, ARGB4444) to the renderer's
  *     32-bit one expands each channel to full range, as the GPU sampled them in retail: an opaque 1555 texel has alpha
  *     255, not 0x80, which the alpha test (reference 0xA0) discarded (Indy's revolver was invisible)
+ *   - the camera's focal length by the canvas's shape (P8.9): across the width at 4:3 and on a narrower picture, as
+ *     retail; on a wider one, with J3D_FIXES, so that the 4:3 height is seen (more at the sides)
  *
  * Exit status: the number of failed checks.
  */
@@ -22,6 +24,8 @@
 #include <std/General/std.h>
 #include <std/General/stdUtil.h>
 #include <std/Win95/stdDisplay.h>
+#include <rdroid/Engine/rdCamera.h>
+#include <rdroid/Engine/rdCanvas.h>
 
 #include "harness.h"
 
@@ -65,6 +69,48 @@ static tVBuffer* display_NewBuffer(uint32_t width, uint32_t height, uint32_t bpp
     info.colorInfo.colorMode = bpp == 8 ? STDCOLOR_PAL : STDCOLOR_RGB;
     info.colorInfo.bpp       = bpp;
     return stdDisplay_VBufferNew(&info, 0, 0);
+}
+
+// The focal length a 90-degree camera gets on a canvas of the given size (rdCamera_BuildFOV)
+static float display_FocalLength(uint32_t width, uint32_t height)
+{
+    tVBuffer* pBuf = display_NewBuffer(width, height, 32);
+    rdCanvas* pCanvas = pBuf ? rdCanvas_New(0, pBuf, 0, 0, 0, 0) : NULL;
+    rdCamera* pCamera = rdCamera_New(90.0f, 0, 0.1f, 100.0f, 1.0f);
+    float focal = -1.0f;
+    if ( pCanvas && pCamera )
+    {
+        rdCamera_SetCanvas(pCamera, pCanvas);
+        focal = pCamera->focalLength;
+    }
+    if ( pCamera )
+    {
+        rdCamera_Free(pCamera);
+    }
+    if ( pCanvas )
+    {
+        rdCanvas_Free(pCanvas);
+    }
+    if ( pBuf )
+    {
+        stdDisplay_VBufferFree(pBuf);
+    }
+    return focal;
+}
+
+static void display_TestCameraShape(void)
+{
+    // The canvas's rectangle is inclusive, so its half sizes are (w - 1) / 2 and (h - 1) / 2; tan(45) is 1
+    float f = display_FocalLength(640, 480);
+    CHECK(f > 319.49f && f < 319.51f, "4:3 focal length %f, not 319.5 (its half width)", (double)f);
+    f = display_FocalLength(1024, 1280); // narrower than 4:3: across the width, as retail
+    CHECK(f > 511.49f && f < 511.51f, "5:4 portrait focal length %f, not 511.5 (its half width)", (double)f);
+    f = display_FocalLength(1920, 1080);
+#ifdef J3D_FIXES
+    CHECK(f > 719.32f && f < 719.35f, "16:9 focal length %f, not 719.33 (the half height's 4:3 width)", (double)f);
+#else
+    CHECK(f > 959.49f && f < 959.51f, "16:9 focal length %f, not retail's 959.5 (its half width)", (double)f);
+#endif
 }
 
 // What VBufferCopy must do, one pixel at a time: every source pixel inside both the rectangle and the source lands at
@@ -353,6 +399,9 @@ int main(void)
 
     // Material textures to the renderer's format.
     display_TestConvert();
+
+    // P8.9: the field of view on wide and narrow pictures.
+    display_TestCameraShape();
 
     stdDisplay_Close();
     stdDisplay_Shutdown();

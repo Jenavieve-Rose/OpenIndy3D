@@ -26,7 +26,7 @@
  * presented.
  *
  * Headless (J3D_HEADLESS, jones3d --headless). The same device and modes, from SDL's dummy video driver (a 1024x768
- * desktop), and time runs on the virtual clock: stdDisplay_Update moves it by one frame, as in the null build. With
+ * desktop, or J3D_HEADLESS_SIZE's), and time runs on the virtual clock: stdDisplay_Update moves it by one frame, as in the null build. With
  * SDL_VIDEO_DRIVER=cocoa a headless run still presents to its window, without waiting for the refresh.
  */
 #include <math.h>
@@ -116,8 +116,19 @@ static int stdDisplay_EnumDisplay(void)
         return 0;
     }
 
-    const uint32_t desktopWidth  = stdDisplay_ToPixels(pDesktop->w, pDesktop->pixel_density);
-    const uint32_t desktopHeight = stdDisplay_ToPixels(pDesktop->h, pDesktop->pixel_density);
+    uint32_t desktopWidth  = stdDisplay_ToPixels(pDesktop->w, pDesktop->pixel_density);
+    uint32_t desktopHeight = stdDisplay_ToPixels(pDesktop->h, pDesktop->pixel_density);
+
+    // For tests: J3D_HEADLESS_SIZE=<w>x<h> gives a headless run that desktop instead of the dummy driver's 1024x768,
+    // so a wide picture can be rendered and compared on the virtual clock (PORT-PLAN.md P8.9)
+    const char* pHeadlessSize = getenv("J3D_HEADLESS_SIZE");
+    unsigned int sizeW, sizeH;
+    if ( J3DDisplay_IsHeadless() && pHeadlessSize && sscanf(pHeadlessSize, "%ux%u", &sizeW, &sizeH) == 2
+         && sizeW >= 640 && sizeH >= 480 && sizeW <= 8192 && sizeH <= 8192 )
+    {
+        desktopWidth  = sizeW;
+        desktopHeight = sizeH;
+    }
 
     // The device.
     StdDisplayDevice* pDevice = &stdDisplay_aDisplayDevices[0];

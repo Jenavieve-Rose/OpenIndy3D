@@ -1584,10 +1584,20 @@ void J3DAPI JonesHud_UpdateSinCosTable(void)
 void J3DAPI JonesHud_UpdateHUDLayout(uint32_t width, uint32_t height)
 {
     // These coords are all in screen size
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D, v0.1): one scale for both directions, the smaller of the two, so on a picture not 4:3 the
+    // indicators stay round and the size they have against the shorter side (retail stretched them with the screen)
+    const float indicatorScale = JonesHud_screenWidthScalar < JonesHud_screenHeightScalar ? JonesHud_screenWidthScalar : JonesHud_screenHeightScalar;
+    JonesHud_healthIndRect.x      = indicatorScale * 24.0f;
+    JonesHud_healthIndRect.y      = height - JonesHud_healthIndRect.x - indicatorScale * 60.0f;
+    JonesHud_healthIndRect.width  = indicatorScale * 60.0f;
+    JonesHud_healthIndRect.height = indicatorScale * 60.0f;
+#else
     JonesHud_healthIndRect.x      = JonesHud_screenWidthScalar * 24.0f;
     JonesHud_healthIndRect.y      = height - JonesHud_healthIndRect.x - JonesHud_screenHeightScalar * 60.0f;
     JonesHud_healthIndRect.width  = JonesHud_screenWidthScalar * 60.0f;
     JonesHud_healthIndRect.height = JonesHud_screenHeightScalar * 60.0f;
+#endif
 
     // z & w set later when drawing hud indicator
     rdVector_Set4(&JonesHud_healthIndBarPos, (JonesHud_healthIndRect.width / 2.0f) + JonesHud_healthIndRect.x, (JonesHud_healthIndRect.height / 2.0f) + JonesHud_healthIndRect.y, 0.0f, 0.0f);
@@ -1601,7 +1611,11 @@ void J3DAPI JonesHud_UpdateHUDLayout(uint32_t width, uint32_t height)
     rdVector_Set4(&JonesHud_enduranceIndBarPos, (JonesHud_enduranceRect.width / 2.0f) + JonesHud_enduranceRect.x, (JonesHud_enduranceRect.height / 2.0f) + JonesHud_enduranceRect.y, 0.0f, 0.0f);
 
     JonesHud_indScale = D3DVAL((JonesHud_healthIndRect.height - 2.0) / 2.0);
+#ifdef J3D_FIXES
+    JonesHud_indScale = JonesHud_indScale - 7.0f * indicatorScale;
+#else
     JonesHud_indScale = JonesHud_indScale - 7.0f * JonesHud_screenWidthScalar;
+#endif
 
     // Unused stuff
     JonesHud_flt_55503C = 16.0f * JonesHud_screenHeightScalar;
@@ -4007,6 +4021,16 @@ void J3DAPI JonesHud_InventoryItemChanged(int typeId)
             JonesHud_pCurInvChangedItem->pos.x          = 0.1526f;
             JonesHud_pCurInvChangedItem->startMovePos.x = 0.1526f;
         }
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D, v0.1): the item is placed in the HUD camera's space, which shows the 4:3 height and more
+        // width on a wider picture (rdCamera_BuildFOV); scaled with the picture's shape it keeps its place at the
+        // right, beside the endurance meter, instead of drifting in towards the middle
+        if ( JonesHud_screenHeightScalar > 0.0f )
+        {
+            JonesHud_pCurInvChangedItem->pos.x *= JonesHud_screenWidthScalar / JonesHud_screenHeightScalar;
+            JonesHud_pCurInvChangedItem->startMovePos.x = JonesHud_pCurInvChangedItem->pos.x;
+        }
+#endif
 
         if ( JonesHud_pCurInvChangedItem->id >= JONESHUD_MENU_TREASURE_COINS_GOLD && JonesHud_pCurInvChangedItem->id <= JONESHUD_MENU_TREASURE_CASHBOX )
         {
