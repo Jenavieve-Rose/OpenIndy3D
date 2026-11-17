@@ -75,6 +75,11 @@ Phase 5 is on `main` (at `cc734c9`), merged by fast-forward on 2026-11-13: two c
 `phase5-movies`, P5.1 to P5.12 (`2740902`) and the audit (`cc734c9`). At `cc734c9` everything builds and every test
 passes in the apple (15 tests), null (10) and sanitizer (15) trees.
 
+Phase 7 is on `main` (at `aab8199`), merged by fast-forward on 2026-11-17: five commits from the branch
+`phase7-verification`, P7.1 to P7.3 (`e829bf0`), the shim (`732dc4d`), P7.9 (`474f967`), the audit (`f1d4530`) and the
+documents (`aab8199`). At `f1d4530` everything builds and every test passes in the apple (35 tests), null (29),
+sanitizer (35) and debug-asserts (35) trees (`tools/check.sh --asserts`); the commits before it were not each rebuilt.
+
 ## 1. Goal
 
 A native arm64 macOS application that plays the full retail game (all 17 levels: 16 story chapters and the bonus level,
