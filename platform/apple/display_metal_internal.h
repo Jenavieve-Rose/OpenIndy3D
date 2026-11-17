@@ -17,6 +17,8 @@ id<MTLCommandQueue> J3DMetal_Queue(void);
 
 void J3DMetal_Commit(id<MTLCommandBuffer> commands);
 void J3DMetal_WaitForGPU(void); // blocks until the last committed command buffer has completed
+// The last command buffer committed (nil after J3DMetal_WaitForGPU): waiting for it later waits for everything so far.
+id<MTLCommandBuffer> J3DMetal_LastCommitted(void);
 
 // The storage mode for textures the CPU writes or reads: shared on an Apple GPU, managed on an Intel Mac's GPU (or
 // with J3D_METAL_MANAGED=1 set).

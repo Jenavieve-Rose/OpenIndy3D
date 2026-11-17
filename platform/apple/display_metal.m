@@ -81,6 +81,11 @@ void J3DMetal_Commit(id<MTLCommandBuffer> commands)
     metal_lastCommitted = commands;
 }
 
+id<MTLCommandBuffer> J3DMetal_LastCommitted(void)
+{
+    return metal_lastCommitted;
+}
+
 void J3DMetal_WaitForGPU(void)
 {
     if ( metal_lastCommitted )

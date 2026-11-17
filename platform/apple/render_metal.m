@@ -6,7 +6,7 @@
  * per-scene vertex and index arena. Textures (P2.12), render states (P2.13) and fog (P2.14) build on these.
  *
  * Vertex and index data go into one shared buffer per scene, appended draw by draw (rdCache sends a few hundred small
- * batches a frame). BeginScene waits for the GPU before anything else, so the arena can start over at every scene; a
+ * batches a frame). Each scene slot (below) has its own arena, which starts over when the slot comes round again; a
  * scene that outgrows it moves on to a larger buffer (the command buffer keeps the old one alive until it completes).
  *
  * The vertex stage turns a pre-transformed vertex back into clip space: x and y from back-buffer pixels to normalised
@@ -32,10 +32,13 @@
  *
  * Anisotropic filtering (phase 9, "Anisotropy") is the maximum anisotropy of every sampler; 1 is retail's filtering.
  *
- * The scene texture is written by the CPU at BeginScene, so BeginScene first waits for the GPU to finish everything
- * committed so far (the previous scene and its present both read the texture). The game submits a few hundred
- * triangles a frame, so the GPU is long done by then and the wait costs nothing measurable; a ring of scene textures
- * can replace it if that changes.
+ * Scene slots. The scene texture and the arena are written by the CPU, and the GPU reads them until the scene, its
+ * present and the next scene's first copy have run. Waiting for the GPU at every BeginScene made the CPU and GPU take
+ * turns, so a frame cost their sum, and with vsync a frame just over the refresh interval waited for the next one:
+ * 60 Hz fell to 30 whenever the machine slowed (Low Power Mode). Instead there are RENDER_SLOTS of them, used in turn;
+ * BeginScene waits only for the GPU work that last used the slot it takes, normally long finished, so the CPU builds a
+ * frame while the GPU draws the one before. A scene that starts from the previous picture (no back-buffer upload) has
+ * it copied across on the GPU. With multisampling the back buffer has one texture, and an upload into it still waits.
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -136,7 +139,12 @@ static int                        render_bUniformsDirty;
 static int                        render_bDepthWrite = 1;
 
 #define RENDER_ARENA_SIZE ((size_t)4 << 20) // a level frame uses well under 1 MB
-static id<MTLBuffer> render_arena;
+#define RENDER_SLOTS      3                  // scenes the CPU may be ahead of the GPU by, plus one
+static id<MTLTexture>       render_aSceneColor[RENDER_SLOTS];
+static id<MTLBuffer>        render_aArena[RENDER_SLOTS];
+static id<MTLCommandBuffer> render_aSlotFence[RENDER_SLOTS]; // completes once the GPU is done with the slot
+static unsigned             render_slot;                     // the slot of the current (or last) scene
+static id<MTLBuffer> render_arena;   // render_aArena[render_slot]
 static size_t        render_arenaOffset;
 static int           render_bSceneNewer; // the scene texture holds a scene the back buffer has not been given
 
@@ -146,7 +154,8 @@ static size_t              render_curSampler = 1 * 12 + 0 * 6 + 0 * 3 + J3DRENDE
 static uint32_t            render_maxAnisotropy = 1; // J3DRender_SetQuality
 static uint32_t            render_wantSamples   = 1;
 
-static id<MTLTexture>              render_sceneColor;  // the picture: drawn into, or resolved into when multisampling
+static id<MTLTexture>              render_sceneColor;  // the picture (render_aSceneColor[render_slot]): drawn into, or
+                                                       // resolved into when multisampling
 static id<MTLTexture>              render_msaaColor;   // multisampling: the colour drawn into
 static id<MTLTexture>              render_backBuffer;  // multisampling: the back buffer, copied in by the first pass
 static id<MTLTexture>              render_depth;       // multisampled when the colour is
@@ -281,7 +290,17 @@ int J3DRender_Open(uint32_t width, uint32_t height)
                                                                                          mipmapped:NO];
         colorDesc.usage       = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
         colorDesc.storageMode = J3DMetal_TextureStorageMode();
-        render_sceneColor     = [device newTextureWithDescriptor:colorDesc];
+        for ( unsigned i = 0; i < RENDER_SLOTS; ++i )
+        {
+            render_aSceneColor[i] = [device newTextureWithDescriptor:colorDesc];
+            if ( !render_aSceneColor[i] )
+            {
+                J3DRender_Close();
+                return 1;
+            }
+        }
+        render_slot       = 0;
+        render_sceneColor = render_aSceneColor[0];
         if ( samples > 1 )
         {
             colorDesc.usage       = MTLTextureUsageShaderRead;
@@ -314,10 +333,14 @@ int J3DRender_Open(uint32_t width, uint32_t height)
     }
     render_samples = samples;
 
-    if ( !render_arena )
+    for ( unsigned i = 0; i < RENDER_SLOTS; ++i )
     {
-        render_arena = [device newBufferWithLength:RENDER_ARENA_SIZE options:MTLResourceStorageModeShared];
+        if ( !render_aArena[i] )
+        {
+            render_aArena[i] = [device newBufferWithLength:RENDER_ARENA_SIZE options:MTLResourceStorageModeShared];
+        }
     }
+    render_arena = render_aArena[render_slot];
 
     render_uniforms.viewportSize[0] = (float)width;
     render_uniforms.viewportSize[1] = (float)height;
@@ -337,6 +360,11 @@ void J3DRender_Close(void)
     }
     J3DMetal_WaitForGPU();
     J3DMetal_SetSceneTexture(nil);
+    for ( unsigned i = 0; i < RENDER_SLOTS; ++i )
+    {
+        render_aSceneColor[i] = nil;
+        render_aSlotFence[i]  = nil;
+    }
     render_sceneColor = nil;
     render_msaaColor  = nil;
     render_backBuffer = nil;
@@ -397,21 +425,47 @@ int J3DRender_BeginScene(const uint8_t* pBackBuffer, size_t rowSize)
         J3DRender_EndScene(); // a scene left open: retail's BeginScene would have failed; close it and go on
     }
 
-    // The GPU may still read the scene texture (the previous scene, its present): let it finish before the upload.
-    J3DMetal_WaitForGPU();
+    // Move on to the next slot. Everything committed so far covers the last scene's slot (its scene and present) and
+    // the slot before it (read by the last scene's first copy); the slot taken now was last fenced a scene ago, so its
+    // wait normally returns at once.
+    const unsigned prevSlot = render_slot;
+    id<MTLCommandBuffer> lastCommitted = J3DMetal_LastCommitted();
+    render_aSlotFence[prevSlot]                                   = lastCommitted;
+    render_aSlotFence[(prevSlot + RENDER_SLOTS - 1) % RENDER_SLOTS] = lastCommitted;
+    render_slot = (prevSlot + 1) % RENDER_SLOTS;
+    if ( render_aSlotFence[render_slot] )
+    {
+        [render_aSlotFence[render_slot] waitUntilCompleted];
+        render_aSlotFence[render_slot] = nil;
+    }
+    id<MTLTexture> prevColor = render_sceneColor;
+    render_sceneColor  = render_aSceneColor[render_slot];
+    render_arena       = render_aArena[render_slot];
     render_arenaOffset = 0;
     render_bSceneNewer = 0;
+    render_commands    = [J3DMetal_Queue() commandBuffer];
+
     if ( pBackBuffer )
     {
+        if ( render_backBuffer )
+        {
+            J3DMetal_WaitForGPU(); // multisampling: the one back-buffer texture, which earlier scenes' first passes read
+        }
         id<MTLTexture> target = render_backBuffer ? render_backBuffer : render_sceneColor;
         [target replaceRegion:MTLRegionMake2D(0, 0, target.width, target.height)
                   mipmapLevel:0
                     withBytes:pBackBuffer
                   bytesPerRow:rowSize];
     }
+    else if ( !render_backBuffer && prevColor && prevColor != render_sceneColor )
+    {
+        // The scene starts from the previous picture, which is in the last slot's texture: copy it across on the GPU.
+        id<MTLBlitCommandEncoder> blit = [render_commands blitCommandEncoder];
+        [blit copyFromTexture:prevColor toTexture:render_sceneColor];
+        [blit endEncoding];
+    }
 
     render_bFirstPass = 1;
-    render_commands = [J3DMetal_Queue() commandBuffer];
     render_OpenPass();
     return render_encoder ? 0 : 1;
 }
@@ -597,6 +651,7 @@ static size_t render_Append(const void* pData, size_t size, id<MTLBuffer>* pBuff
             newSize *= 2;
         }
         render_arena = [J3DMetal_Device() newBufferWithLength:newSize options:MTLResourceStorageModeShared];
+        render_aArena[render_slot] = render_arena;
         offset       = 0;
     }
 
