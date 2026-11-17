@@ -488,7 +488,7 @@ private let modifierFlag: [UInt16: NSEvent.ModifierFlags] = [
 private final class CaptureState: ObservableObject {
     var monitor: Any?
     var timer: Timer?
-    weak var window: NSWindow?
+    var layer: MenuLayer?
 }
 
 private struct CaptureMenu: View {
@@ -524,10 +524,10 @@ private struct CaptureMenu: View {
     }
 
     private func start() {
-        state.window = NSApp.modalWindow
+        state.layer = menuFrontLayer()
         // Every key goes to the game's check while this is the menu in front; a message it shows takes them back
         state.monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
-            guard let window = state.window, NSApp.modalWindow === window else { return event }
+            guard let layer = state.layer, MainActor.assumeIsolated({ menuIsFront(layer) }) else { return event }
             var hid: Int32 = 0
             if event.type == .keyDown {
                 if event.isARepeat { return nil }
@@ -540,7 +540,7 @@ private struct CaptureMenu: View {
         }
         let timer = Timer(timeInterval: 0.1, repeats: true) { _ in
             MainActor.assumeIsolated {
-                guard let window = state.window, NSApp.modalWindow === window else { return }
+                guard let layer = state.layer, menuIsFront(layer) else { return }
                 if input(0) != 0 { finish(1) }
             }
         }

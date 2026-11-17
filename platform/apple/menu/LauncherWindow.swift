@@ -64,13 +64,17 @@ private func runWindow<Content: View>(title: String, parent: NSWindow?, closeVal
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
-    let unattended = menuUnattendedTimer(for: window)
-    let pad = menuPadTimer(for: window)
-    let arrows = menuArrowMonitor(for: window)
+    let layer = MenuLayer(window: window)
+    layer.view = window.contentView
+    menuPushLayer(layer)
+    let unattended = menuUnattendedTimer(for: layer, modal: true)
+    let pad = menuPadTimer(for: layer)
+    let arrows = menuArrowMonitor(for: layer)
     NSApp.runModal(for: window)
     unattended?.invalidate()
     pad.invalidate()
     NSEvent.removeMonitor(arrows)
+    menuPopLayer(layer)
     window.delegate = nil
     window.orderOut(nil)
     return answer.value
@@ -263,6 +267,18 @@ private struct LauncherView: View {
         .onReceive(NotificationCenter.default.publisher(for: .menuMove)) { note in
             guard let move = note.userInfo?["move"] as? MenuMove else { return }
             move == .up || move == .left ? self.move(-1) : self.move(1)
+        }
+        .onAppear {
+            // For tests: J3D_MENU_TEST_LAUNCHER_PRESS=options presses the launcher's own Options button once it is up,
+            // as a click would, then Quit once Options has closed
+            guard ProcessInfo.processInfo.environment["J3D_MENU_TEST_LAUNCHER_PRESS"] == "options" else { return }
+            let timer = Timer(timeInterval: 0.5, repeats: false) { _ in
+                MainActor.assumeIsolated {
+                    onOptions()
+                    answer(Int(J3DMENU_LAUNCH_QUIT))
+                }
+            }
+            RunLoop.main.add(timer, forMode: .modalPanel)
         }
     }
 

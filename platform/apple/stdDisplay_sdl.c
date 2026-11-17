@@ -191,6 +191,14 @@ static int stdDisplay_SetWindowMode(const StdVideoMode* pMode, int bFullscreen)
         return 1;
     }
 
+    // The game window is created hidden (wkernel_sdl.c), so the launcher is alone on screen; the game's first mode shows
+    // it, as the game's own ShowWindow did on Windows
+    if ( SDL_GetWindowFlags(pWindow) & SDL_WINDOW_HIDDEN )
+    {
+        SDL_ShowWindow(pWindow);
+        SDL_RaiseWindow(pWindow);
+    }
+
     if ( bFullscreen )
     {
         // NULL: fullscreen at the desktop's mode. The back buffer keeps the game's mode size (see the top of the file).

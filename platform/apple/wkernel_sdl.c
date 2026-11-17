@@ -919,7 +919,9 @@ static int wkernel_CreateWindow(LPCSTR lpWindowName)
     const char*     pDriver = SDL_GetCurrentVideoDriver();
     // High pixel density: on a Retina display the drawable has the display's real pixels, so a mode at the native size
     // is drawn 1:1 (P2.15). Window coordinates stay in points; mouse positions are converted (stdDisplay_sdl.h).
-    SDL_WindowFlags flags   = SDL_WINDOW_HIGH_PIXEL_DENSITY | (pDriver && strcmp(pDriver, "dummy") != 0 ? SDL_WINDOW_METAL : 0);
+    // Hidden until the game sets its first display mode (stdDisplay_sdl.c), so the launcher and the first-run questions are
+    // the only windows on screen before the game starts.
+    SDL_WindowFlags flags   = SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY | (pDriver && strcmp(pDriver, "dummy") != 0 ? SDL_WINDOW_METAL : 0);
     wkernel_pWindow = SDL_CreateWindow(lpWindowName, WKERNEL_WINDOW_WIDTH, WKERNEL_WINDOW_HEIGHT, flags);
     if ( !wkernel_pWindow )
     {

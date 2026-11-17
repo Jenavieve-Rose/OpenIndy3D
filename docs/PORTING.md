@@ -1959,3 +1959,25 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
    window: Metal, a level, its save. The executable needs macOS 13.0 and links only system libraries.
 
 Left open: signing with a Developer ID and notarization, an original icon (P8.13), the clean-machine test on macOS 13 (P8.14), and the by-hand checks of phase 7.
+
+### Menus in the game window (after phase 8)
+
+Reported by hand: the launcher came up with an empty game window behind it, Options did not work from the launcher, and
+an in-game menu took the focus from the game, so its options could not be changed.
+
+- The game window is created hidden (`wkernel_sdl.c`) and shown by the game's first display mode
+  (`stdDisplay_SetWindowMode`), as the game's own `ShowWindow` did on Windows; our `ShowWindow` knows only the dialog
+  layer's windows. Until then the launcher and the first-run questions are the only windows: the launcher closes on
+  its answer and the game window appears with the level's load.
+- An in-game menu was a borderless window of its own, a child of the game window, made key: SDL took that for the game
+  losing focus, the game deactivated (`WM_ACTIVATEAPP`), and in full screen SDL minimized the window, menu and all
+  (`SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS`). A menu is now a view laid inside the game window's content, over the
+  Metal view (`runMenu`, `MenuHost.swift`), made first responder while it is up and the game's view given the keyboard
+  back after. The game window stays key: a probe of SDL's focus events through all 13 test menus saw one focus gain
+  (the window shown) and no loss. Each menu runs the window's events itself until it answers (a nested `runModal` on
+  one window is not reliable), dropping clicks and keys meant for other windows; a stack of `MenuLayer`s says which
+  menu is in front, for the keyboard monitor, the controller, the capture menu and the tests' timers. Menus are scaled
+  to fit the window (up to 2); in the smallest window, 640 by 480, that is about two thirds of their size.
+- The launcher's Options window is unchanged; with the game window no longer on screen behind the launcher, nothing
+  else can take the keyboard or the mouse from it. `J3D_MENU_TEST_LAUNCHER_PRESS=options` presses its Options button
+  once the launcher is up, and the launcher test checks it opens; it could open only before the launcher before.

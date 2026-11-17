@@ -9,6 +9,7 @@
 #   options   the Options window opens, its Controls tab's button opens the game's control options over it, all close
 #             (J3D_MENU_AUTOCANCEL) and the launcher then quits, exit status 0
 #             After a crash (a Crash.pending left in the log folder) the crash notice comes first (P8.11).
+#   launcheroptions   the launcher's own Options button opens Options (J3D_MENU_TEST_LAUNCHER_PRESS)
 #   nodata    with no game data to find, the game asks for its folder (P8.4); answered Quit, it ends, exit status 0
 #
 #   tests/launcher.sh <jones3d> <data-root> <out-dir>
@@ -54,6 +55,12 @@ run options J3D_MENU_TEST_OPTIONS=1 J3D_MENU_TEST_PRESS=3:3 J3D_MENU_AUTOCANCEL=
 
 grep -q 'the last run crashed' "$out/options.log" || { echo "FAIL options: the crash notice was not shown"; status=1; }
 [ ! -f "$out/logs/Crash.pending" ] || { echo "FAIL options: the crash notice was not cleared"; status=1; }
+
+# launcheroptions: the launcher's own Options button, pressed once the launcher is up, opens Options over it (a picture
+# of it is written), and the launcher then quits, exit status 0
+run launcheroptions J3D_MENU_TEST_LAUNCHER_PRESS=options J3D_MENU_AUTOCANCEL=1 J3D_MENU_SHOT="$out/launcheroptions" "$game" --data "$data" \
+    || { echo "FAIL launcheroptions: exit status"; status=1; }
+[ -f "$out/launcheroptions-1.png" ] || { echo "FAIL launcheroptions: Options did not open from the launcher"; status=1; }
 
 # nodata: with nothing to find (an empty home folder) and no --data, the game asks for its folder; Quit ends it, status 0
 mkdir -p "$out/home"
