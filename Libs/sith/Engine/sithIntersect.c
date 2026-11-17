@@ -509,6 +509,11 @@ int J3DAPI sithIntersect_CheckSphereHit(const rdVector3* startPos, const rdVecto
     *pSphereHitDist = curdist / curdot;
     *pSphereHitDist = 0.0f > *pSphereHitDist ? 0.0f : *pSphereHitDist;
 
+    // Port: the test above guarantees curdist / curdot <= moveDistance in exact arithmetic, but the rounded float
+    // quotient can land one ulp past moveDistance (the camera's end point sitting on a wall, e.g. Indy hanging from a
+    // ledge), which tripped the assert below. The retail x87 build kept intermediates wider and did not see it.
+    *pSphereHitDist = *pSphereHitDist > moveDistance ? moveDistance : *pSphereHitDist;
+
 #line 976
     SITH_ASSERTREL((*pSphereHitDist <= moveDistance) && (*pSphereHitDist >= ((float)0.0)));
     return 1;

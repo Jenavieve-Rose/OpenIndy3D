@@ -88,7 +88,24 @@ static void hostcrash_Write(int fd, const char* pText)
 
 static void hostcrash_Handler(int sig)
 {
-    // Only async-signal-safe calls from here: open, write, close, backtrace_symbols_fd, raise
+    // Only async-signal-safe calls from here: sigaction, open, write, close, backtrace_symbols_fd, raise
+
+    // The kernel ignores SA_RESETHAND for SIGILL and SIGTRAP (xnu, like the BSDs), so put the default action back
+    // ourselves; otherwise the raise() below re-enters this handler until the stack runs out. The guard covers a
+    // second fault inside the handler itself.
+    static volatile sig_atomic_t bInHandler = 0;
+    struct sigaction dfl;
+    memset(&dfl, 0, sizeof(dfl));
+    dfl.sa_handler = SIG_DFL;
+    sigemptyset(&dfl.sa_mask);
+    sigaction(sig, &dfl, NULL);
+    if ( bInHandler )
+    {
+        raise(sig);
+        return;
+    }
+    bInHandler = 1;
+
     const int fd = open(hostcrash_aLogPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if ( fd >= 0 )
     {
