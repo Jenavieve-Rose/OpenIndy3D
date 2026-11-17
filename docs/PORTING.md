@@ -1643,3 +1643,36 @@ The `Indy3D` test folder became a GOG install on 2026-11-15. With it, `saveload`
 particle is alive at frame 300 of `00_cyn`, and a save leaves timed particles and debris out by design
 (`sithThing_CanSync`). The test now compares only what a save holds. `gamedialogs` sets the game's statistics to a
 finished level before opening level completed, as the game does; on level 0 the dialog read `aLevelStatistic[-1]`.
+
+### Phase 6 code audit
+
+1. **Warnings** (`-Wall -Wextra -Wshadow -Wcast-align`) and **the static analyzer** on the C written or changed this
+   phase (`j3dmenu_apple.c`, `j3dmenu_null.c`, `gui_gdi.c`, `gui_images.c`, the port blocks of `jonesConfig.c` and
+   `JonesMain.c`); the Swift library builds with `-warnings-as-errors`. Fixed: the launcher's test switch read
+   `getenv` twice; `gui_BufferDC` could leak a DC when the live-handle table failed to grow; `J3DGui_TextExtent`'s
+   metrics are zeroed before a face that cannot report them; the resource reader's local `gui_exe` shadowed the global.
+   Fixed in retail code this phase made reachable: the HUD's save and load items tested `dlgResult` unset when saving
+   is disabled (now cancelled; the open item phase 1 left here), and the insert-CD dialog returned an unset result for
+   `WM_DESTROY` (decision 18). Kept: the `-Wcast-align` reports on handle types point at heap blocks; the analyzer's
+   uninitialised read in `DrawText` takes a path where nothing is read. `jonesConfig.c` now builds with `-Werror` and no
+   narrowing (P6.24); its remaining `-Wextra` reports (unused locals, `&&` within `||`) are retail's and harmless.
+2. **Newly reachable code under ASan and UBSan:** every menu through `J3D_MENU_TEST` over the running game, the
+   launcher, Options and the control options opened from it (`launcher` test), and the Win32 form of every dialog
+   (`gamedialogs`). Found and fixed in the steps above: the GDI read freed DCs that retail's level-completed dialog
+   kept using; `aLevelStatistic[-1]` and `[17]`; the store's names overwritten by the string table's shared buffer.
+3. **Read-through.** Everything new runs on the main thread: the menus are modal sessions, and their timers (unattended
+   test, controller, key capture) run in the modal run loop mode. No C pointer handed to Swift is kept past the call
+   that handed it, except the store's and the control sets' state, which the C side owns for the whole modal call.
+   The callbacks' static state is saved and restored around nesting where nesting can happen (the key capture's
+   callback, the menu sessions) and guarded where it cannot (the store). Text from `menu_String` (sixteen copies) is
+   copied by Swift on entry; pages and labels that outlive more calls keep their own copies. Found: an edited control
+   set's copy carried its earlier `bModified`, so Cancel kept a cancelled edit of a set changed earlier (fixed in
+   P6.20); SDL is asked for gamepad state only (`SDL_UpdateGamepads`), never to pump events, while a menu's modal
+   session is taking them.
+4. **Behaviour.** The `boot` autosave is byte-identical to `main`'s before this phase (null build); the log differs only
+   in the "Debug" header, as the debug output's default is retail's again (P6.23). Every test passes in the apple
+   (18), null (12) and sanitizer (18) trees, with `-Werror` and no compiler warning.
+
+Not done by hand: buying in the store, editing a control set and capturing keys and buttons, driving the menus with a
+real controller, VoiceOver. The unattended runs open and capture every menu but close them unanswered.
+

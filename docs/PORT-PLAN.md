@@ -21,7 +21,7 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 41 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 41 of 41 | Complete 2026-11-16 (decisions 20 and 21), audited, merged into `main`; menus by hand open |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
 | **All** | | **138 of 162** | |
@@ -726,9 +726,8 @@ with the system font at a size that reads on a Retina display, never with the bi
 Exit test: the launcher starts and resumes the game; every setting can be changed in Options and the game obeys it;
 every dialog reachable in a playthrough works and reads clearly; the game can be saved and loaded in-app.
 
-State on 2026-11-16: 6A is committed on the branch `phase6-dialogs` (`0f51db5`). The SwiftUI menus exist for messages,
-exit, save and load, game play and sound options, game over, statistics and level completed; the `gamedialogs` test
-opens the Win32 form of every dialog. Nothing of 6B exists in the tree yet.
+State on 2026-11-16: complete and audited, merged into `main`. The launcher and Options and every in-game menu are
+SwiftUI; the Win32 dialogs over `j3dgui` remain for runs with no menu, and `gamedialogs` opens each of them.
 
 #### 6A. Foundation (`platform/common/j3dgui/`) (complete, committed)
 
@@ -899,6 +898,22 @@ launcher's Options window; both must leave `settings.ini` in the same state.
 - [x] **P6.25** (M) Content pass: every dialog compared with a reference screenshot from the Windows build for what
       it holds (every control present, in the same order, with the same text and behaviour), not for its look.
 ## Complete Phase 6 Code Audit
+
+Done 2026-11-16; details in `docs/PORTING.md`, "Phase 6 code audit". Extra warnings and the static analyzer on the
+phase's C, every menu, the launcher and every Win32 dialog under ASan and UBSan, a read-through of lifetimes and
+nesting.
+
+- [x] Warnings and static analysis: four findings in the new code (a double `getenv`, a DC leak on a failed table
+      growth, unzeroed text metrics, a shadowed global) and two unset reads in retail code the menus reach (the HUD's
+      save and load items with saving disabled, insert CD's `WM_DESTROY`), fixed.
+- [x] Newly reachable code: freed DCs in use, statistics indexes -1 and 17, the store's shared name buffer; fixed in
+      the steps.
+- [x] Read-through: main thread only; no C pointer kept past its call but the state the C side owns for the modal
+      call; nesting saved and restored or guarded. Found: a cancelled edit of a changed control set was kept; fixed.
+- [x] Behaviour: the `boot` autosave is byte-identical to `main`'s before the phase; every test passes in the apple
+      (18), null (12) and sanitizer (18) trees, with no compiler warning.
+- Not yet done by hand: buying in the store, editing a control set and capturing keys and buttons, a real controller
+      in the menus, VoiceOver.
 ### Phase 7: Full-game verification and 64-bit closure Done 2026-11-16 against the templates in `Indy3D.rc` and the dialog procedures, as no screenshot of the
       Windows build was at hand: the table in `docs/PORTING.md` ("Content pass") lists each dialog's controls and
       every deliberate difference.
@@ -1069,7 +1084,7 @@ guide.
 | 3 | Playable with keyboard, mouse and gamepad | 1 to 2 weeks | Code complete and audited 2026-11-13; the playthrough by hand is open |
 | 4 | Audio complete | 2 weeks | Complete 2026-11-13, with 3D sound; listened to by hand in `12_sol` |
 | 5 | Movies complete | 2 to 3 weeks | Complete 2026-11-13, audited: the intro plays with sound; every movie decodes headlessly; watching by hand open |
-| 6 | Launcher, Options, all dialogs, save and load in-app | 4 to 6 weeks | Replanned 2026-11-14: dialog foundation committed on `phase6-dialogs`; launcher mocked up, not in the tree |
+| 6 | Launcher, Options, all dialogs, save and load in-app | 4 to 6 weeks | Complete 2026-11-16, audited: SwiftUI launcher, Options and in-game menus, Win32 dialogs as the fallback; using them by hand open |
 | 7 | Full playthrough verified | 2 to 3 weeks | Not started |
 | 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | Not started |
 
@@ -1084,8 +1099,8 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
    `J3D_AUDIO_DUMP` (BUILDING.md) records what was heard, for comparing later builds.
 2. **Phase 5, by hand:** watch the intro for audio/video sync and listen to it (`moviecheck` measures the sound but
    nobody has listened), fullscreen and windowed.
-3. **Phase 6:** settle the hand-over (P6.26) and bring the mockup into the build (P6.27, P6.28); in parallel, finish
-   and commit the dialog wiring that is in the working tree, starting with save and load (P6.17).
+3. **Phase 6, by hand:** start a game from the launcher and resume one; buy in the store; create and edit a control set,
+   capturing keys and controller buttons; drive the menus with a controller; read them with VoiceOver.
 4. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
    current tests do not reach.
 

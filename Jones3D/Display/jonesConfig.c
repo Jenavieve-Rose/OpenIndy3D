@@ -10847,7 +10847,8 @@ BOOL CALLBACK jonesConfig_DialogInsertCDProc(HWND hWnd, UINT uMsg, WPARAM wParam
 
         case WM_DESTROY:
             jonesConfig_ResetDialogFont(hWnd, jonesConfig_hFontDialogInsertCD);
-            break; // Retail bug: returns an uninitialised result
+            bResult = 0; // Port: retail returned an uninitialised result here; WM_DESTROY's result is not read (decision 18)
+            break;
 
         default:
             bResult = 0;

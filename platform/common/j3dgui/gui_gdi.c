@@ -1421,6 +1421,7 @@ void J3DGui_TextExtent(HFONT hFont, const char* pText, int len, SIZE* pSize)
     J3DGuiTextFace* pFace = gui_Face(gui_FontObj(hFont));
     J3DGuiTextMetrics m;
     int w = 0;
+    memset(&m, 0, sizeof(m)); // read below even if the face could not report its metrics
     int i;
     J3DGuiText_GetMetrics(pFace, &m);
     for ( i = 0; i < len; ++i )
@@ -1932,7 +1933,8 @@ static HDC gui_BufferDC(void)
         free(pBitmap);
         if ( pDC )
         {
-            DeleteDC((HDC)pDC);
+            gui_Untrack(pDC);
+            free(pDC);
         }
         stdDisplay_UnlockBackBuffer();
         return NULL;

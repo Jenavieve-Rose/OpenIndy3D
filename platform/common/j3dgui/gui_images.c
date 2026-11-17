@@ -154,10 +154,10 @@ static uint16_t gui_U16(const uint8_t* p)
 // Reads the first of apNames (relative to the data root) that exists and finds its resource section. 1 on success.
 static int gui_OpenExe(GuiExe* pExe, const char* const* apNames, size_t numNames)
 {
-    GuiExe gui_exe; // the code below was written for the one executable; it fills this copy, then pExe
+    GuiExe exe;
     size_t i;
-    memset(&gui_exe, 0, sizeof(gui_exe));
-    for ( i = 0; i < numNames && !gui_exe.pData; ++i )
+    memset(&exe, 0, sizeof(exe));
+    for ( i = 0; i < numNames && !exe.pData; ++i )
     {
         char aPath[1100];
         FILE* f;
@@ -173,46 +173,46 @@ static int gui_OpenExe(GuiExe* pExe, const char* const* apNames, size_t numNames
         fseek(f, 0, SEEK_SET);
         if ( size > 0x400 && size < (64 << 20) )
         {
-            gui_exe.pData = malloc((size_t)size);
-            if ( gui_exe.pData && fread(gui_exe.pData, 1, (size_t)size, f) == (size_t)size )
+            exe.pData = malloc((size_t)size);
+            if ( exe.pData && fread(exe.pData, 1, (size_t)size, f) == (size_t)size )
             {
-                gui_exe.size = (size_t)size;
+                exe.size = (size_t)size;
             }
             else
             {
-                free(gui_exe.pData);
-                gui_exe.pData = NULL;
+                free(exe.pData);
+                exe.pData = NULL;
             }
         }
         fclose(f);
     }
-    if ( gui_exe.pData )
+    if ( exe.pData )
     {
         // find .rsrc
-        uint32_t pe = gui_exe.size > 0x40 ? gui_U32(gui_exe.pData + 0x3C) : 0;
-        if ( pe + 24 < gui_exe.size && memcmp(gui_exe.pData + pe, "PE\0\0", 4) == 0 )
+        uint32_t pe = exe.size > 0x40 ? gui_U32(exe.pData + 0x3C) : 0;
+        if ( pe + 24 < exe.size && memcmp(exe.pData + pe, "PE\0\0", 4) == 0 )
         {
-            int numSections = gui_U16(gui_exe.pData + pe + 6);
-            size_t sections = pe + 24 + gui_U16(gui_exe.pData + pe + 20);
+            int numSections = gui_U16(exe.pData + pe + 6);
+            size_t sections = pe + 24 + gui_U16(exe.pData + pe + 20);
             int k;
-            for ( k = 0; k < numSections && sections + (size_t)(k + 1) * 40 <= gui_exe.size; ++k )
+            for ( k = 0; k < numSections && sections + (size_t)(k + 1) * 40 <= exe.size; ++k )
             {
-                const uint8_t* s = gui_exe.pData + sections + (size_t)k * 40;
+                const uint8_t* s = exe.pData + sections + (size_t)k * 40;
                 if ( memcmp(s, ".rsrc", 5) == 0 )
                 {
-                    gui_exe.rsrcRva = gui_U32(s + 12);
-                    gui_exe.rsrcRaw = gui_U32(s + 20);
+                    exe.rsrcRva = gui_U32(s + 12);
+                    exe.rsrcRaw = gui_U32(s + 20);
                 }
             }
         }
-        if ( !gui_exe.rsrcRaw )
+        if ( !exe.rsrcRaw )
         {
-            free(gui_exe.pData);
-            gui_exe.pData = NULL;
+            free(exe.pData);
+            exe.pData = NULL;
         }
     }
-    *pExe = gui_exe;
-    return gui_exe.pData != NULL;
+    *pExe = exe;
+    return exe.pData != NULL;
 }
 
 static int gui_LoadExe(void)
@@ -233,9 +233,9 @@ static int gui_LoadExe(void)
 // The data of resource type/id (the first language) in pExe, or NULL.
 static const uint8_t* gui_FindResourceIn(const GuiExe* pExe, uint32_t type, uint32_t id, uint32_t* pSize)
 {
-    const GuiExe gui_exe = *pExe;
-    const uint8_t* base = gui_exe.pData + gui_exe.rsrcRaw;
-    size_t limit = gui_exe.size - gui_exe.rsrcRaw;
+    const GuiExe exe = *pExe;
+    const uint8_t* base = exe.pData + exe.rsrcRaw;
+    size_t limit = exe.size - exe.rsrcRaw;
     uint32_t want[2] = { type, id };
     size_t dir = 0;
     int level;
@@ -281,12 +281,12 @@ static const uint8_t* gui_FindResourceIn(const GuiExe* pExe, uint32_t type, uint
             }
             rva = gui_U32(base + entry);
             *pSize = gui_U32(base + entry + 4);
-            at = gui_exe.rsrcRaw + (rva - gui_exe.rsrcRva);
-            if ( rva < gui_exe.rsrcRva || at + *pSize > gui_exe.size )
+            at = exe.rsrcRaw + (rva - exe.rsrcRva);
+            if ( rva < exe.rsrcRva || at + *pSize > exe.size )
             {
                 return NULL;
             }
-            return gui_exe.pData + at;
+            return exe.pData + at;
         }
     }
     return NULL;

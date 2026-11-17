@@ -1120,6 +1120,7 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
     J3DMenuLauncherUI ui;
     SDL_Window* pWindow = NULL;
     const char* pMode = getenv("J3D_MENUS");
+    const char* pTestLaunch = getenv("J3D_MENU_TEST_LAUNCH");
     char aHelp[1100];
     char aStatus[1200];
     size_t pictureSize = 0;
@@ -1159,10 +1160,10 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
     {
         menu_LauncherOptions(NULL); // for tests: the Options window first, which J3D_MENU_AUTOCANCEL closes and _SHOT keeps
     }
-    if ( getenv("J3D_MENU_TEST_LAUNCH") )
+    if ( pTestLaunch )
     {
         // For tests: answer as the player would have, without showing the window ("newgame" or "resume")
-        *pChoice = strcmp(getenv("J3D_MENU_TEST_LAUNCH"), "resume") == 0 ? J3DMENU_LAUNCH_RESUME : J3DMENU_LAUNCH_NEWGAME;
+        *pChoice = strcmp(pTestLaunch, "resume") == 0 ? J3DMENU_LAUNCH_RESUME : J3DMENU_LAUNCH_NEWGAME;
     }
     else
     {

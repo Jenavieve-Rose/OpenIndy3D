@@ -3421,7 +3421,7 @@ void J3DAPI JonesHud_MenuActivateItem(void)
 
     {
         // Handle activation of system menu item
-        int dlgResult;
+        int dlgResult = 2; // Port: cancelled. Retail left it unset when saving or loading is disabled (jonesCog_bEnableGamesave) and then tested it (decision 18)
 
         JonesHud_bItemActivated = 1;
         switch ( JonesHud_pCurSelectedMenuItem->id )
