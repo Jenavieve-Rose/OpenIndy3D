@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 39 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 41 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **136 of 162** | |
+| **All** | | **138 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -886,8 +886,9 @@ launcher's Options window; both must leave `settings.ini` in the same state.
 - [x] **P6.22** (S) Confirm templates 104, 105 and 118 are unreferenced and leave them out. Done 2026-11-16: no
       code names them (104 and 105 are DirectPlay's join and connection dialogs, 118 an exit dialog); they stay in the
       generated tables, which `dialogs` builds, and nothing opens them.
-- [ ] **P6.23** (S) Restore retail's `Start Mode`, `Debug Mode` and `Verbosity` defaults, which were changed in
-      phase 1 only because no GUI existed. The launcher now sets `Start Mode` (P6.30).
+- [x] **P6.23** (S) Restore retail's `Start Mode`, `Debug Mode` and `Verbosity` defaults, which were changed in
+      phase 1 only because no GUI existed. The launcher now sets `Start Mode` (P6.30). Done 2026-11-16 (in `29d36ba`, `wuRegistry_file.c`): the defaults are retail's again, and the tests and tools
+      set what they need; the launcher sets the start mode (P6.30).
 - [x] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling (128-byte file-dialog
       buffers), its 58 narrowing warnings (then drop its `-Wno-error=shorten-64-to-32` in `CMakeLists.txt`) and its
       four uninitialised locals (`docs/PORTING.md`, "Known open items"). Its fall-off-the-end functions were fixed in
@@ -895,10 +896,12 @@ launcher's Options window; both must leave `settings.ini` in the same state.
       casts marked `// Port: narrowing cast`, and the file's `-Wno-error` is gone; the four locals have defined values
       (decision 18); the host-path buffers still reached (game over's restart save, the last save's lookup, deleted key
       sets) are `J3D_PATHSIZE`. The 128-byte buffers left are in the Win32 file dialogs' hooks, which no longer run.
-- [ ] **P6.25** (M) Content pass: every dialog compared with a reference screenshot from the Windows build for what
+- [x] **P6.25** (M) Content pass: every dialog compared with a reference screenshot from the Windows build for what
       it holds (every control present, in the same order, with the same text and behaviour), not for its look.
 ## Complete Phase 6 Code Audit
-### Phase 7: Full-game verification and 64-bit closure
+### Phase 7: Full-game verification and 64-bit closure Done 2026-11-16 against the templates in `Indy3D.rc` and the dialog procedures, as no screenshot of the
+      Windows build was at hand: the table in `docs/PORTING.md` ("Content pass") lists each dialog's controls and
+      every deliberate difference.
 
 Exit test: all 17 levels completed on the port with no assert, crash or blocker, and no Win32 type outside
 `platform/`.

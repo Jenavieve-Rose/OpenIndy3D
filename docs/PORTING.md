@@ -1608,6 +1608,35 @@ of each (string-table text, checks, what OK applies) is in `platform/apple/j3dme
   opens Options first; with `J3D_MENU_AUTOCANCEL` and `J3D_MENU_SHOT` both windows are captured. The `launcher` test
   uses them.
 
+### Content pass (P6.25)
+
+Each dialog's template in `Indy3D.rc` against what its menu holds: the same controls in the same order, with the same
+strings (the menus read the game's string table, `JONES_STR_*`, and strip the Win32 `&` mnemonics), doing the same
+thing. No screenshot of the Windows build was at hand, so the templates and the dialog procedures were the reference.
+Differences are deliberate and listed; "icon" is the template's decorative icon, which the menus do not draw (P6.40).
+
+| Template | Menu | Same | Differences |
+| --- | --- | --- | --- |
+| 121 message | choice | title, text, OK | icon |
+| 211 exit | choice, column | Return to Game (default), Save and Quit, Quit, in that order | the `exit.bmp` picture beside the buttons |
+| 154, 159 save, load | save picker | the saves, the name, the picture of each save and of the game as it is, Save/Load and Cancel; retail's checks on a name and its questions (overwrite, progress lost, reserved names) | the Windows file dialog's folder browsing, file types and details view; 159's hidden Resume button |
+| 163, 214 questions | (save picker's questions) | the same strings and Yes/No | raised by the picker, not by the file dialog's hook |
+| 112 game play | form | difficulty with its level name, Show Map Hints, Map Rotation, Default to Run, Show Text, OK, Cancel | icon |
+| 113 sound | form | volume (heard on release), Low/Medium/High captions, 3D Sound (greyed without 3D), OK, Cancel | icon; the hidden reverse-stereo box |
+| 114, 148 display | form | resolution with its size, performance level, mip mapping, fog, fog density 0 to 100%, Default Settings, OK, Cancel | one menu for both; colour depth, buffering and the device and rasterizer lists left out (one each, or ignored by Metal); the hidden high-poly box |
+| 150 game over | choice, column | Restart (greyed without the level's start save), Load Game (default), Quit; the music | icon |
+| 164 statistics | figures | chapters done, time, treasures, hints seen, difficulty penalty; a page a level and the summary, shown first, turned with arrows instead of a scroll bar; the IQ picture with the game's figures; Close | |
+| 233 level completed | figures | time, treasures found, their worth, all treasures' worth; the IQ picture; Close, then the store | |
+| 190 store | store | the three lists with icons, counts and costs, Add Item, Return Item, Clear, total, balance, Done; double-click to add or return; the Peru map and can't-afford messages | icon |
+| 212 purchase | question | the dialog's text, Yes/No | icon |
+| 167 insert CD | choice | the CD's text, OK (only once that CD is in), Quit | |
+| 111 control options | control options | the sets, Edit/View, New, Delete (not for the game's own), Enable Mouse, Enable Gamepad/Joystick, OK, Cancel | icon; the game's own sets are marked with a lock |
+| 115 edit set | control set | the bindings, Edit/Add/Delete Assignment, Default Settings, Save Keyset, Cancel | the keyboard and controller lists merged into one table of action, keys and buttons; the game's own sets are shown read-only with Close |
+| 116 new set | name | Name, OK, Cancel; retail's checks (invalid characters, duplicate, empty) | icon |
+| 117 assign key | capture | the prompt (key or button), the action, Cancel; retail's refusals | icon |
+| 120 reassign | question | the key, from which action, to which, and the question, as one text; Yes/No | the template's three lines are one paragraph |
+| 101 developer | (Win32) | unchanged: the developer dialog stays a j3dgui dialog (P6.13) | Windows 98 look |
+
 ### Test data
 
 The `Indy3D` test folder became a GOG install on 2026-11-15. With it, `saveload` and `saveload-3d` failed: a timed
