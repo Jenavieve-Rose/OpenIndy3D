@@ -1333,7 +1333,7 @@ int J3DAPI jonesConfig_InitKeyActions(void)
             jonesConfig_maxActionWords = len;
         }
 
-        len = strlen(aActionName);
+        len = (int)(strlen(aActionName)); // Port: narrowing cast
         if ( len > jonesConfig_largestActionStrLen )
         {
             jonesConfig_largestActionStrLen = len;
@@ -1405,7 +1405,7 @@ int J3DAPI jonesConfig_InitKeyActions(void)
             jonesConfig_maxControlKeyWordCount = length;
         }
 
-        length = strlen(aControlStr);
+        length = (int)(strlen(aControlStr)); // Port: narrowing cast
         if ( length > jonesConfig_maxControlLen )
         {
             jonesConfig_maxControlLen = length;
@@ -1741,7 +1741,7 @@ void J3DAPI jonesConfig_ControlToString(size_t controlId, char* pDest)
             case DIK_X:
             case DIK_Y:
             case DIK_Z:
-                GetKeyNameText(((controlId & 0x7F) | ((controlId & 0x80) << 1)) << 16, aKeyName, sizeof(aKeyName) - 1);
+                GetKeyNameText((LONG)(((controlId & 0x7F) | ((controlId & 0x80) << 1)) << 16), aKeyName, sizeof(aKeyName) - 1); // Port: narrowing cast
                 strcpy(pDest, aKeyName);
                 _strupr(pDest);
                 return;
@@ -2139,7 +2139,7 @@ BOOL CALLBACK jonesConfig_MessageDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam,
             SetWindowText(hwnd, pData->aTitle);
             jonesConfig_InitMessageDialogIcon(hwnd, pData);
             jonesConfig_hFontMessageDialog = (HGDIOBJ)jonesConfig_InitDialog(hwnd, 0, 121);
-            bResult = jonesConfig_InitMessageDialogData(hwnd, wParam, lParam);
+            bResult = jonesConfig_InitMessageDialogData(hwnd, (int)(wParam), lParam); // Port: narrowing cast
 
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
@@ -2276,7 +2276,7 @@ int J3DAPI jonesConfig_SetTextControl(HWND hDlg, HWND hTextCtrl, const char* aTe
         }
 
         lineWidth = 0;
-        lineLen   = strlen(aLine);
+        lineLen   = (int)(strlen(aLine)); // Port: narrowing cast
         for ( i = 0; i < lineLen; ++i )
         {
             const ABC* pCharMetric = &jonesConfig_aGlyphMetrics[(uint8_t)aLine[i] - jonesConfig_textMetric.tmFirstChar];
@@ -2301,7 +2301,7 @@ int J3DAPI jonesConfig_SetTextControl(HWND hDlg, HWND hTextCtrl, const char* aTe
         }
     } while ( pCurPos );
 
-    yOffset = (jonesConfig_textMetric.tmHeight + jonesConfig_textMetric.tmExternalLeading) * numLines - (rectWnd.bottom - rectWnd.top);
+    yOffset = (LONG)((jonesConfig_textMetric.tmHeight + jonesConfig_textMetric.tmExternalLeading) * numLines - (rectWnd.bottom - rectWnd.top)); // Port: narrowing cast
     if ( yOffset > 0 )
     {
         HWND hOkBtn;
@@ -2740,7 +2740,7 @@ int J3DAPI jonesConfig_ParseJoystickControlId(size_t* pArgNum, const StdConffile
 
         strcpy(aArgText, pEntry->aArgs[*pArgNum].argName);
 
-        btnNum = strcspn(pEntry->aArgs[*pArgNum].argName, "0123456789");
+        btnNum = (int)(strcspn(pEntry->aArgs[*pArgNum].argName, "0123456789")); // Port: narrowing cast
         aArgText[btnNum] = '\0';
 
         if ( btnNum > 0 )
@@ -3331,7 +3331,7 @@ void J3DAPI jonesConfig_BindControls(JonesControlsScheme* pConfig)
 
 void J3DAPI jonesConfig_BindJoystickControl(SithControlFunction functionId, size_t controlId)
 {
-    int numJoysticks = stdControl_GetNumJoysticks();
+    int numJoysticks = (int)(stdControl_GetNumJoysticks()); // Port: narrowing cast
     int axisIndex;
     int flags;
     size_t buttonIdx;
@@ -3411,7 +3411,7 @@ void J3DAPI jonesConfig_BindJoystickControl(SithControlFunction functionId, size
 HFONT J3DAPI jonesConfig_InitDialog(HWND hWnd, HFONT hFont, int dlgID)
 {
     JonesDialogFontInfo fontData;
-    float curFontScale; // Retail bug: uninitialised when hFont is passed in
+    float curFontScale = 1.0f; // Retail bug: uninitialised when hFont is passed in. Port: unscaled (decision 18)
 
     JonesDisplaySettings* pCurSettings = JonesMain_GetDisplaySettings();
     if ( pCurSettings )
@@ -3450,9 +3450,9 @@ HFONT J3DAPI jonesConfig_InitDialog(HWND hWnd, HFONT hFont, int dlgID)
 
 HFONT J3DAPI jonesConfig_CreateDialogFont(HWND hWnd, int bWindowMode, int dlgID, float* pFontScale)
 {
-    float fontScale;
+    float fontScale = 1.0f; // Port: unscaled when the dialog has no reference height, where retail read it unset (decision 18)
     const char* pFontStr = NULL;
-    HFONT font;
+    HFONT font = NULL; // Port: no font when JONES_STR_FONT is missing, where retail returned it unset (decision 18)
     LOGFONT logFont;
     uint32_t screenHeight;
     RECT rcDlg;
@@ -3522,6 +3522,7 @@ HFONT J3DAPI jonesConfig_CreateDialogFont(HWND hWnd, int bWindowMode, int dlgID,
         fontHeight = logFont.lfHeight;
         GetWindowRect(GetDesktopWindow(), &rectDskt);
         screenHeight = rectDskt.bottom - rectDskt.top;
+        scrwidth = (uint32_t)(rectDskt.right - rectDskt.left); // Port: the desktop's width, which retail left unset here (decision 18)
         if ( screenHeight < 480 )
         {
             SystemParametersInfo(SPI_GETWORKAREA, 0, &rectDskt, 0);
@@ -3530,7 +3531,7 @@ HFONT J3DAPI jonesConfig_CreateDialogFont(HWND hWnd, int bWindowMode, int dlgID,
 
         if ( fontScale <= 1.0f )
         {
-            // Retail bug: scrwidth is not set on this path
+            // Retail bug: scrwidth is not set on this path (the port sets it to the desktop's width above)
             if ( screenHeight < 480 && scrwidth < 640 )
             {
                 fontScale *= (float)((double)screenHeight / 480.0);
@@ -3699,7 +3700,7 @@ void J3DAPI jonesConfig_SetWindowFontAndPosition(HWND hCtrl, JonesDialogFontInfo
 
     if ( HIWORD(pFontInfo->dialogID) == JONESCONFIG_NOFONTSCALEMASK )
     {
-        LONG dlgID = (LONG_PTR)GetWindowLongPtr(hCtrl, GWL_USERDATA);
+        LONG dlgID = (LONG)((LONG_PTR)GetWindowLongPtr(hCtrl, GWL_USERDATA)); // Port: narrowing cast
         HWND dlgItem1137 = GetDlgItem(hParent, 1137);
         if ( dlgID == 159 || dlgID == 154 )     // load/save dialogs
         {
@@ -3737,7 +3738,7 @@ void J3DAPI jonesConfig_SetWindowFontAndPosition(HWND hCtrl, JonesDialogFontInfo
     {
         HWND hwndParent;
 
-        LONG dlgID =(LONG_PTR)GetWindowLongPtr(hCtrl, GWL_USERDATA); // TODO: UNUSED
+        LONG dlgID =(LONG)((LONG_PTR)GetWindowLongPtr(hCtrl, GWL_USERDATA)); // TODO: UNUSED. Port: narrowing cast
 
         hwndParent = GetParent(hParent);
         if ( hwndParent )
@@ -4070,7 +4071,7 @@ UINT CALLBACK jonesConfig_SaveGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
             return 0;
 
         case WM_INITDIALOG:
-            result = jonesConfig_SaveGameDialogInit(hDlg, wParam, (LPOPENFILENAME)lParam);
+            result = jonesConfig_SaveGameDialogInit(hDlg, (int)(wParam), (LPOPENFILENAME)lParam); // Port: narrowing cast
             break;
 
         case WM_CLOSE:
@@ -4417,7 +4418,7 @@ BOOL CALLBACK jonesConfig_ExitGameDlgProc(HWND hWnd, UINT uMsg, WPARAM wparam, L
 
             jonesConfig_hFontExitDlg = jonesConfig_InitDialog(hWnd, 0, pGSData->dialogID);
 
-            bResult = jonesConfig_GameSaveSetData(hWnd, wparam, lparam);
+            bResult = jonesConfig_GameSaveSetData(hWnd, (int)(wparam), lparam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
         }
@@ -4430,7 +4431,7 @@ BOOL CALLBACK jonesConfig_ExitGameDlgProc(HWND hWnd, UINT uMsg, WPARAM wparam, L
             HDC hmemdc;
             LONG userData;
 
-            userData = GetWindowLongPtr(hWnd, DWL_USER); // unused
+            userData = (LONG)(GetWindowLongPtr(hWnd, DWL_USER)); // unused. Port: narrowing cast
             hIcon  = GetDlgItem(hWnd, 1182);
             hdc    = BeginPaint(hIcon, &ps);
             hmemdc = CreateCompatibleDC(hdc);
@@ -4468,7 +4469,7 @@ BOOL CALLBACK jonesConfig_SaveGameMsgBoxProc(HWND hWnd, UINT umsg, WPARAM wParam
         {
             GameSaveMsgBoxData* pData = (GameSaveMsgBoxData*)lParam;
             jonesConfig_hFontGameSaveMsgBox = jonesConfig_InitDialog(hWnd, 0, pData->dialogID);
-            bResult = jonesConfig_GameSaveSetData(hWnd, wParam, lParam);
+            bResult = jonesConfig_GameSaveSetData(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
         }
@@ -4712,7 +4713,7 @@ UINT CALLBACK jonesConfig_LoadGameDialogHookProc(HWND hDlg, UINT uMsg, WPARAM wP
             return FALSE;
 
         case WM_INITDIALOG:
-            result = jonesConfig_LoadGameDialogInit(hDlg, wParam, (LPOPENFILENAME)lParam);
+            result = jonesConfig_LoadGameDialogInit(hDlg, (int)(wParam), (LPOPENFILENAME)lParam); // Port: narrowing cast
             break;
 
         case WM_CLOSE:
@@ -5123,7 +5124,7 @@ BOOL CALLBACK jonesConfig_GamePlayOptionsProc(HWND hWnd, UINT uMsg, WPARAM wPara
 
         case WM_INITDIALOG:
             jonesConfig_hFontGamePlayOptionsDlg = jonesConfig_InitDialog(hWnd, NULL, 112);
-            bResult = jonesConfig_GamePlayOptionsInitDlg(hWnd, wParam, lParam);
+            bResult = jonesConfig_GamePlayOptionsInitDlg(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -5136,7 +5137,7 @@ BOOL CALLBACK jonesConfig_GamePlayOptionsProc(HWND hWnd, UINT uMsg, WPARAM wPara
             jonesConfig_HandleWM_HSCROLL(hWnd, (HWND)lParam, LOWORD(wParam), (short)HIWORD(wParam));
 
             hCtrl = GetDlgItem(hWnd, 1050);   // Difficulty slider control
-            difficulty = SendMessage(hCtrl, TBM_GETPOS, 0, 0);
+            difficulty = (int)(SendMessage(hCtrl, TBM_GETPOS, 0, 0)); // Port: narrowing cast
             hCtrl = GetDlgItem(hWnd, 1215); // Difficulty text control
             switch ( difficulty )
             {
@@ -5197,10 +5198,10 @@ void J3DAPI jonesConfig_HandleWM_HSCROLL(HWND hDlg, HWND hWnd, UINT sbValue, int
     int posMin;
     int currentPosition;
 
-    maximumPos   = SendMessage(hWnd, TBM_GETRANGEMAX, 0, 0);
-    posMin   = SendMessage(hWnd, TBM_GETRANGEMIN, 0, 0);
-    currentPosition   = SendMessage(hWnd, TBM_GETPOS, 0, 0);
-    pageSize = SendMessage(hWnd, TBM_GETPAGESIZE, 0, 0);  // ???
+    maximumPos   = (int)(SendMessage(hWnd, TBM_GETRANGEMAX, 0, 0)); // Port: narrowing cast
+    posMin   = (int)(SendMessage(hWnd, TBM_GETRANGEMIN, 0, 0)); // Port: narrowing cast
+    currentPosition   = (int)(SendMessage(hWnd, TBM_GETPOS, 0, 0)); // Port: narrowing cast
+    pageSize = (int)(SendMessage(hWnd, TBM_GETPAGESIZE, 0, 0));  // ??? Port: narrowing cast
 
     switch ( sbValue )
     {
@@ -5317,7 +5318,7 @@ void J3DAPI jonesConfig_GamePlayOptions_HandleWM_COMMAND(HWND hDlg, int controlI
             wuRegistry_SaveIntEx("Show Hints", sithOverlayMap_GetShowHints());
 
             // Get & save difficulty
-            sithSetGameDifficulty(SendMessage(GetDlgItem(hDlg, 1050), TBM_GETPOS, 0, 0));
+            sithSetGameDifficulty((int)(SendMessage(GetDlgItem(hDlg, 1050), TBM_GETPOS, 0, 0))); // Port: narrowing cast
             wuRegistry_SaveInt("Difficulty", sithGetGameDifficulty());
 
             // Get & save default to run option
@@ -5528,7 +5529,7 @@ JonesControlsScheme* J3DAPI jonesConfig_CloneControlSchemesList(JonesControlsSch
 
     memset(aNewSchemes, 0, sizeof(JonesControlsScheme) * numSchemes);
 
-    for ( i = start; i < (int)(start + numSchemes); ++i )
+    for ( i = (int)(start); i < (int)(start + numSchemes); ++i ) // Port: narrowing cast
     {
         scheme = &aSchemes[i];
         strcpy(aNewSchemes[i - start].aName, scheme->aName);
@@ -5585,7 +5586,7 @@ BOOL CALLBACK jonesConfig_ControlOptionsDialogProc(HWND hwnd, UINT umsg, WPARAM 
 
         case WM_INITDIALOG:
             jonesConfig_hFontControlOptions = jonesConfig_InitDialog(hwnd, 0, 111);
-            bResult = jonesConfig_InitControlOptionsDialog(hwnd, wparam, lparam);
+            bResult = jonesConfig_InitControlOptionsDialog(hwnd, (int)(wparam), lparam); // Port: narrowing cast
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -5660,7 +5661,7 @@ int J3DAPI jonesConfig_InitControlOptionsDialog(HWND hDlg, int a2, LPARAM lParam
             pConfig->selectedShemeIdx = i;
         }
 
-        GetTextExtentPoint(hCfgListDC, pConfig->aSchemes[i].aName, strlen(pConfig->aSchemes[i].aName), &sz);
+        GetTextExtentPoint(hCfgListDC, pConfig->aSchemes[i].aName, (int)(strlen(pConfig->aSchemes[i].aName)), &sz); // Port: narrowing cast
         if ( sz.cx > pConfig->maxNameLen )
         {
             pConfig->maxNameLen = sz.cx;
@@ -5755,7 +5756,14 @@ void J3DAPI jonesConfig_ControlOptions_HandleWM_COMMAND(HWND hWnd, int ctrlID, L
                 int i = 0;  // block scope: the debug build's frame slot order follows it
                 for ( ; i < pConfig->numDeleteSchemes; ++i )
             {
+#ifdef J3D_PORT
+                // Port: the stored path is the game's (backslashes); the C library wants the host's
+                char aHostPath[J3D_PATHSIZE];
+                J3DHost_ToPosixPath(aHostPath, sizeof(aHostPath), pConfig->paDeleteSchemes[i]);
+                remove(aHostPath);
+#else
                 remove(pConfig->paDeleteSchemes[i]);
+#endif
             }
             }
 
@@ -5890,18 +5898,18 @@ void J3DAPI jonesConfig_ControlOptions_DeleteScheme(HWND hDlg, JonesControlsConf
             if ( (pConfig->numDeleteSchemes % 10) == 0 )
             {
 #line 5091
-                pConfig->paDeleteSchemes = (char (*)[128])STDREALLOC(
+                pConfig->paDeleteSchemes = (char (*)[J3D_PATHSIZE])STDREALLOC( // Port: J3D_PATHSIZE, was 128
                     pConfig->paDeleteSchemes,
-                    (pConfig->numDeleteSchemes + 10) * 128
+                    (pConfig->numDeleteSchemes + 10) * sizeof(*pConfig->paDeleteSchemes)
                 );
             }
 
             if ( pConfig->aSchemes[schemeNum].bModified != 1 )
             {
-                char aPath[128];
+                char aPath[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (key sets live in the user's Library)
                 memset(aPath, 0, sizeof(aPath));
 
-                sprintf(aPath, "%s\\%s%s", jonesConfig_aKeySetDirectory, paSchemePath, ".kfg");
+                snprintf(aPath, sizeof(aPath), "%s\\%s%s", jonesConfig_aKeySetDirectory, paSchemePath, ".kfg"); // Port: bounded
                 strcpy(pConfig->paDeleteSchemes[pConfig->numDeleteSchemes], aPath);
                 ++pConfig->numDeleteSchemes;
             }
@@ -6136,7 +6144,7 @@ void J3DAPI jonesConfig_ControlOptions_CreateNewScheme(HWND hDlg, JonesControlsC
                         // Resize increase width of list for the new scheme name to fit in row
 
                         hdc = GetDC(hSchemeList);
-                        GetTextExtentPoint(hdc, newSchemeDlgData.aNewSchemeName, strlen(newSchemeDlgData.aNewSchemeName), &sz);
+                        GetTextExtentPoint(hdc, newSchemeDlgData.aNewSchemeName, (int)(strlen(newSchemeDlgData.aNewSchemeName)), &sz); // Port: narrowing cast
 
                         if ( sz.cx > pConfig->maxNameLen )
                         {
@@ -6208,7 +6216,7 @@ BOOL CALLBACK jonesConfig_CreateControlSchemeProc(HWND hWnd, UINT msg, WPARAM wp
 
         case WM_INITDIALOG:
             jonesConfig_hFontCreateControlSchemeDlg = jonesConfig_InitDialog(hWnd, 0, 116);
-            bResult = jonesConfig_InitCreateControlScheme(hWnd, wparam, lparam);
+            bResult = jonesConfig_InitCreateControlScheme(hWnd, (int)(wparam), lparam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -6349,7 +6357,7 @@ BOOL CALLBACK jonesConfig_EditControlSchemeProc(HWND hWnd, UINT uMsg, WPARAM wPa
 
         case WM_INITDIALOG:
             jonesConfig_hFontEditControlShceme = jonesConfig_InitDialog(hWnd, 0, 115);
-            bResult = jonesConfig_InitEditControlSchemeDlg(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitEditControlSchemeDlg(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -6498,8 +6506,8 @@ void J3DAPI jonesConfig_EditControlScheme_SetListScheme(HWND hCtrl, int ctrlID, 
             int bindNum = 1;  // block scope: the debug build's frame slot order follows it
             for ( ; bindNum <= (int)JONESCONTROL_ACTION_GETNUMBINDS(pScheme->aActions[i]); ++bindNum ) // Note, bindNum must start at 1 as 0 indes ix num bindings state
         {
-            int keyid = pScheme->aActions[i][bindNum];
-            item.iItem    = itemIndex;
+            int keyid = (int)(pScheme->aActions[i][bindNum]); // Port: narrowing cast
+            item.iItem    = (int)(itemIndex); // Port: narrowing cast
             item.iSubItem = 0;
             item.pszText  = (LPSTR)pActionName;
 
@@ -6672,7 +6680,7 @@ void J3DAPI jonesConfig_EditControlScheme_EditAssignment(HWND hDlg, HWND hListCt
 
             
             item.mask     = LVIF_PARAM;
-            item.iItem    = itemIdx;
+            item.iItem    = (int)(itemIdx); // Port: narrowing cast
             item.iSubItem = 0;
             item.lParam   = (assignkeyData.controlId << 16) | assignkeyData.actionId;
             ListView_SetItem(hListCtrl, &item);
@@ -6753,7 +6761,7 @@ int J3DAPI jonesConfig_EditControlScheme_GetSelectedListItemBinding(HWND hDlg, H
             *pBindIdx = bindIdx;
         }
 
-        return actionId;
+        return (int)(actionId); // Port: narrowing cast
     }
 
     return -1;
@@ -6935,13 +6943,13 @@ void J3DAPI jonesConfig_EditControlScheme_DeleteAssignment(HWND hDlg, HWND hList
         ListView_SetItemText(hListCtrl, itemIdx, 1, "");
 
         listItem.mask     = LVIF_PARAM;
-        listItem.iItem    = itemIdx;
+        listItem.iItem    = (int)(itemIdx); // Port: narrowing cast
         listItem.iSubItem = 0;
         listItem.lParam   = actionIdx;
         ListView_SetItem(hListCtrl, &listItem);
     }
 
-    for ( destIndex = bndIdx + 1; destIndex < (int)JONESCONTROL_ACTION_GETNUMBINDS(pScheme->aActions[actionIdx]); ++destIndex )
+    for ( destIndex = (int)(bndIdx + 1); destIndex < (int)JONESCONTROL_ACTION_GETNUMBINDS(pScheme->aActions[actionIdx]); ++destIndex ) // Port: narrowing cast
     {
         pScheme->aActions[actionIdx][destIndex] = pScheme->aActions[actionIdx][destIndex + 1];
     }
@@ -7118,7 +7126,7 @@ BOOL CALLBACK jonesConfig_AssignKeyDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, 
 
         case WM_INITDIALOG:
             jonesConfig_hFontAssignKeyDlg = jonesConfig_InitDialog(hWnd, 0, 117);
-            bResult = jonesConfig_InitAssignKeyDlg(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitAssignKeyDlg(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -7400,7 +7408,7 @@ BOOL CALLBACK jonesConfig_ReassignKeyDialogProc(HWND hWnd, UINT uMsg, WPARAM wPa
 
         case WM_INITDIALOG:
             jonesConfig_hFontReassignKeyDlg = jonesConfig_InitDialog(hWnd, 0, 120);
-            bResult = jonesConfig_InitReassignKeyDialog(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitReassignKeyDialog(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -7544,7 +7552,7 @@ void J3DAPI jonesConfig_ReassignKeyDlg_HandleWM_COMMAND(HWND hWnd, unsigned int 
                 ListView_SetItemText(hList, pInfo->index, 1, "");
             }
 
-            for ( i = pInfo->offset + 1; i < (int)JONESCONTROL_ACTION_GETNUMBINDS(pScheme->aActions[pInfo->actionId]); ++i )
+            for ( i = (int)(pInfo->offset + 1); i < (int)JONESCONTROL_ACTION_GETNUMBINDS(pScheme->aActions[pInfo->actionId]); ++i ) // Port: narrowing cast
             {
                 pScheme->aActions[pInfo->actionId][i] = pScheme->aActions[pInfo->actionId][i + 1];
             }
@@ -7857,7 +7865,7 @@ BOOL CALLBACK jonesConfig_DisplaySettingsDialogProc(HWND hWnd, UINT uMsg, WPARAM
 
         case WM_INITDIALOG:
             jonesConfig_hFontDisplaySettingsDlg = jonesConfig_InitDialog(hWnd, 0, 114);
-            bResult = jonesConfig_InitDisplaySettingsDialog(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitDisplaySettingsDialog(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -8176,7 +8184,7 @@ void J3DAPI jonesConfig_DisplaySettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, 
             pResFormat = NULL;
             for ( i = 0; i < numColorDepths; i++ )
             {
-                colorDepthMask = ComboBox_GetItemData(hCBColorDepth, i);
+                colorDepthMask = (int)(ComboBox_GetItemData(hCBColorDepth, i)); // Port: narrowing cast
                 if ( HIWORD(colorDepthMask) == 0x04 )  // 16 bpp
                 {
                     ComboBox_SetCurSel(hCBColorDepth, i);
@@ -8237,7 +8245,7 @@ void J3DAPI jonesConfig_DisplaySettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, 
                 HWND hResSliderCtrl = GetDlgItem(hWnd, 1050);
                 HWND hResTextCtrl = GetDlgItem(hWnd, 1097);// resolution text control
 
-                int colorDepthMask = ComboBox_GetItemData(hCBColorDepth, ComboBox_GetCurSel(hCBColorDepth));
+                int colorDepthMask = (int)(ComboBox_GetItemData(hCBColorDepth, ComboBox_GetCurSel(hCBColorDepth))); // Port: narrowing cast
 
                 memset(aResText, 0, sizeof(aResText));
 
@@ -8279,7 +8287,7 @@ void J3DAPI jonesConfig_DisplaySettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, 
             HWND hCBColorDepth = GetDlgItem(hWnd, 1094);// color depth combo box
             HWND hResSliderCtrl = GetDlgItem(hWnd, 1050);// resolution slider control
             int curSliderPos = (int)SendMessage(hResSliderCtrl, TBM_GETPOS, 0, 0);
-            int itemData = ComboBox_GetItemData(hCBColorDepth, ComboBox_GetCurSel(hCBColorDepth));
+            int itemData = (int)(ComboBox_GetItemData(hCBColorDepth, ComboBox_GetCurSel(hCBColorDepth))); // Port: narrowing cast
 
             pSettings->videoModeNum = pData->aCurColorDepthResolutions[curSliderPos]->aColorDepthVideoModes[itemData & 0xFFFF];
 
@@ -8330,12 +8338,12 @@ BOOL CALLBACK jonesConfig_AdvanceDisplaySettingsDialogProc(HWND hWnd, UINT uMsg,
     switch ( uMsg )
     {
         case WM_COMMAND:
-            jonesConfig_AdvanceDisplaySettings_HandleWM_COMMAND(hWnd, LOWORD(wParam), lParam, HIWORD(wParam));
+            jonesConfig_AdvanceDisplaySettings_HandleWM_COMMAND(hWnd, LOWORD(wParam), (int)(lParam), HIWORD(wParam)); // Port: narrowing cast
             return 0;
 
         case WM_INITDIALOG:
             jonesConfig_hFontAdvanceDisplaySettingsDialog = jonesConfig_InitDialog(hWnd, 0, 148);
-            bResult = jonesConfig_InitAdvanceDisplaySettingsDialog(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitAdvanceDisplaySettingsDialog(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -8742,7 +8750,7 @@ BOOL CALLBACK jonesConfig_SoundSettingsDialogProc(HWND hWnd, UINT uMsg, WPARAM w
 
         case WM_INITDIALOG:
             jonesConfig_hFontSoundSettings = jonesConfig_InitDialog(hWnd, 0, 113);
-            bResult = jonesConfig_InitSoundSettingsDialog(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitSoundSettingsDialog(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -8766,7 +8774,7 @@ BOOL CALLBACK jonesConfig_SoundSettingsDialogProc(HWND hWnd, UINT uMsg, WPARAM w
                 if ( hSnd )
                 {
                     hVolSliderCtrl = GetDlgItem(hWnd, 1050);
-                    curPos = SendMessage(hVolSliderCtrl, TBM_GETPOS, 0, 0);
+                    curPos = (int)(SendMessage(hVolSliderCtrl, TBM_GETPOS, 0, 0)); // Port: narrowing cast
                     if ( jonesConfig_soundSettings_curSoundVolume != curPos )
                     {
                         jonesConfig_soundSettings_hSndChannel = sithSoundMixer_PlaySound(hSnd, D3DVAL(curPos / 100.0), 0.0f, (SoundPlayFlag)0);
@@ -8842,7 +8850,7 @@ void J3DAPI jonesConfig_SoundSettings_HandleWM_COMMAND(HWND hWnd, int ctrlID, LP
     {
         case 1: // OK
             hCtrl = GetDlgItem(hWnd, 1050);
-            cursliderPos = SendMessage(hCtrl, TBM_GETPOS, 0, 0);
+            cursliderPos = (int)(SendMessage(hCtrl, TBM_GETPOS, 0, 0)); // Port: narrowing cast
             pCurSettings->maxSoundVolume = (float)(cursliderPos / 100.0);
 
             hCtrl = GetDlgItem(hWnd, 1118);
@@ -8872,7 +8880,7 @@ int J3DAPI jonesConfig_ShowGameOverDialog(HWND hWnd, char* pRestoreFilename, tSo
         // and jonesConfig_GameOverDialog_HandleWM_COMMAND did around the dialog: the level's starting save is the
         // restart's, the music plays, and a load that is cancelled comes back to the menu.
         char aFilename[128];
-        char aRestorePath[128];
+        char aRestorePath[JONESCONFIG_GAMESAVE_FILEPATHSIZE]; // a host path: the save folder is in the user's Library
         LPSTR pFilePart;
         int menuResult = 1179;
 
@@ -8930,7 +8938,7 @@ BOOL CALLBACK jonesConfig_GameOverDialogProc(HWND hWnd, UINT uMsg, WPARAM wParam
 
         case WM_INITDIALOG:
             jonesConfig_hFontGameOverDialog = jonesConfig_InitDialog(hWnd, 0, 150);
-            bResult = jonesConfig_GameOverDialogInit(hWnd, wParam, lParam);
+            bResult = jonesConfig_GameOverDialogInit(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -8961,7 +8969,7 @@ void J3DAPI jonesConfig_LoadGameGetLastSavedGamePath(char* pPath, unsigned int s
     {
         nameLen = strlen(pLastFile);
         pChar = &pLastFile[nameLen - 1];
-        for ( filenameLength = nameLen; filenameLength >= 0; --filenameLength )
+        for ( filenameLength = (int)(nameLen); filenameLength >= 0; --filenameLength ) // Port: narrowing cast
         {
             if ( *pChar != '\\' )
             {
@@ -8984,11 +8992,11 @@ void J3DAPI jonesConfig_LoadGameGetLastSavedGamePath(char* pPath, unsigned int s
             memset(aFileName, 0, sizeof(aFileName));
             strncpy(aLastDir, pLastFile, pChar - pLastFile);
             strncpy(aFileName, pChar, strlen(pChar));
-            SearchPath(aLastDir, aFileName, 0, 128u, pPath, &pFound);
+            SearchPath(aLastDir, aFileName, 0, size, pPath, &pFound); // Port: the caller's size, was 128
         }
         else
         {
-            SearchPath(sithGetSaveGamesDir(), pLastFile, 0, 128u, pPath, &pFound);
+            SearchPath(sithGetSaveGamesDir(), pLastFile, 0, size, pPath, &pFound); // Port: the caller's size, was 128
         }
     }
 
@@ -9000,7 +9008,7 @@ void J3DAPI jonesConfig_LoadGameGetLastSavedGamePath(char* pPath, unsigned int s
         {
             sprintf(aFileName, "%s%s", sithGetAutoSaveFilePrefix(), sithGetCurrentWorldSaveName());
             stdFnames_ChangeExt(aFileName, "nds");
-            SearchPath(sithGetSaveGamesDir(), aFileName, 0, 128u, pPath, &pFound);
+            SearchPath(sithGetSaveGamesDir(), aFileName, 0, size, pPath, &pFound); // Port: the caller's size, was 128
         }
     }
 }
@@ -9237,7 +9245,7 @@ BOOL CALLBACK jonesConfig_StatisticsDialogProc(HWND hwnd, UINT uMsg, WPARAM wPAr
                 SetWindowText(hTextStatTitle, pTitleText);
             }
 
-            bResult = jonesConfig_InitStatisticDialog(hwnd, wPAram, lParam);
+            bResult = jonesConfig_InitStatisticDialog(hwnd, (int)(wPAram), lParam); // Port: narrowing cast
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
         }
@@ -9251,7 +9259,7 @@ BOOL CALLBACK jonesConfig_StatisticsDialogProc(HWND hwnd, UINT uMsg, WPARAM wPAr
             RECT rect;
 
             pDrawItem  = (DRAWITEMSTRUCT*)lParam;
-            ctlID      = wPAram;
+            ctlID      = (int)(wPAram); // Port: narrowing cast
             pData      = (intptr_t*)GetWindowLongPtr(hwnd, DWL_USER);
             pImageInfo = *(JonesDialogImageInfo**)pData;
             if ( !pImageInfo->unknown4 )
@@ -9329,7 +9337,7 @@ BOOL CALLBACK jonesConfig_StatisticsDialogProc(HWND hwnd, UINT uMsg, WPARAM wPAr
                 }
 
                 jonesConfig_SetStatisticsDialogForLevel(hwnd, levelNum, pData);
-                jonesConfig_DrawStatisticDialogIQPoints(hwnd, (JonesDialogImageInfo**)pData, 164, iqpoints);
+                jonesConfig_DrawStatisticDialogIQPoints(hwnd, (JonesDialogImageInfo**)pData, 164, (int)(iqpoints)); // Port: narrowing cast
 
                 drawItem.CtlType    = ODT_BUTTON;
                 drawItem.CtlID      = 1220;
@@ -9428,7 +9436,7 @@ void J3DAPI jonesConfig_StatisticProc_HandleWM_HSCROLL(HWND a1, HWND hWnd, UINT 
 
 void J3DAPI jonesConfig_UpdateCurrentLevelNum(void)
 {
-    jonesConfig_gameStatistics_curLevelNum = JonesMain_GetCurrentLevelNum();
+    jonesConfig_gameStatistics_curLevelNum = (int)(JonesMain_GetCurrentLevelNum()); // Port: narrowing cast
 }
 
 int J3DAPI jonesConfig_DrawImageOnDialogItem(HWND hDlg, HDC hdcWnd, HDC hdcCtrl, int nIDDlgItem, HBITMAP hImage, HBITMAP hMask)
@@ -9790,7 +9798,7 @@ int CALLBACK jonesConfig_LevelCompletedDialogProc(HWND hWnd, UINT uMsg, WPARAM w
 
         case WM_INITDIALOG:
             jonesConfig_hFontLevelCopletedDialog = jonesConfig_InitDialog(hWnd, 0, 233);
-            bResult = jonesConfig_InitLevelCompletedDialog(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitLevelCompletedDialog(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -10098,7 +10106,7 @@ int CALLBACK jonesConfig_StoreDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPA
 
         case WM_INITDIALOG:
             jonesConfig_hFontStoreDialog = jonesConfig_InitDialog(hwnd, 0, 190);
-            result = jonesConfig_InitStoreDialog(hwnd, wparam, lparam);
+            result = jonesConfig_InitStoreDialog(hwnd, (int)(wparam), lparam); // Port: narrowing cast
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -10124,8 +10132,8 @@ int CALLBACK jonesConfig_StoreDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPA
                 case LVN_BEGINRDRAG:
                 {
                     // Note, lparam is NMLISTVIEW struct here
-                    pCart->dragListId = pNMHdr->idFrom;
-                    jonesConfig_StoreHandleDragEvent(hwnd, GetDlgItem(hwnd, pNMHdr->idFrom));
+                    pCart->dragListId = (int)(pNMHdr->idFrom); // Port: narrowing cast
+                    jonesConfig_StoreHandleDragEvent(hwnd, GetDlgItem(hwnd, (int)(pNMHdr->idFrom))); // Port: narrowing cast
                 } break;
             };
         } break;
@@ -10714,7 +10722,7 @@ BOOL CALLBACK jonesConfig_PurchaseMessageBoxProc(HWND hWnd, UINT uMsg, WPARAM wP
 
         case WM_INITDIALOG:
             jonesConfig_hFontPurchaseMessageBox = jonesConfig_InitDialog(hWnd, 0, 212);
-            bResult = jonesConfig_InitPurchaseMessageBox(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitPurchaseMessageBox(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
             break;
 
@@ -10829,7 +10837,7 @@ BOOL CALLBACK jonesConfig_DialogInsertCDProc(HWND hWnd, UINT uMsg, WPARAM wParam
     {
         case WM_INITDIALOG:
             jonesConfig_hFontDialogInsertCD = jonesConfig_InitDialog(hWnd, 0, 167);
-            bResult = jonesConfig_InitDialogInsertCD(hWnd, wParam, lParam);
+            bResult = jonesConfig_InitDialogInsertCD(hWnd, (int)(wParam), lParam); // Port: narrowing cast
             break;
 
         case WM_COMMAND:
@@ -11501,14 +11509,14 @@ static void jonesConfig_MenuDeleteScheme(JonesControlsConfig* pConfig, int schem
     {
         if ( (pConfig->numDeleteSchemes % 10) == 0 )
         {
-            char (*paNew)[128] = (char (*)[128])STDREALLOC(pConfig->paDeleteSchemes, (size_t)(pConfig->numDeleteSchemes + 10) * 128);
+            char (*paNew)[J3D_PATHSIZE] = (char (*)[J3D_PATHSIZE])STDREALLOC(pConfig->paDeleteSchemes, (size_t)(pConfig->numDeleteSchemes + 10) * sizeof(*pConfig->paDeleteSchemes));
             if ( !paNew )
             {
                 return;
             }
             pConfig->paDeleteSchemes = paNew;
         }
-        snprintf(pConfig->paDeleteSchemes[pConfig->numDeleteSchemes++], 128, "%s\\%s%s", jonesConfig_aKeySetDirectory, pConfig->aSchemes[schemeNum].aName, ".kfg");
+        snprintf(pConfig->paDeleteSchemes[pConfig->numDeleteSchemes++], sizeof(*pConfig->paDeleteSchemes), "%s\\%s%s", jonesConfig_aKeySetDirectory, pConfig->aSchemes[schemeNum].aName, ".kfg");
     }
 
     memmove(&pConfig->aSchemes[schemeNum], &pConfig->aSchemes[schemeNum + 1], sizeof(JonesControlsScheme) * (size_t)(pConfig->numSchemes - schemeNum - 1));

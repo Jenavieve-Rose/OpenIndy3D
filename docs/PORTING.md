@@ -419,8 +419,10 @@ that only miss NaN.
 
 - `AudioLib.c`: `*pCurOut++ = *pCurOut++ = 0` is unsequenced; verified with the rest of AudioLib in Phase 4 (P4.8).
   The build allows that one warning (`-Wno-error=unsequenced`).
-- `jonesConfig.c`: 58 narrowing conversions, 128-byte file-dialog paths, and four uninitialised locals
-  (`scrwidth`, `font`, `curFontScale`, `bResult`) wait for the Phase 6 rewrite (P6.24).
+- `jonesConfig.c` (closed in P6.24): its 58 narrowings are explicit casts and the file builds with `-Werror`; `scrwidth`
+  is the desktop's width, `fontScale` and `curFontScale` are 1 and `font` NULL where retail read them unset (`bResult`
+  was already set on every path); the host-path buffers still reached are `J3D_PATHSIZE`, and a deleted key set's
+  file is removed through its host path (retail's `remove` got the game's backslash path).
 - Not yet reachable headless, so left for the phase that first runs them: `JonesHud.c`'s `moveRate` (menu animation)
   and `dlgResult` (save/load menu) and `JonesMain.c`'s `bFinished` (credits) can be read unset (Phases 2, 3 and 6);
   INSANE's `rc` in `Pcplay.c` and `D_bloc16.c` (Phase 5).

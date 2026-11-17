@@ -294,7 +294,7 @@ typedef struct sJonesControlsConfig
 {
     LONG maxNameLen;
     int numDeleteSchemes;
-    char (*paDeleteSchemes)[128];
+    char (*paDeleteSchemes)[J3D_PATHSIZE]; // Port: J3D_PATHSIZE, was 128 (key sets live in the user's Library)
     int numSchemes;
     int selectedShemeIdx; // cane be -1
     JonesControlsScheme* aSchemes;

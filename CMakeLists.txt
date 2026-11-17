@@ -242,8 +242,9 @@ if(J3D_PLATFORM STREQUAL "apple")
         -warnings-as-errors)
     # Everything else is C, archived and linked as C: the Swift objects name the runtime libraries they need
     # themselves, and the linker only has to be told where the SDK and the toolchain keep them.
-    get_filename_component(J3D_SWIFT_BIN_DIR ${CMAKE_Swift_COMPILER} REALPATH)
-    get_filename_component(J3D_SWIFT_BIN_DIR ${J3D_SWIFT_BIN_DIR} DIRECTORY)
+    # The toolchain's own swiftc, not /usr/bin's shim, whose folder has no Swift libraries beside it
+    execute_process(COMMAND xcrun --find swiftc OUTPUT_VARIABLE J3D_SWIFTC OUTPUT_STRIP_TRAILING_WHITESPACE)
+    get_filename_component(J3D_SWIFT_BIN_DIR ${J3D_SWIFTC} DIRECTORY)
     execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE J3D_MACOS_SDK OUTPUT_STRIP_TRAILING_WHITESPACE)
     target_link_libraries(j3dmenu_swift PUBLIC "-framework SwiftUI" "-framework AppKit")
     target_link_options(j3dmenu_swift PUBLIC
@@ -258,9 +259,6 @@ endif()
 # The game shell is a library so the test harnesses can link it without the app entry point.
 file(GLOB_RECURSE J3D_GAME_SOURCES CONFIGURE_DEPENDS ${J3D_ROOT}/Jones3D/*.c)
 add_library(jones3d_game STATIC ${J3D_GAME_SOURCES})
-# jonesConfig.c's 58 narrowing conversions are Win32 dialog message plumbing, which Phase 6 replaces (PORT-PLAN.md
-# P6.24); until then they stay warnings.
-set_source_files_properties(${J3D_ROOT}/Jones3D/Display/jonesConfig.c PROPERTIES COMPILE_OPTIONS -Wno-error=shorten-64-to-32)
 target_link_libraries(jones3d_game PUBLIC
     j3d_common
     sith smush sound rdroid std zlib

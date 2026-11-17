@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 33 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 34 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **130 of 162** | |
+| **All** | | **131 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -33,7 +33,7 @@ Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several d
 
 | Check | Result |
 | --- | --- |
-| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. 58 compiler warnings, all known: the narrowing conversions in `jonesConfig.c` (P6.24); in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
+| `cmake --build` from clean, arm64, Apple clang | Builds and links with `-Werror`, exit 0. The only warnings are, in the default `J3D_PLATFORM=apple` tree, the same linker warning about Homebrew's SDL3 deployment target for each of the three programs that link SDL3 (P8.3) |
 | `ctest` | `display`, `keys`, `sounddriver` and `insaneasm` pass (no game data needed), and in the apple build `render`, `present` (needs a window server) and `audio3d` (needs an audio output device). With `-DJ3D_TEST_DATA`: `levelload`, `cogcheck`, `saveload`, `saveload-3d`, `moviecheck` and `boot` pass, and `boot-sdl` and `input` in the apple build |
 | The same under `-DJ3D_SANITIZE=ON` (ASan and UBSan) | All pass with no report; so does a 3,000 + 3,000 frame `saveload` run |
 | `moviecheck <data>` | All five intro movies decode headlessly in about 4 s: every picture shown, all 2,240 Blocky16 codec-2 frames equal to a port of ScummVM's decoder, audio mixed and not silent, checksums as pinned |
@@ -877,10 +877,13 @@ launcher's Options window; both must leave `settings.ini` in the same state.
       generated tables, which `dialogs` builds, and nothing opens them.
 - [ ] **P6.23** (S) Restore retail's `Start Mode`, `Debug Mode` and `Verbosity` defaults, which were changed in
       phase 1 only because no GUI existed. The launcher now sets `Start Mode` (P6.30).
-- [ ] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling (128-byte file-dialog
+- [x] **P6.24** (M) `jonesConfig.c` clean-up left from earlier phases: its path handling (128-byte file-dialog
       buffers), its 58 narrowing warnings (then drop its `-Wno-error=shorten-64-to-32` in `CMakeLists.txt`) and its
       four uninitialised locals (`docs/PORTING.md`, "Known open items"). Its fall-off-the-end functions were fixed in
-      P1.22.
+      P1.22. Done 2026-11-16: the 58 narrowings are explicit
+      casts marked `// Port: narrowing cast`, and the file's `-Wno-error` is gone; the four locals have defined values
+      (decision 18); the host-path buffers still reached (game over's restart save, the last save's lookup, deleted key
+      sets) are `J3D_PATHSIZE`. The 128-byte buffers left are in the Win32 file dialogs' hooks, which no longer run.
 - [ ] **P6.25** (M) Content pass: every dialog compared with a reference screenshot from the Windows build for what
       it holds (every control present, in the same order, with the same text and behaviour), not for its look.
 ## Complete Phase 6 Code Audit
