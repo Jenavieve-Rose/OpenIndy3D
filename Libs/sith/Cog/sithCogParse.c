@@ -576,6 +576,13 @@ void J3DAPI sithCogParse_LexerSetString(const char* pString)
 void J3DAPI sithCogParse_LexerSetVector(const char* pString)
 {
     rdVector3 vec;
+#ifdef J3D_PORT
+    // Port: zeroed. A component sscanf cannot read keeps what was there, which in retail was stack garbage:
+    // tem_dynalight.cog (level 7) writes 'rVal, gVal, bVal', names, not numbers, and its six lights' colours, saved
+    // with the level, then differed from run to run on x86_64 (phase 9's determinism test). 0 is no light, as those
+    // lights stayed in practice (SetThingLight lights a thing only for a positive component).
+    rdVector_Set3(&vec, 0.0f, 0.0f, 0.0f);
+#endif
 
 #line 911
     SITH_ASSERTREL(pString);

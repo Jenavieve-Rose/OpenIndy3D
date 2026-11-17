@@ -2042,3 +2042,86 @@ A player option: Indy with his jacket, without it, or as the level has him (the 
 
 Checked: the `outfit-*` tests (start and three restores in levels 1, 3 and 17), screenshots of level 1 with each
 outfit (the jacket drawn, holster and whip in place), and the full `tools/check.sh`.
+
+## Phase 9: stretch goals
+
+### Universal binary (P9.1)
+
+- No engine code depends on the architecture: no `__aarch64__` or `__x86_64__` test, no intrinsics, and the
+  floating-point switches (`-ffp-contract=off`, PORT-PLAN.md 7.1) mean the same thing on both. The x86_64 build is the
+  arm64 build's source compiled for Intel.
+- The Metal code did depend on the GPU. Textures were made with shared storage, which only Apple GPUs allow; the Intel
+  and AMD GPUs of Intel Macs need managed storage, and a texture the GPU drew into reaches the CPU only after a blit
+  `synchronizeResource`. `J3DMetal_TextureStorageMode` (`display_metal.m`) picks shared on an Apple GPU
+  (`MTLGPUFamilyApple1`) and managed otherwise, for the scene texture, the material textures and the present ring;
+  `J3DMetal_SyncForCPU` does the blit before every read-back (`render_metal.m`, `texture_image.m`). An x86_64 build
+  under Rosetta 2 runs on the Apple GPU, so it keeps shared storage. `J3D_METAL_MANAGED=1` takes the managed path on an
+  Apple GPU: the `render-managed` test runs every renderer check that way, since no Intel Mac is at hand.
+- CMake's Ninja generator refuses Swift with two values in `CMAKE_OSX_ARCHITECTURES`, and the menus are Swift. So
+  `tools/universal.sh` configures one tree per architecture (`build-arm64/`, `build-x86_64/`), builds and optionally
+  tests both (the x86_64 tests under Rosetta 2), and joins the executables with `lipo` into
+  `build-universal/OpenIndy3D.app`, re-signed ad hoc. SDL3 is built per tree from the same pinned release.
+  `tools/package.sh build-universal` signs it for distribution; its check that the app links only system libraries now
+  reads a two-architecture `otool -L` listing.
+
+### Higher-resolution textures from loose files (P9.2)
+
+- `std3D_LoadHiresTexture` (declared in `std3D.h` under `J3D_PORT`, implemented in `std3D_metal.c`, a no-op in the
+  null build) is called by both material loaders right after `std3D_AllocSystemTexture` makes a cel's texture:
+  `rdMaterial_LoadEntry` (a `.mat` file) and `sithMaterial`'s static-world reader (the `.cnd`'s materials), in its port
+  branch only. It looks for `hires\<material>.png` (cel 0) or `hires\<material>_cel<n>.png` through the game's own
+  file services, so the search is the one loose files get: the `User Path`'s folder, then the data's `Resource`
+  folder. A lookup that misses also searches the GOBs, about 0.1 s for all of a level's cels, so `std3D_Open` checks
+  once whether any of those roots has a `hires` folder (`std3D_HasHiresFolder`) and looks for nothing when none does. A found image replaces the texture the system texture holds; the material's `width` and `height`, the
+  texture cache's size accounting and the mip count the game sees stay the retail ones, so nothing in the engine changes.
+  That is safe because every texture coordinate the engine sends is a fraction of the material's size (`rdCache`
+  divides by `pMat->width` and `height`; fonts and wallpapers store fractions).
+- `J3DRender_CreateTextureFromImage` (`texture_image.m`) decodes with ImageIO into BGRA in the image's own colour space
+  (no colour conversion: the game's textures are not colour-managed either), unpremultiplies Core Graphics' alpha (the
+  game blends straight alpha), and has the GPU make the mip chain when the mipmap filter is on. A material without alpha
+  draws opaque whatever the image's alpha, as its original did.
+- `J3D_HIRES_DUMP=<folder>` writes each cel's original texture as a PNG under the name a replacement would have
+  (`J3DRender_WriteTextureImage`); the first level gives 964.
+- Cost, `00_cyn` headless here: no `hires` folder, 0.46 s to the first frame with the setting on or off; all 964 of
+  its cels replaced at 4x (64 MB of PNG, decoded on load), 2.6 s.
+
+### Multisampling and anisotropic filtering (P9.3)
+
+- Settings `MSAA` (1, 2, 4, 8) and `Anisotropy` (1 to 16), both 1 by default, which is retail's picture; with
+  `Hires Textures` they are an "Image Quality" group on the launcher's Display page (`menu_BuildDisplay`), read when
+  the game opens its renderer (`std3D_Open`, `J3DRender_SetQuality`).
+- Anisotropy is the samplers' `maxAnisotropy`; the sampler cache is emptied when it changes.
+- Multisampling: the scene is drawn into a multisampled colour texture and depth, and every pass stores them and
+  resolves into the scene texture, which stays the frame's picture and what `TakeScene` and `ReadScene` read. The
+  pipelines carry the sample count and are remade when it changes; a count the device lacks is lowered (8 is 4 on this
+  Mac's GPU). The P2.17 model, where a scene starts from the back buffer's pixels, needs the back buffer inside the
+  multisampled texture: it is uploaded to a texture of its own and drawn across by the scene's first pass with a
+  full-screen triangle (`copy_fragment`, `read` at the pixel), depth test off. Passes reopened within a scene (a depth
+  clear, the save thumbnail) load the multisampled colour. Retail's alpha test stays per pixel, so alpha-tested edges
+  (foliage, fences) keep their steps; alpha to coverage would change how they look and is not used.
+- Checked: `render-msaa` (every renderer check with 4 samples and 16x anisotropy, plus a diagonal edge that must have
+  blended pixels, and must not without), Metal's API and shader validation clean, and `00_cyn` shots at 1280x960 with
+  and without, where the diagonal plank above the ladder is smoothed and nothing else moves.
+
+### Phase 9 code audit
+
+- Warnings: none in the apple, null, sanitizer, debug-asserts, arm64 and x86_64 trees.
+- `texture_image.m`: an image with alpha used for a material without alpha was drawn into a bitmap with no alpha, so
+  Core Graphics stored its colours premultiplied (darker where it was translucent). Images are now always drawn with
+  alpha and unpremultiplied; a material without alpha ignores the alpha byte by swizzle as before. `render` checks a
+  half-transparent texel through an opaque material.
+- `std3D_metal.c`: lookups that miss search the GOBs, 90 ms a level for 974 cels; they now happen only when a loose root
+  has a `hires` folder. A replacement keeps the retail texture's size in the texture cache's accounting, so the cache
+  purges as it did; on unified memory that budget is not the GPU's real limit, and a large texture set uses more memory
+  than the figures show.
+- `render_metal.m`: the multisampled pass resolves at every pass end (a depth clear or the save thumbnail in a scene
+  costs a resolve each, a few a frame); the copy pass reads the back buffer by pixel, so it needs no sampler and no
+  filtering. Pipelines are remade only when the sample count changes, at `J3DRender_Open`.
+- `sithCogParse_LexerSetVector` (retail bug, found by the x86_64 tree): a cog vector literal was read with `sscanf`
+  into an uninitialised vector, so a component that is not a number kept stack garbage. `tem_dynalight.cog` writes
+  `'rVal, gVal, bVal'` (names), so level 7's six dynamic lights got garbage colours, saved with the level: the same
+  every run on arm64, different every run on x86_64, which the `determinism` test caught. The vector is now zeroed first
+  (`J3D_PORT`): no light, as those lights stayed in practice (their arm64 garbage had no positive component).
+- Not done: alpha to coverage for alpha-tested edges (it changes their look); a run on an Intel Mac.
+- Behaviour: `tools/check.sh --asserts` passes (apple 42, null 34, sanitizer 42, debug-asserts 42, layout audit 0), and
+  `tools/universal.sh --test` (arm64 42, x86_64 42 under Rosetta 2).

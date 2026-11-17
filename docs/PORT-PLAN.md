@@ -1109,7 +1109,43 @@ Done 2026-11-17; details in `docs/PORTING.md`, "Phase 8 code audit".
 ### Phase 9: Stretch (not counted)
 
 Universal binary; higher-resolution textures from loose files; MSAA and anisotropic filtering; an SDL_GPU backend for
-Linux and Windows; offering the portable platform layer to OpenJones3D.
+Linux and Windows; offering the portable platform layer to OpenJones3D. Started 2026-11-17 on the branch
+`phase9-stretch`; details in `docs/PORTING.md`, "Phase 9: stretch goals". Not counted in the table at the top.
+
+- [x] **P9.1** (M) Universal binary: one app for Apple silicon and Intel Macs. Done: `tools/universal.sh` builds an
+      arm64 and an x86_64 tree (Ninja cannot build Swift for two architectures in one) and joins them with `lipo` into
+      `build-universal/OpenIndy3D.app`; `tools/package.sh build-universal` packs it. Textures the CPU touches are
+      managed on a GPU without Apple's shared storage (`J3DMetal_TextureStorageMode`), read back after a
+      `synchronizeResource` blit. Checked: both trees build with no warning and pass every test, the x86_64 one under
+      Rosetta 2; `render-managed` runs the renderer checks on the managed path. Open: a run on an Intel Mac.
+- [x] **P9.2** (M) Higher-resolution textures from loose files. Done: `Resource/hires/<material>.png` (cel 0) or
+      `<material>_cel<n>.png` replaces a cel's texture at any size, with its alpha and a GPU-made mip chain; the game
+      keeps the material's size (`std3D_LoadHiresTexture`, `texture_image.m`). `J3D_HIRES_DUMP` writes the originals
+      as a starting set; the `Hires Textures` setting turns it off. Checked: `render`'s PNG round trip; `00_cyn` with
+      all 964 cels replaced at 4x draws them in place; no cost without a `hires` folder.
+- [x] **P9.3** (S) MSAA and anisotropic filtering. Done: settings `MSAA` (2, 4, 8) and `Anisotropy` (to 16), off by
+      default, in the launcher's Display page with `Hires Textures` as "Image Quality". The scene draws multisampled
+      and resolves into the scene texture, so read-back and present are unchanged. Checked: `render-msaa`, Metal
+      validation, `00_cyn` shots at 1280x960 with and without.
+- [ ] **P9.4** (L) An SDL_GPU backend for Linux and Windows.
+- [ ] **P9.5** (S) Offer the portable platform layer to OpenJones3D.
+
+## Complete Phase 9 Code Audit (P9.1 to P9.3)
+
+Done 2026-11-17 for the three steps finished; details in `docs/PORTING.md`, "Phase 9 code audit".
+
+- [x] Warnings: none in any tree, x86_64 included.
+- [x] Read-through: one fix, an image with alpha for a material without it was drawn premultiplied and came out dark
+      (now always decoded with alpha and unpremultiplied; `render` checks it). The lookups' 0.1 s a level without a
+      `hires` folder was found by measuring and removed.
+- [x] A retail bug the x86_64 tree's `determinism` test found: a cog vector literal with names in it
+      (`tem_dynalight.cog`, level 7) left the vector's components as stack garbage; zeroed now
+      (`sithCogParse_LexerSetVector`).
+- [x] Retail picture unchanged by default: MSAA and anisotropy default off, and without a `hires` folder no texture is
+      replaced; every test, screenshot and determinism check passes as before.
+- [x] Behaviour: every test passes in the apple (42), null (34), sanitizer (42) and debug-asserts (42) trees, layout
+      audit 0, and in the arm64 and x86_64 trees of `tools/universal.sh` (42 each, x86_64 under Rosetta 2).
+- Open: the app on an Intel Mac; the new launcher controls looked at by hand.
 
 ## 6. Repository layout
 

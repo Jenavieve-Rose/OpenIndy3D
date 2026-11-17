@@ -55,6 +55,17 @@ cmake --build build
 | `build/levelload`, `build/cogcheck`, `build/saveload`, `build/display`, `build/present`, `build/render`, `build/keys` | The test programs (below). They use the null backends, apart from `present` and `render` (apple builds only). |
 | `build/lib*.a` | The engine libraries: `zlib`, `std`, `rdroid`, `sound`, `smush`, `sith`, `jones3d_game`, and the platform: `platform_core`, `platform_null`, `platform_apple`. |
 
+### Universal (Apple silicon and Intel)
+
+```sh
+tools/universal.sh --data /path/to/data-root --test
+```
+
+builds an arm64 tree (`build-arm64/`) and an x86_64 tree (`build-x86_64/`), runs both trees' tests with `--test` (the
+x86_64 ones under Rosetta 2), and joins the two apps' executables with `lipo` into `build-universal/OpenIndy3D.app`
+(phase 9). One tree cannot hold both architectures: CMake's Ninja generator does not build Swift for two at once.
+Options after `--` go to both configures. `tools/package.sh build-universal` signs it and makes the disk image.
+
 ## Build with Xcode
 
 ```sh
@@ -214,6 +225,16 @@ build/jones3d --data /path/to/data-root --outfit jacket        # or nojacket, or
 J3D_REG_Indy_Outfit=2 build/jones3d --data /path/to/data-root  # the same as --outfit nojacket
 ```
 
+### High-resolution textures
+
+A material's textures can be replaced by larger pictures: put a PNG (or any image ImageIO reads) named after the
+material in a `hires` folder beside the GOBs, `Resource/hires/<material>.png` for the first cel and
+`Resource/hires/<material>_cel<n>.png` for cel `n` (an animated or multi-skin material), where `<material>` is the
+`.mat` file's name without `.mat`. A `hires` folder in the `User Path` setting's folder works too. Keep the original's shape (a 64x32 texture as 256x128, say): the game maps textures by fractions of their
+size. Alpha is used where the material has it (colour-keyed and translucent textures), and a mip chain is made on
+load. `J3D_HIRES_DUMP=<folder>` writes the originals out under those names as a starting point; the setting
+`Hires Textures` (launcher Options, Display) turns replacements off.
+
 ### Settings and environment variables
 
 Settings are stored in `~/Library/Application Support/OpenIndy3D/settings.ini`, one `<name>=<type>:<value>` per line, using
@@ -238,6 +259,10 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_INSANE_LOG` | `1` prints the movie player's (INSANE's) messages to stderr, including which movie it plays. |
 | `J3D_INSANE_MEMLOG` | `1` prints every allocation of the movie player's debug allocator to stdout. |
 | `VSync`, `Frame Limit` (settings) | Vsync on or off (default on) and a frame limit in frames a second (default 0, none), from the launcher's Options (P8.7). |
+| `MSAA`, `Anisotropy` (settings) | Multisampling, 1 (off, the default), 2, 4 or 8 samples, lowered to what the GPU supports; anisotropic filtering, 1 (off, the default) to 16. The launcher's Options, Display, "Image Quality" (phase 9); `J3D_REG_MSAA=4` for one run. |
+| `Hires Textures` (setting) | `1` (the default) uses high-resolution replacement textures where there are any; `0` ignores them (phase 9, below). |
+| `J3D_HIRES_DUMP` | `<folder>` writes every material cel the game loads to the folder as a PNG, named as its replacement would be (an existing file is kept): the starting point for a texture set. |
+| `J3D_METAL_MANAGED` | `1` (apple builds) makes CPU-visible textures managed, as an Intel Mac's GPU needs them, on an Apple GPU; the `render-managed` test sets it. |
 | `J3D_HEADLESS_SIZE` | `<w>x<h>` (apple builds, headless runs): the desktop size instead of SDL's dummy 1024x768, to render wide pictures on the virtual clock, with `J3D_REG_Width` and `J3D_REG_Height` (P8.9). |
 | `J3D_FRAME_STATS` | `1` (apple builds) prints the game loop's frame times at exit: mean, median, 95th and 99th percentiles, worst; presenting and the wait for the display included (PORT-PLAN.md P7.9). |
 
@@ -263,7 +288,7 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `boot` | Runs `jones3d --headless --frames 600` (`jones3d-null` in an apple build): level open, the level-start autosave and 20 s of game time in the first level. Must exit 0 with no assert. Its autosave goes to `build/boot/SaveGames/`, not the game folder. | under 1 s |
 | `display` | No game data needed. The back buffer, fills, every blit case (8, 16 and 32 bpp, clipped, colour-keyed) against a pixel-by-pixel reference, the RGB565 encoder, a `SaveScreen` BMP, and the conversion of 16-bit material textures (565, 1555, 4444) to the renderer's 32 bpp at full range. | under 1 s |
 | `present` | Apple builds only, no game data needed. Presents a pattern through `stdDisplay` in a real window (it flashes up briefly), reads the screen image back from Metal and compares it, unscaled and scaled; then checks that a frame with a 3D scene presents the scene's picture. Skipped without a window server, for example over SSH. | under 1 s |
-| `render` | Apple builds only, no game data or window needed. Draws with the Metal renderer offscreen and reads the result back: pixel coverage, colour order, depth test and clears, alpha test and blending, perspective-correct interpolation, depth clamping, lines and points. | under 1 s |
+| `render` | Apple builds only, no game data or window needed. Draws with the Metal renderer offscreen and reads the result back: pixel coverage, colour order, depth test and clears, alpha test and blending, perspective-correct interpolation, depth clamping, lines and points; a diagonal edge, and a texture through a PNG and back (phase 9). `render-msaa` runs it with 4 samples and 16x anisotropy, `render-managed` with managed textures (Intel Macs). | under 1 s |
 | `boot-sdl` | Apple builds only: the same run through `jones3d`, so the SDL event loop delivers the frames and the closing `WM_CLOSE` (SDL's `dummy` video driver, no window). Its autosave goes to `build/boot-sdl/SaveGames/`. | under 1 s |
 | `keys` | No game data needed. The DIK tables (HID usage to DirectInput key, key names), `GetKeyNameTextA` and `SearchPathA`. | under 1 s |
 | `sounddriver` | No game data needed. The sound driver on the virtual clock: one-shots, loops, stop and resume, frequency changes; retail's volume and pan tables; the mix's gains, 8- and 16-bit input, the background mute, rendered without a device; with 3D sound on, retail's channel flags, the inverse distance law, doppler from the source's and the camera's velocity, and head-relative voices; the game's WVSM codec, and the ADPCM block decoder (retail's assembly, translated) bit for bit against an independent decoder. | under 1 s |
