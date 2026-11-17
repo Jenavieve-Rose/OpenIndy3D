@@ -356,15 +356,16 @@ int J3DHost_EnsureData(J3DHostAskData pfAsk, int bChooseAgain)
     char aRoot[1024];
 
     // Given on the command line: used as it is, as the tests and tools give it
-    if ( getenv("J3D_DATA") && *getenv("J3D_DATA") )
+    const char* pGiven = getenv("J3D_DATA");
+    if ( pGiven && *pGiven )
     {
-        if ( J3DHost_CheckData(getenv("J3D_DATA"), &info) )
+        if ( J3DHost_CheckData(pGiven, &info) )
         {
             snprintf(hostdata_aVersion, sizeof(hostdata_aVersion), "%s", info.aVersion);
         }
         else
         {
-            fprintf(stderr, J3D_PRODUCT_NAME ": %s: %s\n", getenv("J3D_DATA"), info.aProblem);
+            fprintf(stderr, J3D_PRODUCT_NAME ": %s: %s\n", pGiven, info.aProblem);
         }
         return 0;
     }

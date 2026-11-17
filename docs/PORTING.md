@@ -1919,3 +1919,24 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
   disk image with a link to Applications and the README, signs that, and with `J3D_NOTARY_PROFILE` submits it to the
   notary service and staples it. Default identity `-` (ad hoc). The packaged app was run from the image under the
   Hardened Runtime, in a window: Metal, level 2, its autosave.
+
+### Phase 8 code audit
+
+1. **Warnings and static analysis.** No compiler or linker warning in any tree (the SDL3 linker warning every apple
+   build had is gone with the static SDL3). The clang analyzer on the phase's C and Objective-C: `host_crash.c`,
+   `host_data.c`, `main.c`, `stdDisplay_sdl.c`, `j3dmenu_apple.c`, `host_apple.m` and `datacheck.c` are clean but for
+   `J3D_DATA` read twice (now once) and stream-state notes on the hashing loop; the reports in the files the fixes
+   touch are all in older lines.
+2. **Read-through.** The crash handler uses only async-signal-safe calls and re-raises; it is off in sanitizer
+   builds. `J3DHost_TapPrints` does not wrap twice. A line logged from the audio thread may interleave with one from
+   the main thread in the ring; harmless in a diagnostic log. `sithPlayer_Close`'s resets run before the player
+   pointers are cleared, while the world still exists. The attachment fix writes -1 where retail wrote an index out
+   of range; the save format is otherwise unchanged. The data search reads only, and stores a folder only when it is
+   usable; `--data` is never overridden.
+3. **Both builds of the fixes.** `J3D_FIXES=OFF` (a null tree) passes every test with retail's behaviour; the default
+   trees pass with the fixes, the `saveload` tests now checking restored sound handles equal the saved ones.
+4. **The product.** The app from `tools/package.sh` (ad-hoc signature, Hardened Runtime) runs from its disk image in a
+   window: Metal, a level, its save. The executable needs macOS 13.0 and links only system libraries.
+
+Left open: widescreen and HUD scaling (P8.9's fourth group), signing with a Developer ID and notarization, an
+original icon (P8.13), the clean-machine test on macOS 13 (P8.14), and the by-hand checks of phase 7.

@@ -23,8 +23,8 @@ confused with section numbers.
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
 | 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 41 of 41 | Complete 2026-11-16 (decisions 20 and 21), audited, merged into `main`; menus by hand open |
 | 7 | Full-game verification, shim reduced (decision 22) | 8 of 10 | Code complete and audited 2026-11-17; playthrough (P7.4) and DREAMM A/B (P7.5) by hand open |
-| 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **146 of 162** | |
+| 8 | Signed `.app`, data locator, fixes and polish | 11 of 14 | Audited 2026-11-17; widescreen (P8.9), notarization with a Developer ID (P8.13) and the macOS 13 test (P8.14) open |
+| **All** | | **157 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -1083,6 +1083,20 @@ has no developer tools.
 - [ ] **P8.14** (S) Clean-machine test on macOS 13 (the deployment target) and on the current release. By hand,
       after P8.13: the binary's minimum is 13.0 and it links only system libraries; a Mac on 13 is needed to run it.
 
+## Complete Phase 8 Code Audit
+
+Done 2026-11-17; details in `docs/PORTING.md`, "Phase 8 code audit".
+
+- [x] Warnings and static analysis: no warning in any tree (the SDL3 linker warning is gone); the analyzer on the
+      phase's code found `J3D_DATA` read twice (now once); its other reports are in older lines.
+- [x] Read-through: the crash handler is async-signal-safe and re-raises; the print tap does not wrap twice; the
+      player resets run while the world exists; the save format is unchanged but for the attachment fix's -1.
+- [x] Both builds of the fixes: `J3D_FIXES=OFF` passes every test with retail's behaviour (null tree, 30 tests).
+- [x] Behaviour: every test passes in the apple (37), null (31), sanitizer (37) and debug-asserts (37) trees, layout
+      audit 0; the packaged app runs from its disk image under the Hardened Runtime.
+- Open: widescreen and HUD scaling (P8.9), Developer ID signing, notarization and an original icon (P8.13), the
+      macOS 13 clean-machine test (P8.14).
+
 ### Phase 9: Stretch (not counted)
 
 Universal binary; higher-resolution textures from loose files; MSAA and anisotropic filtering; an SDL_GPU backend for
@@ -1185,7 +1199,7 @@ guide.
 | 5 | Movies complete | 2 to 3 weeks | Complete 2026-11-13, audited: the intro plays with sound; every movie decodes headlessly; watching by hand open |
 | 6 | Launcher, Options, all dialogs, save and load in-app | 4 to 6 weeks | Complete 2026-11-16, audited: SwiftUI launcher, Options and in-game menus, Win32 dialogs as the fallback; using them by hand open |
 | 7 | Full playthrough verified | 2 to 3 weeks | Code complete 2026-11-17, audited: every level saves and restores, renders, runs with the asserts and the sanitizers; the playthrough and DREAMM A/B by hand open |
-| 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | Not started |
+| 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | 11 of 14, audited 2026-11-17: the app, data locator, OpenJones3D's fixes (but widescreen), crash log, packaging; Developer ID notarization and the macOS 13 test open |
 
 Ordering: phase 2 needs 1C (P1.17, P1.18) but not 1D. Phases 3, 4 and 5 are independent of each other once phase 2
 lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
