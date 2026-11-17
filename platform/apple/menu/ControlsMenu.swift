@@ -161,6 +161,14 @@ public func J3DMenuUI_ControlOptions(_ gameWindow: UnsafeMutableRawPointer?, _ l
 private struct BindingChip: Identifiable {
     let id: Int
     let name: String
+    let glyph: String?  // an SF Symbol for the control (P8.10), when there is one and this macOS has it
+}
+
+/// The symbol for a control id (j3dmenu_apple.c), if this macOS draws it.
+private func controlGlyph(_ controlId: Int32) -> String? {
+    guard let cName = J3DMenuUI_ControlGlyph(controlId) else { return nil }
+    let name = String(cString: cName)
+    return NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : nil
 }
 
 private struct ControlRow: Identifiable {
@@ -200,7 +208,9 @@ private final class ControlSetModel: ObservableObject {
                 func chips<T>(_ binds: T, _ count: Int32) -> [BindingChip] {
                     withUnsafeBytes(of: binds) { b in
                         let p = b.baseAddress!.assumingMemoryBound(to: J3DMenuBind.self)
-                        return (0..<Int(max(count, 0))).map { BindingChip(id: $0, name: tupleString(p[$0].aName)) }
+                        return (0..<Int(max(count, 0))).map {
+                            BindingChip(id: $0, name: tupleString(p[$0].aName), glyph: controlGlyph(p[$0].id))
+                        }
                     }
                 }
                 list.append(ControlRow(id: i, action: tupleString(r.aAction), keys: chips(r.aKeys, r.numKeys),
@@ -325,8 +335,16 @@ private struct ControlSetMenu: View {
         return HStack(spacing: 4) {
             ForEach(chips) { chip in
                 let selected = model.selection == SetSelection(row: row.id, side: side, bind: chip.id)
-                Text(chip.name)
+                Group {
+                    if let glyph = chip.glyph {
+                        Image(systemName: glyph).font(.system(size: 15, weight: .medium))
+                    } else {
+                        Text(chip.name)
+                    }
+                }
                     .font(.system(size: 13, weight: .medium))
+                    .help(chip.name)
+                    .accessibilityLabel(chip.name)
                     .lineLimit(1)
                     .foregroundColor(selected ? Color.black.opacity(0.88) : Palette.text)
                     .padding(.horizontal, 7)

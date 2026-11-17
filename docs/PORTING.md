@@ -1890,3 +1890,22 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
 - Not applied: OpenJones3D's quality-of-life changes (far looping sounds, AI movement, jump-rollback fall speed and the
   rest), which change how the game plays. Open: widescreen and HUD scaling, the 2D line fixes for the overlay map, the
   far sound on restore.
+
+### Control glyphs and crash handling (P8.10, P8.11)
+
+- `J3DMenuUI_ControlGlyph` (`j3dmenu_apple.c`) maps a binding's control id to an SF Symbol: a gamepad's buttons in
+  `stdControl_sdl.c`'s order (SDL's positions, drawn with the Xbox letters macOS has symbols for), its d-pad (POV 0),
+  sticks and triggers (axes 0 to 5 with their direction bits), the mouse, and the keyboard's arrows, modifiers
+  (Option for Alt, Command for the Windows key), Return, Space, Escape, Delete, Tab, Caps Lock, Home and End. A plain
+  joystick (`stdControl_IsDualStick` false) keeps its numbered names. `ControlsMenu.swift` draws the symbol in the
+  chip when `NSImage` has it on the running macOS, and keeps the name for the tooltip and VoiceOver.
+- `host_crash.c`: `J3DHost_TapPrints`, called by `JonesMain_Startup` once it has chosen the print hooks, wraps the five
+  of them so every line also goes into a 64 KB ring. Retail's default is no log at all, so without this a crash left
+  nothing. `J3DHost_InstallCrashHandler` (from `main.c`, not in sanitizer builds, whose own handlers report) handles
+  SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT and SIGTRAP with `SA_RESETHAND`: it writes `Crash.log` in the log folder
+  with async-signal-safe calls only (the header is formatted at install time), marks `Crash.pending`, and raises the
+  signal again, so the game still dies of it and macOS writes its crash report. The next run prints where the log is
+  and, in a run someone is at, shows an alert with Show in Finder (`J3DApple_ShowLastCrash`).
+- Tests: `crash` (a headless game sent SIGSEGV mid-level dies of it, leaves the log with the signal, a backtrace and
+  the level's load lines, and the next run reports it once); the launcher test's `options` run starts with a pending
+  crash and checks the notice is shown and cleared.

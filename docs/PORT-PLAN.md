@@ -1063,8 +1063,15 @@ has no developer tools.
       data). Restored sound handles now equal the saved ones (the `saveload` tests check it). Every test passes with
       the fixes, and with `J3D_FIXES=OFF` in a null tree. Open: widescreen and HUD scaling, which need the projection
       and HUD changes together and a pass over every level; the game ships pillarboxed 4:3 meanwhile (P2.20).
-- [ ] **P8.10** (S) Keyboard and controller glyphs in the control dialogs.
-- [ ] **P8.11** (S) Crash handling: write the engine log beside the crash report and tell the player where it is.
+- [x] **P8.10** (S) Keyboard and controller glyphs in the control dialogs. Done: a control set's chips show SF
+      Symbols for a gamepad's buttons, d-pad, sticks and triggers, the mouse, and the arrows, modifiers and editing
+      keys (`J3DMenuUI_ControlGlyph`), with the name as tooltip and for VoiceOver; letters, digits and a plain
+      joystick's numbered buttons keep their names, as does any symbol the running macOS lacks.
+- [x] **P8.11** (S) Crash handling: write the engine log beside the crash report and tell the player where it is.
+      Done: `platform/common/host_crash.c` keeps the engine's last 64 KB of output whatever the log mode; on a crash
+      signal it writes them with a backtrace to `~/Library/Logs/OpenIndy3D/Crash.log` and lets the signal end the
+      game, so macOS still writes its report. The next run says where the log is (an alert with Show in Finder).
+      `crash` test; the launcher test covers the alert.
 - [ ] **P8.12** (S) README and in-app notices: a retail copy is required, AGPL source offer, credits.
 - [ ] **P8.13** (M) Hardened Runtime, code signing, notarization, and a disk image.
 - [ ] **P8.14** (S) Clean-machine test on macOS 13 (the deployment target) and on the current release.

@@ -168,6 +168,10 @@ typedef struct J3DMenuLauncherUI
     const char* pHelpPath;          // the file Help opens (the manual), or NULL when there is none (it is greyed)
 } J3DMenuLauncherUI;
 
+// Implemented in C (j3dmenu_apple.c), for the Swift side: the SF Symbol name for a control id (J3DMenuBind.id), or
+// NULL where the binding's name is shown as it is (P8.10).
+const char* J3DMenuUI_ControlGlyph(int32_t id);
+
 #ifndef J3DMENU_SWIFT // implemented in Swift (@_cdecl); these are the prototypes for C
 
 // A title, a text and up to eight buttons. Returns the index of the button chosen. defaultIndex is the button Return

@@ -521,6 +521,10 @@ endif()
 
 if(J3D_TEST_DATA)
     add_test(NAME boot COMMAND ${J3D_HEADLESS_TARGET} --data ${J3D_TEST_DATA} --headless --frames 600)
+    # crash: a crash writes Crash.log and the next run says where it is (P8.11, tests/crash.sh)
+    add_test(NAME crash COMMAND sh ${J3D_ROOT}/tests/crash.sh $<TARGET_FILE:${J3D_HEADLESS_TARGET}> ${J3D_TEST_DATA}
+        ${CMAKE_CURRENT_BINARY_DIR}/crash-out)
+    set_tests_properties(crash PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" SKIP_RETURN_CODE 77)
     set_tests_properties(boot PROPERTIES
         ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Debug_Mode=1;J3D_REG_Verbosity=2;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/boot/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/boot/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")

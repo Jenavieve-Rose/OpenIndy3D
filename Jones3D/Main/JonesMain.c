@@ -66,6 +66,7 @@
 #include <w32util/wuRegistry.h>
 
 #ifdef J3D_PORT
+#include <platform/common/host_crash.h>
 #include <platform/common/host_dirs.h>
 #include <platform/common/host_path.h>
 #include <platform/common/j3dmenu.h>
@@ -1199,6 +1200,11 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
             };
         } break;
     }
+
+#ifdef J3D_PORT
+    // Port: the engine's output is also kept in memory, for the crash log (host_crash.h, PORT-PLAN.md P8.11)
+    J3DHost_TapPrints(&JonesMain_hs);
+#endif
 
     // Set assert handler
     JonesMain_hs.pAssert = JonesMain_Assert;

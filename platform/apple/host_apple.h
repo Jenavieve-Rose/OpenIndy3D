@@ -15,6 +15,9 @@ void J3DApple_LogHostInfo(void);
 // duration, so the application object is SDL's.
 int J3DApple_AskForData(const char* pProblem, char* pRoot, size_t size);
 
+// Tells the player the last run crashed and where its log is (P8.11), with a button that shows it in the Finder.
+void J3DApple_ShowLastCrash(const char* pLogPath);
+
 // Whether Option is held down, as the app starts: the player asks to choose the data folder again.
 int J3DApple_IsOptionHeld(void);
 

@@ -8,6 +8,7 @@
 #             menu (the game window is not shown yet when the game asks for the save)
 #   options   the Options window opens, its Controls tab's button opens the game's control options over it, all close
 #             (J3D_MENU_AUTOCANCEL) and the launcher then quits, exit status 0
+#             After a crash (a Crash.pending left in the log folder) the crash notice comes first (P8.11).
 #   nodata    with no game data to find, the game asks for its folder (P8.4); answered Quit, it ends, exit status 0
 #
 #   tests/launcher.sh <jones3d> <data-root> <out-dir>
@@ -47,7 +48,12 @@ run resume J3D_MENU_TEST_LAUNCH=resume "$game" --data "$data" --frames 100 || { 
 grep -q '^Start Mode=i:1$' "$out/settings.ini" || { echo "FAIL resume: Start Mode 1 not saved"; status=1; }
 grep -q 'RESTORE: returning SUCCESS' "$out/resume.log" || { echo "FAIL resume: the save was not restored"; status=1; }
 
+# The previous run "crashed": the crash notice comes first (P8.11), answered by J3D_MENU_AUTOCANCEL
+mkdir -p "$out/logs" && touch "$out/logs/Crash.pending"
 run options J3D_MENU_TEST_OPTIONS=1 J3D_MENU_TEST_PRESS=3:3 J3D_MENU_AUTOCANCEL=1 "$game" --data "$data" || { echo "FAIL options: exit status"; status=1; }
+
+grep -q 'the last run crashed' "$out/options.log" || { echo "FAIL options: the crash notice was not shown"; status=1; }
+[ ! -f "$out/logs/Crash.pending" ] || { echo "FAIL options: the crash notice was not cleared"; status=1; }
 
 # nodata: with nothing to find (an empty home folder) and no --data, the game asks for its folder; Quit ends it, status 0
 mkdir -p "$out/home"

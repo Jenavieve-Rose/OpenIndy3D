@@ -26,7 +26,9 @@
 
 #include <Windows.h>
 
+#include <platform/common/host_crash.h>
 #include <platform/common/host_dirs.h>
+#include <platform/common/host_product.h>
 #include <platform/common/host_record.h>
 #if J3D_PLATFORM_APPLE
 #include <platform/apple/host_apple.h>
@@ -166,6 +168,20 @@ int main(int argc, char** argv)
     {
         free(pCmdLine);
         return EXIT_SUCCESS; // the player quit rather than choose the game's folder
+    }
+
+    // A crash writes the engine's last output to the log folder (P8.11); the next run says where it is
+    J3DHost_InstallCrashHandler();
+    char aCrashLog[1100];
+    if ( J3DHost_TakeLastCrash(aCrashLog, sizeof(aCrashLog)) )
+    {
+        fprintf(stderr, J3D_PRODUCT_NAME ": the last run crashed; its log is %s\n", aCrashLog);
+#if J3D_PLATFORM_APPLE
+        if ( pfAskData )
+        {
+            J3DApple_ShowLastCrash(aCrashLog);
+        }
+#endif
     }
 
     // Input recording, replay and scripts (PORT-PLAN.md P3.10); this also picks the clock for them.

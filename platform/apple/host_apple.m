@@ -98,3 +98,42 @@ int J3DApple_AskForData(const char* pProblem, char* pRoot, size_t size)
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
     return bChosen;
 }
+
+void J3DApple_ShowLastCrash(const char* pLogPath)
+{
+    if ( !SDL_InitSubSystem(SDL_INIT_VIDEO) )
+    {
+        return;
+    }
+
+    @autoreleasepool
+    {
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+        [NSApp activateIgnoringOtherApps:YES];
+
+        NSString* path = [NSString stringWithUTF8String:pLogPath];
+        NSAlert* alert = [[NSAlert alloc] init];
+        alert.messageText = @J3D_PRODUCT_NAME " quit unexpectedly the last time it ran";
+        alert.informativeText = [NSString stringWithFormat:@"What the game was doing is in %@. If you report the "
+                                 @"problem, please include that file, and the crash report macOS made.", path];
+        [alert addButtonWithTitle:@"OK"];
+        [alert addButtonWithTitle:@"Show in Finder"];
+
+        const char* pAutoCancel = getenv("J3D_MENU_AUTOCANCEL"); // for tests, as J3DApple_AskForData
+        if ( pAutoCancel && atof(pAutoCancel) > 0 )
+        {
+            NSTimer* timer = [NSTimer timerWithTimeInterval:atof(pAutoCancel) repeats:NO block:^(NSTimer* t) {
+                (void)t;
+                [NSApp abortModal];
+            }];
+            [[NSRunLoop currentRunLoop] addTimer:timer forMode:NSModalPanelRunLoopMode];
+        }
+
+        if ( [alert runModal] == NSAlertSecondButtonReturn )
+        {
+            [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[ [NSURL fileURLWithPath:path] ]];
+        }
+    }
+
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+}

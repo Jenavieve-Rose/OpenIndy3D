@@ -25,6 +25,9 @@
 #include <sith/Gameplay/sithPlayer.h>
 #include <sith/Main/sithMain.h>
 #include <std/General/stdFnames.h>
+#include <std/General/stdUtil.h>
+#include <std/Win95/stdControl.h>
+#include <std/Win95/stdDirectX.h>
 #include <std/Win95/stdWin95.h>
 #include <w32util/wuRegistry.h>
 
@@ -1036,6 +1039,95 @@ int J3DMenu_ShowDisplaySettings(J3DMenuDisplay* pSettings, int* pResult)
     }
     *pResult = result == 1 ? 1 : 2;
     return 1;
+}
+
+/* ---- Control glyphs (PORT-PLAN.md P8.10) ------------------------------------------------------------------------------ */
+
+// The SF Symbol for a control id, or NULL where its name says it better (letters, digits, function keys, a plain
+// joystick's numbered buttons). The control set chips show the symbol in place of the name, and keep the name for
+// VoiceOver. A gamepad's buttons are in stdControl_sdl.c's order, SDL's positions, drawn with the Xbox letters the
+// macOS symbols have.
+const char* J3DMenuUI_ControlGlyph(int32_t id)
+{
+    const uint32_t cid = (uint32_t)id;
+    if ( cid & STDCONTROL_AID_POSITIVE_AXIS )
+    {
+        // An axis direction: 0x80000000 positive, 0xC0000000 negative
+        const int bNegative = (cid & STDCONTROL_AID_NEGATIVE_AXIS) == STDCONTROL_AID_NEGATIVE_AXIS;
+        const uint32_t aid = STDCONTROL_GETAID(cid);
+        if ( aid >= STDCONTROL_AID_MOUSE_X )
+        {
+            return "computermouse";
+        }
+        if ( !stdControl_IsDualStick((int)(aid / STDCONTROL_JOYSTICK_NUMAXES)) )
+        {
+            return NULL;
+        }
+        switch ( aid % STDCONTROL_JOYSTICK_NUMAXES )
+        {
+            case STDCONTROL_JOYSTICK_AXIS_X:  return bNegative ? "l.joystick.tilt.left" : "l.joystick.tilt.right";
+            case STDCONTROL_JOYSTICK_AXIS_Y:  return bNegative ? "l.joystick.tilt.up" : "l.joystick.tilt.down";
+            case STDCONTROL_JOYSTICK_AXIS_Z:  return bNegative ? "rt.rectangle.roundedtop" : "lt.rectangle.roundedtop";
+            case STDCONTROL_JOYSTICK_AXIS_RX:
+            case STDCONTROL_JOYSTICK_AXIS_RZ: return bNegative ? "r.joystick.tilt.left" : "r.joystick.tilt.right";
+            case STDCONTROL_JOYSTICK_AXIS_RY: return bNegative ? "r.joystick.tilt.up" : "r.joystick.tilt.down";
+            default:                          return NULL;
+        }
+    }
+
+    if ( cid >= STDCONTROL_KID_MOUSE_LBUTTON && cid <= STDCONTROL_KID_MOUSE_XBUTTON )
+    {
+        return "computermouse";
+    }
+
+    if ( cid >= STDCONTROL_JOYSTICK_FIRSTKID && cid < STDCONTROL_KID_MOUSE_LBUTTON )
+    {
+        static const char* const apButtons[] = {
+            "a.circle", "b.circle", "x.circle", "y.circle", "lb.rectangle.roundedbottom", "rb.rectangle.roundedbottom",
+            "rectangle.on.rectangle.circle", "line.3.horizontal.circle", "l.joystick.press.down", "r.joystick.press.down",
+            "house.circle",
+        };
+        static const char* const apPov[] = { "dpad.left.filled", "dpad.up.filled", "dpad.right.filled", "dpad.down.filled" };
+        const uint32_t rel = (cid - STDCONTROL_JOYSTICK_FIRSTKID) % STDCONTROL_TOTAL_JOYSTICK_CONTROLS;
+        if ( !stdControl_IsDualStick((int)((cid - STDCONTROL_JOYSTICK_FIRSTKID) / STDCONTROL_TOTAL_JOYSTICK_CONTROLS)) )
+        {
+            return NULL;
+        }
+        if ( rel < STDCONTROL_NUM_JOYSTICK_BUTTONS )
+        {
+            return rel < STD_ARRAYLEN(apButtons) ? apButtons[rel] : NULL;
+        }
+        // The gamepad's d-pad is its first POV (stdControl_sdl.c)
+        const uint32_t pov = rel - STDCONTROL_NUM_JOYSTICK_BUTTONS;
+        return pov < STD_ARRAYLEN(apPov) ? apPov[pov] : NULL;
+    }
+
+    switch ( cid )
+    {
+        case DIK_UP:       return "arrow.up";
+        case DIK_DOWN:     return "arrow.down";
+        case DIK_LEFT:     return "arrow.left";
+        case DIK_RIGHT:    return "arrow.right";
+        case DIK_LSHIFT:
+        case DIK_RSHIFT:   return "shift";
+        case DIK_LCONTROL:
+        case DIK_RCONTROL: return "control";
+        case DIK_LMENU:
+        case DIK_RMENU:    return "option";
+        case DIK_LWIN:
+        case DIK_RWIN:     return "command";
+        case DIK_RETURN:
+        case DIK_NUMPADENTER: return "return";
+        case DIK_SPACE:    return "space";
+        case DIK_ESCAPE:   return "escape";
+        case DIK_BACK:     return "delete.left";
+        case DIK_DELETE:   return "delete.right";
+        case DIK_TAB:      return "arrow.right.to.line";
+        case DIK_CAPITAL:  return "capslock";
+        case DIK_HOME:     return "arrow.up.to.line";
+        case DIK_END:      return "arrow.down.to.line";
+        default:           return NULL;
+    }
 }
 
 /* ---- The launcher ------------------------------------------------------------------------------------------------------ */
