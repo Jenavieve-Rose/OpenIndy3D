@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 30 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 33 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **127 of 162** | |
+| **All** | | **130 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -796,11 +796,13 @@ The launcher writes the same settings the Steam launcher wrote to the registry, 
       `jonesInventory_GetMaxDifficultyLevel` returns 5), the four switches, volume and 3D sound.
 - [ ] **P6.33** (M) Options, Controls: the control sets in the user's and the retail `KeySets` folders, the chosen
       one stored as `Configuration`; view a set as one table of action, keys and controller buttons (the original's
-      two lists merged); delete a user set; Enable Mouse and Enable Gamepad/Joystick.
+      two lists merged); delete a user set; Enable Mouse and Enable Gamepad/Joystick. Partly done 2026-11-16: the launcher's Controls tab chooses the set and switches the mouse and controller.
+      Viewing and deleting sets is in the game's control options (P6.20), which the launcher does not open: its menus
+      are laid over the game window.
 - [ ] **P6.34** (L) Create and edit a control set in the launcher, written in the retail `.kfg` format: capture a
       key or a controller button for an action, refuse or reassign one already taken. The launcher has no SDL, so a
       captured controller button must be numbered as `stdControl_sdl.c` numbers it; a test holds the two together.
-      Until this lands, sets are edited in the game's own dialog (P6.20, P6.21).
+      Until this lands, sets are edited in the game's own dialog (P6.20, P6.21). Open: sets are created and edited in the game's own menus (P6.20, P6.21), as this step allowed.
 - [x] **P6.35** (S) Help: open the manual PDF from the player's data folder when it is there (the Steam release
       ships one), otherwise the port's README. Done 2026-11-16 for the launcher: `manual.pdf` in the data folder (Steam and GOG ship it), greyed without one.
 - [ ] **P6.36** (S) Keyboard and accessibility: Return and Escape, Tab through every control, arrow keys on the
@@ -819,8 +821,9 @@ Replanned by decision 21: the restyle of `j3dgui`'s drawing this part first held
       960 by 720 layout); the launcher's colours, buttons, switches, sliders and choice bars; the C interface
       (`j3dmenu_ui.h`) and the game's side (`j3dmenu_apple.c`); `J3D_MENU_TEST`, `J3D_MENU_AUTOCANCEL` and
       `J3D_MENU_SHOT` to open and capture every menu unattended. Done 2026-11-16.
-- [ ] **P6.39** (S) One palette: the launcher and the menus build from the same Swift style files, so the two cannot
-      drift.
+- [x] **P6.39** (S) One palette: the launcher and the menus build from the same Swift style files, so the two cannot
+      drift. Done 2026-11-16: the launcher, Options and the in-game menus are built from the same `MenuStyle.swift` and
+      `MenuControls.swift`, in one Swift library.
 - [ ] **P6.40** (S) The original art in the menus: the IQ picture with the game's own figures (done for statistics
       and level completed, on a parchment panel because the figures are black); decide for the dialog icons
       (`Indy3D.rc` names 43, P6.10). Read every menu at the smallest window the game allows and at 2×; no text
@@ -862,8 +865,13 @@ launcher's Options window; both must leave `settings.ini` in the same state.
       with the game's item icons, add (also by double-click), return, clear, total and balance, the Peru map and
       can't-afford messages, and the purchase question on Done or Escape. Buying by hand is untested (the unattended
       test closes menus unanswered).
-- [ ] **P6.20** (L) Control options (111) with create scheme (116) and edit scheme (115).
-- [ ] **P6.21** (M) Assign key (117) and reassign key (120), which read raw input from `stdControl`.
+- [x] **P6.20** (L) Control options (111) with create scheme (116) and edit scheme (115). Done 2026-11-16 as SwiftUI menus: the control sets (the game's own locked and viewed, the player's edited,
+      new or deleted), mouse and controller switches; a set as one table of action, keys and controller buttons with
+      Add, Change, Remove and Default Settings; the new set's name with retail's checks. The rules are
+      `jonesConfig.c`'s, kept on the sets instead of in list boxes. Editing by hand is untested.
+- [x] **P6.21** (M) Assign key (117) and reassign key (120), which read raw input from `stdControl`. Done 2026-11-16: the wait for a key takes keys from AppKit (key code to HID usage to DirectInput key) and
+      polls the controllers through `stdControl` as the dialog's timer did, with retail's refusals (Escape, -, =, F4,
+      the number keys outside the weapons, keys for buttons and buttons for keys) and the reassign question.
 - [x] **P6.22** (S) Confirm templates 104, 105 and 118 are unreferenced and leave them out. Done 2026-11-16: no
       code names them (104 and 105 are DirectPlay's join and connection dialogs, 118 an exit dialog); they stay in the
       generated tables, which `dialogs` builds, and nothing opens them.

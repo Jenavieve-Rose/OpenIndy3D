@@ -105,6 +105,39 @@ int J3DMenu_QuitAtLaunch(void)
     return 0;
 }
 
+int J3DMenu_EditControlSet(J3DMenuControlSet* pSet, int* pResult)
+{
+    (void)pSet;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_ShowControlOptions(J3DMenuControlOptions* pOptions, int* pResult)
+{
+    (void)pOptions;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_AskName(const char* pTitle, const char* pPrompt, char* pName, int size, int* pResult)
+{
+    (void)pTitle;
+    (void)pPrompt;
+    (void)pName;
+    (void)size;
+    (void)pResult;
+    return 0;
+}
+
+int J3DMenu_CaptureControl(const char* pPrompt, const char* pAction, int (*pfInput)(int dik), int* pResult)
+{
+    (void)pPrompt;
+    (void)pAction;
+    (void)pfInput;
+    (void)pResult;
+    return 0;
+}
+
 int J3DMenu_ShowGameOver(int bCanRestart, int* pResult)
 {
     (void)bCanRestart;

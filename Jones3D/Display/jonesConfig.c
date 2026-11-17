@@ -5409,11 +5409,23 @@ void J3DAPI jonesConfig_FreeControlConfigEntry(JonesControlsConfig* pConfig)
     }
 }
 
+#ifdef J3D_PORT
+static int jonesConfig_ShowControlOptionsMenu(int* pResult);
+#endif
+
 int J3DAPI jonesConfig_ShowControlOptions(HWND hWnd)
 {
     JonesControlsConfig config;
     HINSTANCE hInstance;
     int curresult;
+
+#ifdef J3D_PORT
+    // Port: the platform's own menus, when it has them (decision 21)
+    if ( jonesConfig_ShowControlOptionsMenu(&curresult) )
+    {
+        return curresult;
+    }
+#endif
 
     if ( !jonesConfig_ControlOptions_InitControlsConfig() )
     {
@@ -10954,5 +10966,731 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
     free(apSchemes);
     jonesConfig_FreeDisplayMenu(&display);
     return result;
+}
+#endif
+
+#ifdef J3D_PORT
+/* ---- Port: the controls as the platform's menus (PORT-PLAN.md P6.20, P6.21, decision 21) --------------------------------
+ *
+ * The control options (111), a control set viewed or edited (115), a new set's name (116), waiting for a key or button
+ * (117) and the reassign question (120). Retail kept the state of these in its list boxes and list views; here it is
+ * kept in the sets themselves, and the rules are retail's, function by function:
+ *   jonesConfig_ControlOptions_HandleWM_COMMAND, _DeleteScheme, _CreateNewScheme, _EditSelectedScheme;
+ *   jonesConfig_CreateControlScheme_Handle_WM_COMMAND (the name's checks);
+ *   jonesConfig_EditControlScheme_Handle_WM_COMMAND, _AddAssignment, _EditAssignment, _DeleteAssignment;
+ *   jonesConfig_ShowAssignKeyDialog, jonesConfig_AssignControlKey_ReadKey, _ReadJoyAxisKey (the key's checks, the
+ *   controller's polling) and jonesConfig_ReassignKeyDlg_HandleWM_COMMAND.
+ */
+
+// Which list a control id was shown in: 1 the controller's, 0 the keyboard's (and the mouse's)
+static int jonesConfig_IsControllerId(size_t id)
+{
+    return (id >= STDCONTROL_JOYSTICK_FIRSTKID && id <= STDCONTROL_JOYSTICK_LASTPOVCID)
+           || (id >= JONESCONFIG_JOYAXISKID_UP && id <= JONESCONFIG_JOYAXISKID_GROUND);
+}
+
+static const char* jonesConfig_MenuString(const char* pName)
+{
+    const char* pText = jonesString_GetString(pName);
+    return pText ? pText : "";
+}
+
+static void jonesConfig_MenuMessage(const char* pText)
+{
+    jonesConfig_ShowMessageDialog(NULL, "JONES_STR_CTRL_OPTS", pText, 145); // 145 - typewriter icon
+}
+
+// The rows of a set as the edit dialog's two lists showed them, an action a row
+static void jonesConfig_FillControlSetMenu(J3DMenuControlSet* pSet, const JonesControlsScheme* pScheme)
+{
+    int i;
+    pSet->numRows = 0;
+    for ( i = 0; i < (int)STD_ARRAYLEN(jonesConfig_aJonesControlActionNames) && i < J3DMENU_CTRL_MAXACTIONS; ++i )
+    {
+        J3DMenuControlRow* pRow = &pSet->aRows[pSet->numRows++];
+        const size_t* pAction = pScheme->aActions[i];
+        size_t bindNum;
+        memset(pRow, 0, sizeof(*pRow));
+        snprintf(pRow->aAction, sizeof(pRow->aAction), "%s", jonesConfig_MenuString(jonesConfig_aJonesControlActionNames[i]));
+        for ( bindNum = 1; bindNum <= JONESCONTROL_ACTION_GETNUMBINDS(pAction) && bindNum < JONESCONTROL_ACTION_BINDARRAYSIZE; ++bindNum )
+        {
+            char aName[JONESCONFIG_CONTROLSTRING_MAXLEN];
+            J3DMenuBind* pBind;
+            if ( jonesConfig_IsControllerId(pAction[bindNum]) )
+            {
+                pBind = pRow->numButtons < J3DMENU_CTRL_MAXBINDS ? &pRow->aButtons[pRow->numButtons++] : NULL;
+            }
+            else
+            {
+                pBind = pRow->numKeys < J3DMENU_CTRL_MAXBINDS ? &pRow->aKeys[pRow->numKeys++] : NULL;
+            }
+
+            if ( pBind )
+            {
+                memset(aName, 0, sizeof(aName));
+                jonesConfig_ControlToString(pAction[bindNum], aName);
+                pBind->id = (int)pAction[bindNum]; // Port: narrowing cast, the ids are below 0x10000 (retail packed them in a word)
+                snprintf(pBind->aName, sizeof(pBind->aName), "%s", aName);
+            }
+        }
+    }
+}
+
+// The index in pAction[] of the n-th binding on a side, or 0 when there is none
+static size_t jonesConfig_FindSideBind(const size_t* pAction, int bController, int n)
+{
+    size_t bindNum;
+    for ( bindNum = 1; bindNum <= JONESCONTROL_ACTION_GETNUMBINDS(pAction) && bindNum < JONESCONTROL_ACTION_BINDARRAYSIZE; ++bindNum )
+    {
+        if ( jonesConfig_IsControllerId(pAction[bindNum]) == bController && n-- == 0 )
+        {
+            return bindNum;
+        }
+    }
+    return 0;
+}
+
+// Takes binding bindNum (1-based) out of pAction, as _DeleteAssignment and the reassign question's Yes did
+static void jonesConfig_RemoveBind(size_t* pAction, size_t bindNum)
+{
+    const int bController = jonesConfig_IsControllerId(pAction[bindNum]);
+    size_t i;
+    for ( i = bindNum; i < JONESCONTROL_ACTION_GETNUMBINDS(pAction); ++i )
+    {
+        pAction[i] = pAction[i + 1];
+    }
+    if ( bController )
+    {
+        JONESCONTROL_ACTION_UPDATENUMBINDINGS_CONTROLLER(pAction, -1);
+    }
+    else
+    {
+        JONESCONTROL_ACTION_UPDATENUMBINDINGS_KEYBOARD(pAction, -1);
+    }
+}
+
+// Waiting for a key or a button: what jonesConfig_AssignControlKey_ReadKey accepted or refused
+static JonesAssignKeyDialogData jonesConfig_menuCapture;
+
+static int jonesConfig_MenuCaptureInput(int dik)
+{
+    JonesAssignKeyDialogData* pData = &jonesConfig_menuCapture;
+    size_t buttonNum;
+    int bJustPressed;
+    char aMsg[256];
+
+    if ( dik < 0 )
+    {
+        // The controllers, read through stdControl as the dialog's timer did. Keys come from the menu (dik >= 0).
+        int bControlsActive;
+        int bFound = 0;
+        if ( pData->listID != 1006 )
+        {
+            return 0;
+        }
+
+        bControlsActive = stdControl_ControlsActive();
+        stdControl_SetActivation(1);
+        stdControl_ReadControls();
+        if ( wuRegistry_GetIntEx("Joystick Control", 0) && jonesConfig_AssignControlKey_ReadJoyAxisKey(pData) )
+        {
+            bFound = 1;
+        }
+
+        for ( buttonNum = STDCONTROL_JOYSTICK_FIRSTKID; !bFound && buttonNum <= STDCONTROL_JOYSTICK_LASTPOVCID; ++buttonNum )
+        {
+            if ( stdControl_ReadKey(buttonNum, &bJustPressed) )
+            {
+                pData->controlId = buttonNum;
+                jonesConfig_ControlToString(buttonNum, pData->aControlName);
+                bFound = 1;
+            }
+        }
+
+        stdControl_SetActivation(bControlsActive);
+        return bFound;
+    }
+
+    if ( pData->listID == 1006 )
+    {
+        jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_BUTTONONLY"));
+        return 0;
+    }
+
+    pData->controlId = (size_t)dik;
+    memset(pData->aControlName, 0, sizeof(pData->aControlName));
+    jonesConfig_ControlToString(pData->controlId, pData->aControlName);
+    switch ( dik )
+    {
+        case DIK_ESCAPE:
+        case DIK_MINUS:
+        case DIK_EQUALS:
+        case DIK_F4:
+            snprintf(aMsg, sizeof(aMsg), jonesConfig_MenuString("JONES_STR_NO_MAP"), pData->aControlName);
+            jonesConfig_MenuMessage(aMsg);
+            return 0;
+
+        case DIK_1:
+        case DIK_2:
+        case DIK_3:
+        case DIK_4:
+        case DIK_5:
+        case DIK_6:
+        case DIK_7:
+        case DIK_8:
+        case DIK_9:
+        case DIK_0:
+            if ( pData->actionId < JONESCONTROL_ACTION_FISTS || pData->actionId > JONESCONTROL_ACTION_GRENADE )
+            {
+                snprintf(aMsg, sizeof(aMsg), jonesConfig_MenuString("JONES_STR_NO_KEYMAP_NUM"), pData->aControlName);
+                jonesConfig_MenuMessage(aMsg);
+                return 0;
+            }
+            break;
+    }
+    return 1;
+}
+
+// jonesConfig_ShowAssignKeyDialog: waits for a control for actionId on a side; one bound to another action is taken
+// from it when the player agrees, else the wait starts again. 1 with *pControlId, 0 when cancelled or refused.
+static int jonesConfig_MenuAssign(JonesControlsScheme* pScheme, int actionId, int bController, size_t* pControlId)
+{
+    for ( ;; )
+    {
+        int result = 2;
+        int function;
+        int otherAction = -1;
+        size_t otherBind = 0;
+
+        memset(&jonesConfig_menuCapture, 0, sizeof(jonesConfig_menuCapture));
+        jonesConfig_menuCapture.actionId = actionId;
+        jonesConfig_menuCapture.pScheme  = pScheme;
+        jonesConfig_menuCapture.listID   = bController ? 1006 : 1005;
+        if ( !J3DMenu_CaptureControl(jonesConfig_MenuString(bController ? "JONES_STR_NEXTBUTTON" : "JONES_STR_NEXTKEY"),
+                                     jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[actionId]),
+                                     jonesConfig_MenuCaptureInput, &result)
+             || result != 1 )
+        {
+            return 0;
+        }
+
+        for ( function = 0; function < (int)STD_ARRAYLEN(pScheme->aActions) && otherAction < 0; ++function )
+        {
+            size_t bindNum;
+            for ( bindNum = 1; bindNum <= JONESCONTROL_ACTION_GETNUMBINDS(pScheme->aActions[function]); ++bindNum )
+            {
+                if ( pScheme->aActions[function][bindNum] == jonesConfig_menuCapture.controlId )
+                {
+                    otherAction = function;
+                    otherBind   = bindNum;
+                    break;
+                }
+            }
+        }
+
+        if ( otherAction == actionId )
+        {
+            char aMsg[512];
+            snprintf(aMsg, sizeof(aMsg), "\"%s\" %s %s.", jonesConfig_menuCapture.aControlName, jonesConfig_MenuString("JONES_STR_SAMEMAP"),
+                     jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[actionId]));
+            jonesConfig_MenuMessage(aMsg);
+            return 0;
+        }
+
+        if ( otherAction >= 0 )
+        {
+            // The reassign question (120): its three lines as one text
+            char aQuoted[300];
+            char aText[1024];
+            char aLine[512];
+            int answer = 2;
+            snprintf(aQuoted, sizeof(aQuoted), "\"%s\" ", jonesConfig_menuCapture.aControlName);
+            snprintf(aText, sizeof(aText), jonesConfig_MenuString("JONES_STR_NEWMAP"), aQuoted);
+            strcat(aText, "\n");
+            snprintf(aLine, sizeof(aLine), jonesConfig_MenuString("JONES_STR_FROM"), jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[otherAction]));
+            strncat(aText, aLine, sizeof(aText) - strlen(aText) - 1);
+            strncat(aText, " ", sizeof(aText) - strlen(aText) - 1);
+            snprintf(aLine, sizeof(aLine), jonesConfig_MenuString("JONES_STR_TO"), jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[actionId]));
+            strncat(aText, aLine, sizeof(aText) - strlen(aText) - 1);
+            strncat(aText, "\n\n", sizeof(aText) - strlen(aText) - 1);
+            strncat(aText, jonesConfig_MenuString("JONES_STR_REMAP"), sizeof(aText) - strlen(aText) - 1);
+            if ( !J3DMenu_Ask("JONES_STR_CTRL_OPTS", aText, &answer) )
+            {
+                return 0;
+            }
+
+            if ( answer != 1 )
+            {
+                continue; // No: wait for another, as the dialog came back
+            }
+
+            jonesConfig_RemoveBind(pScheme->aActions[otherAction], otherBind);
+        }
+
+        *pControlId = jonesConfig_menuCapture.controlId;
+        return 1;
+    }
+}
+
+// The set being edited, and the game's default set its Default Settings copies
+static JonesControlsScheme* jonesConfig_pMenuEditScheme;
+static const JonesControlsScheme* jonesConfig_pMenuDefaultScheme;
+
+static int jonesConfig_ControlSetMenuAction(J3DMenuControlSet* pSet, int action, int row, int side, int bind)
+{
+    JonesControlsScheme* pScheme = jonesConfig_pMenuEditScheme;
+    size_t* pAction = row >= 0 && row < (int)STD_ARRAYLEN(pScheme->aActions) ? pScheme->aActions[row] : NULL;
+    size_t controlId;
+    int i;
+
+    if ( pSet->bReadOnly && action != J3DMENU_CTRLSET_CANCEL && action != J3DMENU_CTRLSET_SAVE )
+    {
+        return 0;
+    }
+
+    switch ( action )
+    {
+        case J3DMENU_CTRLSET_ADD:
+            if ( !pAction )
+            {
+                jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_NOKEYACTION"));
+                break;
+            }
+
+            if ( jonesConfig_MenuAssign(pScheme, row, side, &controlId) )
+            {
+                if ( JONESCONTROL_ACTION_GETNUMBINDS(pAction) >= JONESCONTROL_ACTION_MAXBINDS )
+                {
+                    char aMsg[512];
+                    snprintf(aMsg, sizeof(aMsg), jonesConfig_MenuString("JONES_STR_EXCEED"), jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[row]));
+                    jonesConfig_MenuMessage(aMsg);
+                    break;
+                }
+
+                pAction[JONESCONTROL_ACTION_GETNUMBINDS(pAction) + 1] = controlId;
+                if ( side )
+                {
+                    JONESCONTROL_ACTION_UPDATENUMBINDINGS_CONTROLLER(pAction, +1);
+                }
+                else
+                {
+                    JONESCONTROL_ACTION_UPDATENUMBINDINGS_KEYBOARD(pAction, +1);
+                }
+            }
+            break;
+
+        case J3DMENU_CTRLSET_CHANGE:
+        {
+            size_t bindNum = pAction ? jonesConfig_FindSideBind(pAction, side, bind) : 0;
+            if ( !bindNum )
+            {
+                jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_NOKEYACTION"));
+                break;
+            }
+
+            if ( jonesConfig_MenuAssign(pScheme, row, side, &controlId) )
+            {
+                // The reassign may have taken a binding out of this action before this one: look it up again
+                bindNum = jonesConfig_FindSideBind(pAction, side, bind);
+                if ( bindNum )
+                {
+                    pAction[bindNum] = controlId;
+                }
+            }
+            break;
+        }
+
+        case J3DMENU_CTRLSET_REMOVE:
+        {
+            size_t bindNum = pAction ? jonesConfig_FindSideBind(pAction, side, bind) : 0;
+            if ( bindNum )
+            {
+                jonesConfig_RemoveBind(pAction, bindNum);
+            }
+            break;
+        }
+
+        case J3DMENU_CTRLSET_DEFAULTS:
+            for ( i = 0; i < (int)STD_ARRAYLEN(pScheme->aActions); ++i )
+            {
+                memcpy(pScheme->aActions[i], jonesConfig_pMenuDefaultScheme->aActions[i], sizeof(pScheme->aActions[i]));
+            }
+            break;
+
+        case J3DMENU_CTRLSET_SAVE:
+        {
+            // Every action but the weapons and items must have a binding
+            char aMissing[1024];
+            if ( pSet->bReadOnly )
+            {
+                return 1;
+            }
+
+            memset(aMissing, 0, sizeof(aMissing));
+            for ( i = 0; i < (int)STD_ARRAYLEN(pScheme->aActions); ++i )
+            {
+                if ( JONESCONTROL_ACTION_GETNUMBINDS(pScheme->aActions[i]) == 0 && (i < JONESCONTROL_ACTION_FISTS || i > JONESCONTROL_ACTION_BAZOOKA) )
+                {
+                    strncat(aMissing, jonesConfig_MenuString(jonesConfig_aJonesCapControlActionNames[i]), sizeof(aMissing) - strlen(aMissing) - 2);
+                    strcat(aMissing, "\n");
+                }
+            }
+
+            if ( aMissing[0] )
+            {
+                char aMsg[1200];
+                snprintf(aMsg, sizeof(aMsg), "%s\n%s", jonesConfig_MenuString("JONES_STR_NO_MAPNG"), aMissing);
+                jonesConfig_MenuMessage(aMsg);
+                break;
+            }
+
+            pScheme->bModified = 1;
+            return 1;
+        }
+
+        case J3DMENU_CTRLSET_CANCEL:
+            return 1;
+    }
+
+    jonesConfig_FillControlSetMenu(pSet, pScheme);
+    return 0;
+}
+
+// The edit dialog over pScheme (changed in place only when saved). Returns 1 when it was saved.
+static int jonesConfig_MenuEditScheme(JonesControlsScheme* pScheme, int bReadOnly, const JonesControlsScheme* pDefault)
+{
+    J3DMenuControlSet* pSet = calloc(1, sizeof(*pSet));
+    JonesControlsScheme* pCopy = calloc(1, sizeof(*pCopy));
+    int result = 2;
+    if ( !pSet || !pCopy )
+    {
+        free(pSet);
+        free(pCopy);
+        return 0;
+    }
+
+    *pCopy = *pScheme;
+    pCopy->bModified = 0; // set by Save alone, so a cancelled edit is told apart from a set changed earlier
+    snprintf(pSet->aName, sizeof(pSet->aName), "%s", pScheme->aName);
+    pSet->bReadOnly = bReadOnly;
+    pSet->pfAction  = jonesConfig_ControlSetMenuAction;
+    jonesConfig_FillControlSetMenu(pSet, pCopy);
+    jonesConfig_pMenuEditScheme    = pCopy;
+    jonesConfig_pMenuDefaultScheme = pDefault;
+    J3DMenu_EditControlSet(pSet, &result);
+    jonesConfig_pMenuEditScheme = NULL;
+    if ( result == 1 && !bReadOnly && pCopy->bModified )
+    {
+        *pScheme = *pCopy; // bModified 1: written on the control options' OK
+    }
+    else
+    {
+        result = 2;
+    }
+
+    free(pSet);
+    free(pCopy);
+    return result == 1;
+}
+
+// The control options' state (111)
+static JonesControlsConfig jonesConfig_menuControlConfig;
+
+static void jonesConfig_FillControlOptionsMenu(J3DMenuControlOptions* pOptions)
+{
+    const JonesControlsConfig* pConfig = &jonesConfig_menuControlConfig;
+    int i;
+    pOptions->numSets = 0;
+    for ( i = 0; i < pConfig->numSchemes && i < J3DMENU_CTRL_MAXSETS; ++i )
+    {
+        snprintf(pOptions->aaNames[pOptions->numSets++], sizeof(pOptions->aaNames[0]), "%s", pConfig->aSchemes[i].aName);
+    }
+    pOptions->numFixedSets = (int)JONESCONFIG_NUMDEFAULTCONTROLSCHEMES;
+    pOptions->selected     = pConfig->selectedShemeIdx;
+}
+
+static void jonesConfig_MenuNewScheme(JonesControlsConfig* pConfig)
+{
+    char aName[128];
+    int result = 2;
+    int i;
+    memset(aName, 0, sizeof(aName));
+    for ( ;; )
+    {
+        int bDuplicate = 0;
+        if ( !J3DMenu_AskName("JONES_STR_CTRL_OPTS", jonesConfig_MenuString("JONES_STR_NAME"), aName, (int)sizeof(aName), &result) || result != 1 )
+        {
+            return;
+        }
+
+        // jonesConfig_CreateControlScheme_Handle_WM_COMMAND's checks
+        if ( strlen(aName) != strcspn(aName, "/:\\\"?<>*|+") )
+        {
+            char aMsg[256];
+            snprintf(aMsg, sizeof(aMsg), jonesConfig_MenuString("JONES_STR_INVALIDFILE"), aName);
+            jonesConfig_MenuMessage(aMsg);
+            aName[0] = 0;
+            continue;
+        }
+
+        if ( !aName[0] )
+        {
+            jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_NO_SCHEME"));
+            continue;
+        }
+
+        for ( i = 0; i < pConfig->numSchemes; ++i )
+        {
+            bDuplicate |= streq(aName, pConfig->aSchemes[i].aName);
+        }
+
+        if ( bDuplicate )
+        {
+            jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_DUP_SCHEME"));
+            aName[0] = 0;
+            continue;
+        }
+        break;
+    }
+
+    {
+        // A copy of the first set, edited, then put in its place among the player's sets by name (_CreateNewScheme)
+        JonesControlsScheme scheme;
+        int schemeIdx;
+        scheme = pConfig->aSchemes[0];
+        scheme.bModified = 0;
+        snprintf(scheme.aName, sizeof(scheme.aName), "%s", aName);
+        if ( !jonesConfig_MenuEditScheme(&scheme, 0, jonesConfig_GetDefaultControlScheme(pConfig)) )
+        {
+            return;
+        }
+
+        if ( (pConfig->numSchemes % 10) == 0 )
+        {
+            JonesControlsScheme* aSchemes = (JonesControlsScheme*)STDREALLOC(pConfig->aSchemes, sizeof(JonesControlsScheme) * (pConfig->numSchemes + 10));
+            if ( !aSchemes )
+            {
+                jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_NO_MEM_SCHEME"));
+                return;
+            }
+            pConfig->aSchemes = aSchemes;
+        }
+
+        schemeIdx = (int)JONESCONFIG_NUMDEFAULTCONTROLSCHEMES;
+        while ( schemeIdx < pConfig->numSchemes && strcmp(aName, pConfig->aSchemes[schemeIdx].aName) >= 0 )
+        {
+            ++schemeIdx;
+        }
+
+        memmove(&pConfig->aSchemes[schemeIdx + 1], &pConfig->aSchemes[schemeIdx], sizeof(JonesControlsScheme) * (size_t)(pConfig->numSchemes - schemeIdx));
+        pConfig->aSchemes[schemeIdx] = scheme;
+        pConfig->numSchemes++;
+        pConfig->selectedShemeIdx = schemeIdx;
+    }
+}
+
+static void jonesConfig_MenuDeleteScheme(JonesControlsConfig* pConfig, int schemeNum)
+{
+    if ( schemeNum < (int)JONESCONFIG_NUMDEFAULTCONTROLSCHEMES || schemeNum >= pConfig->numSchemes )
+    {
+        return;
+    }
+
+    // A set already on disk has its file removed on OK (_DeleteScheme)
+    if ( pConfig->aSchemes[schemeNum].bModified != 1 )
+    {
+        if ( (pConfig->numDeleteSchemes % 10) == 0 )
+        {
+            char (*paNew)[128] = (char (*)[128])STDREALLOC(pConfig->paDeleteSchemes, (size_t)(pConfig->numDeleteSchemes + 10) * 128);
+            if ( !paNew )
+            {
+                return;
+            }
+            pConfig->paDeleteSchemes = paNew;
+        }
+        snprintf(pConfig->paDeleteSchemes[pConfig->numDeleteSchemes++], 128, "%s\\%s%s", jonesConfig_aKeySetDirectory, pConfig->aSchemes[schemeNum].aName, ".kfg");
+    }
+
+    memmove(&pConfig->aSchemes[schemeNum], &pConfig->aSchemes[schemeNum + 1], sizeof(JonesControlsScheme) * (size_t)(pConfig->numSchemes - schemeNum - 1));
+    pConfig->numSchemes--;
+    memset(&pConfig->aSchemes[pConfig->numSchemes], 0, sizeof(JonesControlsScheme));
+    if ( pConfig->selectedShemeIdx >= schemeNum )
+    {
+        pConfig->selectedShemeIdx = pConfig->selectedShemeIdx - 1 < 0 ? 0 : pConfig->selectedShemeIdx - 1;
+    }
+}
+
+static int jonesConfig_ControlOptionsMenuAction(J3DMenuControlOptions* pOptions, int action, int value)
+{
+    JonesControlsConfig* pConfig = &jonesConfig_menuControlConfig;
+    int i;
+    switch ( action )
+    {
+        case J3DMENU_CTRLOPT_SELECT:
+            if ( value >= 0 && value < pConfig->numSchemes )
+            {
+                pConfig->selectedShemeIdx = value;
+            }
+            break;
+
+        case J3DMENU_CTRLOPT_NEW:
+            jonesConfig_MenuNewScheme(pConfig);
+            break;
+
+        case J3DMENU_CTRLOPT_EDIT:
+        {
+            const int sel = pConfig->selectedShemeIdx;
+            if ( sel >= 0 && sel < pConfig->numSchemes )
+            {
+                // The game's own sets are viewed, not edited (JONES_STR_VIEW_SCHEME)
+                jonesConfig_MenuEditScheme(&pConfig->aSchemes[sel], sel < (int)JONESCONFIG_NUMDEFAULTCONTROLSCHEMES,
+                                           jonesConfig_GetDefaultControlScheme(pConfig));
+            }
+            break;
+        }
+
+        case J3DMENU_CTRLOPT_DELETE:
+            jonesConfig_MenuDeleteScheme(pConfig, pConfig->selectedShemeIdx);
+            break;
+
+        case J3DMENU_CTRLOPT_MOUSE:
+            pOptions->bMouse = value != 0;
+            break;
+
+        case J3DMENU_CTRLOPT_JOYSTICK:
+            pOptions->bJoystick = value != 0 && pOptions->bJoystickAvailable;
+            break;
+
+        case J3DMENU_CTRLOPT_OK:
+            // jonesConfig_ControlOptions_HandleWM_COMMAND's OK
+            for ( i = 0; i < pConfig->numDeleteSchemes; ++i )
+            {
+                char aHostPath[J3D_PATHSIZE];
+                J3DHost_ToPosixPath(aHostPath, sizeof(aHostPath), pConfig->paDeleteSchemes[i]);
+                remove(aHostPath);
+            }
+
+            pConfig->numDeleteSchemes = 0;
+            if ( pConfig->paDeleteSchemes )
+            {
+                stdMemory_Free(pConfig->paDeleteSchemes);
+                pConfig->paDeleteSchemes = NULL;
+            }
+
+            if ( jonesConfig_CopyControlConfig(pConfig, &jonesConfig_controlOptions_curControlConfig) )
+            {
+                for ( i = (int)JONESCONFIG_NUMDEFAULTCONTROLSCHEMES; i < pConfig->numSchemes; ++i )
+                {
+                    if ( pConfig->aSchemes[i].bModified == 1 && !jonesConfig_ControlOptions_WriteScheme(&pConfig->aSchemes[i]) )
+                    {
+                        jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_NO_MEM_SCHEME"));
+                    }
+                }
+            }
+            else
+            {
+                jonesConfig_MenuMessage(jonesConfig_MenuString("JONES_STR_NO_MEM_SCHEME"));
+                return 1; // closes as Cancel
+            }
+
+            wuRegistry_SaveIntEx("Mouse Control", pOptions->bMouse);
+            wuRegistry_SaveIntEx("Joystick Control", pOptions->bJoystick);
+            if ( pOptions->bJoystick )
+            {
+                JonesControlsScheme* pActiveScheme = jonesConfig_LoadActiveControlScheme();
+                if ( pActiveScheme )
+                {
+                    JonesControl_EnableJoystickAxes();
+                    jonesConfig_BindControls(pActiveScheme);
+                    jonesConfig_FreeControlScheme(pActiveScheme);
+                }
+            }
+            else
+            {
+                sithControl_UnbindJoystickAxes();
+            }
+            pOptions->numSets = -1; // tells jonesConfig_ShowControlOptionsMenu it was OK
+            return 1;
+
+        case J3DMENU_CTRLOPT_CANCEL:
+            return 1;
+    }
+
+    jonesConfig_FillControlOptionsMenu(pOptions);
+    return 0;
+}
+
+// jonesConfig_ShowControlOptions with the menus. Returns 0 when there is no menu in this run.
+static int jonesConfig_ShowControlOptionsMenu(int* pResult)
+{
+    J3DMenuControlOptions* pOptions;
+    char aSelected[128];
+    int i;
+
+    if ( !J3DMenu_IsAvailable() )
+    {
+        return 0;
+    }
+
+    *pResult = 2;
+    if ( !jonesConfig_ControlOptions_InitControlsConfig() )
+    {
+        return 1;
+    }
+
+    memset(&jonesConfig_menuControlConfig, 0, sizeof(jonesConfig_menuControlConfig));
+    pOptions = calloc(1, sizeof(*pOptions));
+    if ( !pOptions || !jonesConfig_CopyControlConfig(&jonesConfig_controlOptions_curControlConfig, &jonesConfig_menuControlConfig) )
+    {
+        free(pOptions);
+        return 1;
+    }
+
+    // The chosen set by its saved name, else the game's default for the controller (jonesConfig_InitControlOptionsDialog)
+    memset(aSelected, 0, sizeof(aSelected));
+    wuRegistry_GetStr("Configuration", aSelected, STD_ARRAYLEN(aSelected), "");
+    if ( !aSelected[0] )
+    {
+        const int dflt = stdControl_GetMaxJoystickButtons() == 4 ? 1 : stdControl_GetMaxJoystickButtons() == 8 ? 2 : 0;
+        snprintf(aSelected, sizeof(aSelected), "%s", jonesConfig_MenuString(jonesConfig_aDfltKeySetNames[dflt]));
+    }
+
+    jonesConfig_menuControlConfig.selectedShemeIdx = 0;
+    for ( i = 0; i < jonesConfig_menuControlConfig.numSchemes; ++i )
+    {
+        jonesConfig_menuControlConfig.aSchemes[i].bModified = 0;
+        if ( streq(aSelected, jonesConfig_menuControlConfig.aSchemes[i].aName) )
+        {
+            jonesConfig_menuControlConfig.selectedShemeIdx = i;
+        }
+    }
+
+    pOptions->bMouse             = wuRegistry_GetIntEx("Mouse Control", 0);
+    pOptions->bJoystickAvailable = stdControl_GetNumJoysticks() > 0;
+    pOptions->bJoystick          = pOptions->bJoystickAvailable && wuRegistry_GetIntEx("Joystick Control", 0);
+    pOptions->pfAction           = jonesConfig_ControlOptionsMenuAction;
+    jonesConfig_FillControlOptionsMenu(pOptions);
+
+    J3DMenu_ShowControlOptions(pOptions, pResult);
+    if ( pOptions->numSets == -1 )
+    {
+        // OK, then what jonesConfig_ShowControlOptions did after the dialog
+        JonesControlsConfig* pConfig = &jonesConfig_menuControlConfig;
+        *pResult = 1;
+        wuRegistry_SaveStr("Configuration", pConfig->aSchemes[pConfig->selectedShemeIdx].aName);
+        jonesConfig_BindControls(&pConfig->aSchemes[pConfig->selectedShemeIdx]);
+        jonesConfig_FreeControlConfigEntry(pConfig);
+        jonesConfig_FreeControlConfigEntry(&jonesConfig_controlOptions_curControlConfig);
+        jonesConfig_controlOptions_curControlConfig.numSchemes = 0;
+        jonesConfig_EnableMouseControl(wuRegistry_GetIntEx("Mouse Control", 0));
+    }
+    else
+    {
+        *pResult = 2;
+        jonesConfig_FreeControlConfigEntry(&jonesConfig_menuControlConfig);
+    }
+
+    free(pOptions);
+    return 1;
 }
 #endif

@@ -27,6 +27,7 @@
 #include <std/General/stdFnames.h>
 #include <std/Win95/stdWin95.h>
 
+#include <platform/common/host_keys.h>
 #include <platform/common/host_path.h>
 #include <platform/common/j3dgui/j3dgui.h>
 #include <platform/common/host_record.h>
@@ -1182,6 +1183,122 @@ int J3DMenu_ShowStore(J3DMenuStore* pStore, int* pResult)
     return 1;
 }
 
+/* ---- The controls ---------------------------------------------------------------------------------------------------- */
+
+int J3DMenu_ShowControlOptions(J3DMenuControlOptions* pOptions, int* pResult)
+{
+    MenuSession session;
+    char aaLabels[10][128];
+    const char* apLabels[10];
+    static const char* const aaNames[10][2] = {
+        { "JONES_STR_CTRL_OPTS", "Control Options" }, { "JONES_STR_AVAIL_KEYCONFIG", "Control Sets" },
+        { "JONES_STR_NEW_SCHEME", "New" }, { "JONES_STR_EDIT_SCHEME", "Edit" }, { "JONES_STR_VIEW_SCHEME", "View" },
+        { "JONES_STR_DEL_SCHEME", "Delete" }, { "JONES_STR_CTRLMOUSE", "Enable Mouse" },
+        { "JONES_STR_CTRLJOYSTICK", "Enable Gamepad/Joystick" }, { "JONES_STR_OK", "OK" }, { "JONES_STR_CANCEL", "Cancel" }
+    };
+    int i;
+    if ( !pOptions || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    for ( i = 0; i < 10; ++i )
+    {
+        snprintf(aaLabels[i], sizeof(aaLabels[i]), "%s", menu_String(aaNames[i][0], aaNames[i][1]));
+        apLabels[i] = aaLabels[i];
+    }
+    J3DMenuUI_ControlOptions(session.pNSWindow, apLabels, pOptions);
+    menu_End(&session);
+    *pResult = 1; // the caller's action callback knows how it closed
+    return 1;
+}
+
+int J3DMenu_EditControlSet(J3DMenuControlSet* pSet, int* pResult)
+{
+    MenuSession session;
+    char aaLabels[9][128];
+    const char* apLabels[9];
+    static const char* const aaNames[9][2] = {
+        { "JONES_STR_KEYBOARD", "Keyboard" }, { "JONES_STR_CONTROLLER", "Controller" }, { "JONES_STR_ADD_ASGNMNT", "Add" },
+        { "JONES_STR_EDIT_ASGNMNT", "Change" }, { "JONES_STR_DEL_ASGNMNT", "Remove" }, { "JONES_STR_DEFAULTSET", "Default Settings" },
+        { "JONES_STR_SAVE_SCHEME", "Save" }, { "JONES_STR_CANCEL", "Cancel" }, { "JONES_STR_CLOSE", "Close" }
+    };
+    int i;
+    if ( !pSet || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    for ( i = 0; i < 9; ++i )
+    {
+        snprintf(aaLabels[i], sizeof(aaLabels[i]), "%s", menu_String(aaNames[i][0], aaNames[i][1]));
+        apLabels[i] = aaLabels[i];
+    }
+    J3DMenuUI_ControlSet(session.pNSWindow, apLabels, pSet);
+    menu_End(&session);
+    // Saved is the set's own business (bModified); the menu reports which button closed it through its callback
+    *pResult = 1;
+    return 1;
+}
+
+int J3DMenu_AskName(const char* pTitle, const char* pPrompt, char* pName, int size, int* pResult)
+{
+    MenuSession session;
+    char aTitle[128];
+    char aPrompt[256];
+    char aOk[64];
+    if ( !pName || size < 2 || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    snprintf(aTitle, sizeof(aTitle), "%s", menu_String(pTitle, pTitle));
+    snprintf(aPrompt, sizeof(aPrompt), "%s", pPrompt ? pPrompt : "");
+    snprintf(aOk, sizeof(aOk), "%s", menu_String("JONES_STR_OK", "OK"));
+    *pResult = J3DMenuUI_AskName(session.pNSWindow, aTitle, aPrompt, aOk, menu_String("JONES_STR_CANCEL", "Cancel"), pName, size) ? 1 : 2;
+    menu_End(&session);
+    return 1;
+}
+
+static int (*menu_pfCaptureInput)(int dik);
+
+static int32_t menu_CaptureInput(int32_t hidUsage)
+{
+    if ( !menu_pfCaptureInput )
+    {
+        return 0;
+    }
+    if ( hidUsage == 0 )
+    {
+        // The controllers: their state, without pumping the window events the menu is taking
+        SDL_UpdateGamepads();
+        SDL_UpdateJoysticks();
+        return menu_pfCaptureInput(-1) != 0;
+    }
+    {
+        const uint8_t dik = J3DHost_HidToDik((uint32_t)hidUsage);
+        return dik ? menu_pfCaptureInput(dik) != 0 : 0;
+    }
+}
+
+int J3DMenu_CaptureControl(const char* pPrompt, const char* pAction, int (*pfInput)(int dik), int* pResult)
+{
+    MenuSession session;
+    char aPrompt[256];
+    char aAction[256];
+    char aTitle[128];
+    int (*pfOuter)(int) = menu_pfCaptureInput;
+    if ( !pfInput || !menu_Begin(&session) )
+    {
+        return 0;
+    }
+    snprintf(aPrompt, sizeof(aPrompt), "%s", pPrompt ? pPrompt : "");
+    snprintf(aAction, sizeof(aAction), "%s", pAction ? pAction : "");
+    snprintf(aTitle, sizeof(aTitle), "%s", menu_String("JONES_STR_CTRL_OPTS", "Control Options"));
+    menu_pfCaptureInput = pfInput;
+    *pResult = J3DMenuUI_Capture(session.pNSWindow, aTitle, aPrompt, aAction, menu_String("JONES_STR_SLOWCANCEL", "Cancel"), menu_CaptureInput) ? 1 : 2;
+    menu_pfCaptureInput = pfOuter;
+    menu_End(&session);
+    return 1;
+}
+
 /* ---- Game over --------------------------------------------------------------------------------------------------------- */
 
 // Template 150's three buttons, in its order: start the level again, load a save (the default), quit. There is no
@@ -1334,6 +1451,12 @@ int J3DAPI jonesConfig_ShowStoreDialog(HWND hWnd, int* pBalance, int* pItemsStat
 
 /* ---- For tests --------------------------------------------------------------------------------------------------------- */
 
+
+static int menu_TestNoInput(int dik)
+{
+    (void)dik;
+    return 0;
+}
 void J3DMenu_AfterFrame(unsigned long numFrames)
 {
     static long testFrame = -1;
@@ -1396,6 +1519,35 @@ void J3DMenu_AfterFrame(unsigned long numFrames)
             aState[k] = 1 | ((k % 3) << 4);
         }
         printf("J3D_MENU_TEST store: result %d\n", jonesConfig_ShowStoreDialog(stdWin95_GetWindow(), &balance, aState, 11));
+    }
+    printf("J3D_MENU_TEST controls: result %d\n", jonesConfig_ShowControlOptions(stdWin95_GetWindow()));
+    {
+        // The set table and the wait for a key, with sample rows (the real ones come from jonesConfig.c)
+        J3DMenuControlSet* pSet = calloc(1, sizeof(*pSet));
+        int k;
+        for ( k = 0; pSet && k < 12; ++k )
+        {
+            J3DMenuControlRow* pRow = &pSet->aRows[pSet->numRows++];
+            snprintf(pRow->aAction, sizeof(pRow->aAction), "Action %d", k + 1);
+            snprintf(pRow->aKeys[pRow->numKeys++].aName, sizeof(pRow->aKeys[0].aName), "%c", 'A' + k);
+            if ( k % 3 == 0 )
+            {
+                snprintf(pRow->aKeys[pRow->numKeys++].aName, sizeof(pRow->aKeys[0].aName), "Right Shift");
+            }
+            if ( k % 2 == 0 )
+            {
+                snprintf(pRow->aButtons[pRow->numButtons++].aName, sizeof(pRow->aButtons[0].aName), "Button %d", k / 2 + 1);
+            }
+        }
+        if ( pSet )
+        {
+            snprintf(pSet->aName, sizeof(pSet->aName), "My Keys");
+            bShown = J3DMenu_EditControlSet(pSet, &result);
+            printf("J3D_MENU_TEST control set: shown %d\n", bShown);
+            free(pSet);
+        }
+        bShown = J3DMenu_CaptureControl("Press the next key", "JUMP", menu_TestNoInput, &result);
+        printf("J3D_MENU_TEST capture: shown %d, result %d\n", bShown, result);
     }
     printf("J3D_MENU_TEST display: result %d\n", jonesConfig_ShowDisplaySettingsDialog(stdWin95_GetWindow(), JonesMain_GetDisplayEnvironment(), JonesMain_GetDisplaySettings()));
     {

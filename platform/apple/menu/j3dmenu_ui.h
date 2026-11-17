@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "../../common/j3dmenu.h" // the controls' types (plain C)
+
 #define J3DMENU_THUMB_WIDTH  128
 #define J3DMENU_THUMB_HEIGHT 96
 #define J3DMENU_THUMB_BYTES  (J3DMENU_THUMB_WIDTH * J3DMENU_THUMB_HEIGHT * 4) // R, G, B, X in memory, top row first
@@ -188,6 +190,23 @@ int32_t J3DMenuUI_OptionsWindow(void* pParentWindow, const char* pTitle, J3DMenu
 
 // The launcher, until the player chooses: J3DMENU_LAUNCH_*.
 int32_t J3DMenuUI_Launcher(const J3DMenuLauncherUI* pUI);
+
+// The control options (111), until pOptions->pfAction returns nonzero. apLabels: the title, the sets' heading, New,
+// Edit, View, Delete, the mouse switch, the controller switch, OK, Cancel.
+void J3DMenuUI_ControlOptions(void* pGameWindow, const char* const* apLabels, J3DMenuControlOptions* pOptions);
+
+// A control set (115), until pSet->pfAction returns nonzero. apLabels: the keyboard's heading, the controller's, Add,
+// Change, Remove, Default Settings, Save, Cancel, Close.
+void J3DMenuUI_ControlSet(void* pGameWindow, const char* const* apLabels, J3DMenuControlSet* pSet);
+
+// A name typed in (116). Returns 1 for OK with it in pName (size bytes, which also holds the starting text), else 0.
+int32_t J3DMenuUI_AskName(void* pGameWindow, const char* pTitle, const char* pPrompt, const char* pOkLabel,
+                          const char* pCancelLabel, char* pName, int32_t size);
+
+// Waiting for a key or a button (117). pfInput is called with a key's USB HID usage when one is pressed, and with 0
+// about ten times a second; it returns nonzero once it has what it waits for. Returns 1 then, 0 when cancelled.
+int32_t J3DMenuUI_Capture(void* pGameWindow, const char* pTitle, const char* pPrompt, const char* pAction,
+                          const char* pCancelLabel, int32_t (*pfInput)(int32_t hidUsage));
 
 // The store, until pfAction returns nonzero.
 void J3DMenuUI_Store(void* pGameWindow, const J3DMenuStoreUI* pUI, J3DMenuStoreAction pfAction);

@@ -43,6 +43,8 @@ private struct MenuButtonBody: View {
         configuration.label
             .font(.system(size: large ? 17 : 14, weight: .semibold))
             .foregroundColor(prominent ? Color.black.opacity(0.88) : Palette.text)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
             .padding(.horizontal, 16)
             .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: large ? 44 : 32)
             .background {

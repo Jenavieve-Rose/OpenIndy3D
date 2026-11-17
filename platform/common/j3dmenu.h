@@ -144,6 +144,75 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice);
 // Nonzero once the player quit from the launcher: the game's startup then stops, which is a normal exit, not a failure.
 int J3DMenu_QuitAtLaunch(void);
 
+/* The controls (templates 111, 115, 116, 117, 120). jonesConfig.c keeps the control sets and retail's rules; the
+ * platform shows them and reports the buttons, through an action callback that changes the state and fills it again.
+ * Plain C types only: platform/apple/menu/j3dmenu_ui.h includes this part for Swift. */
+#define J3DMENU_CTRL_MAXBINDS   8
+#define J3DMENU_CTRL_MAXACTIONS 40
+#define J3DMENU_CTRL_MAXSETS    64
+
+typedef struct J3DMenuBind
+{
+    int id;                         // the control id (stdControl's key id, or a joystick axis direction)
+    char aName[48];
+} J3DMenuBind;
+
+typedef struct J3DMenuControlRow
+{
+    char aAction[64];
+    J3DMenuBind aKeys[J3DMENU_CTRL_MAXBINDS];
+    int numKeys;
+    J3DMenuBind aButtons[J3DMENU_CTRL_MAXBINDS];
+    int numButtons;
+} J3DMenuControlRow;
+
+// A control set being viewed or edited (115). side: 0 the keyboard and mouse, 1 the controller.
+#define J3DMENU_CTRLSET_ADD      1  // a binding for row on side
+#define J3DMENU_CTRLSET_CHANGE   2  // binding bind of row on side
+#define J3DMENU_CTRLSET_REMOVE   3  // binding bind of row on side
+#define J3DMENU_CTRLSET_DEFAULTS 4
+#define J3DMENU_CTRLSET_SAVE     5
+#define J3DMENU_CTRLSET_CANCEL   6
+typedef struct J3DMenuControlSet
+{
+    char aName[128];
+    int bReadOnly;                  // one of the game's own sets: viewed, not edited
+    J3DMenuControlRow aRows[J3DMENU_CTRL_MAXACTIONS];
+    int numRows;
+    int (*pfAction)(struct J3DMenuControlSet* pSet, int action, int row, int side, int bind); // nonzero closes
+} J3DMenuControlSet;
+int J3DMenu_EditControlSet(J3DMenuControlSet* pSet, int* pResult);
+
+// The control options (111): the sets (the game's own first), the chosen one, mouse and controller.
+#define J3DMENU_CTRLOPT_SELECT   1  // value: the set
+#define J3DMENU_CTRLOPT_NEW      2
+#define J3DMENU_CTRLOPT_EDIT     3
+#define J3DMENU_CTRLOPT_DELETE   4
+#define J3DMENU_CTRLOPT_OK       5
+#define J3DMENU_CTRLOPT_CANCEL   6
+#define J3DMENU_CTRLOPT_MOUSE    7  // value: on or off
+#define J3DMENU_CTRLOPT_JOYSTICK 8  // value: on or off
+typedef struct J3DMenuControlOptions
+{
+    char aaNames[J3DMENU_CTRL_MAXSETS][128];
+    int numSets;
+    int numFixedSets;
+    int selected;
+    int bMouse;
+    int bJoystick;
+    int bJoystickAvailable;
+    int (*pfAction)(struct J3DMenuControlOptions* pOptions, int action, int value); // nonzero closes
+} J3DMenuControlOptions;
+int J3DMenu_ShowControlOptions(J3DMenuControlOptions* pOptions, int* pResult);
+
+// A name typed in (116): *pResult 1 with it in pName (size bytes, which also holds the starting text), else 2.
+int J3DMenu_AskName(const char* pTitle, const char* pPrompt, char* pName, int size, int* pResult);
+
+// Waiting for a key or a button (117). pfInput gets the DirectInput key code of a key pressed, or -1 about ten times a
+// second to look at the controllers itself; it returns nonzero once it has what it waited for. *pResult 1 when it
+// did, 2 when the player cancelled.
+int J3DMenu_CaptureControl(const char* pPrompt, const char* pAction, int (*pfInput)(int dik), int* pResult);
+
 // jonesConfig_ShowGameOverDialog's buttons: *pResult is 1177 (start the level again; offered only with bCanRestart),
 // 1178 (load a save) or 1179 (quit). The caller does what the button did.
 int J3DMenu_ShowGameOver(int bCanRestart, int* pResult);

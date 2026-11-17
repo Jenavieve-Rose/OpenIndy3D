@@ -1542,6 +1542,24 @@ of each (string-table text, checks, what OK applies) is in `platform/apple/j3dme
   returned; `J3D_MENU_AUTOCANCEL=<seconds>` closes each unanswered; `J3D_MENU_SHOT=<prefix>` writes each as a PNG
   first. The game's frame is not in the PNG (Metal drew it).
 
+### The controls (P6.20, P6.21)
+
+- **The state.** Retail kept the control options' and the edit dialog's state in their list boxes and list views
+  (a row's item data packed the action and the control id) and changed the sets through them. The menus keep it in the
+  sets (`JonesControlsConfig`, a copy of the set being edited) and change those directly; each retail function whose
+  rules are kept is named at the top of the port block at the end of `jonesConfig.c`. The data helpers are retail's
+  own: cloning and copying sets, the default set, writing a `.kfg`, binding a set, key names.
+- **Sides.** A binding is the controller's when it is a joystick button, POV or axis direction, else the keyboard's
+  (mouse buttons included), as the two lists split them.
+- **Waiting for a key.** While a menu is up SDL gets no key events (the menu's window has the keyboard), so the wait
+  takes keys from an AppKit key monitor: the Mac's key code to its USB HID usage (`ControlsMenu.swift`) and that to the
+  DirectInput key (`J3DHost_HidToDik`), the same positions SDL reports. Modifier keys count when pressed. Controllers
+  are polled every tenth of a second through `stdControl`, after `SDL_UpdateGamepads`, which refreshes their state
+  without taking window events. Escape is refused with retail's message, as in the dialog; the menu's Cancel button
+  cancels.
+- **Edit copies.** An edited set's copy starts unmodified, so Cancel leaves a set changed earlier in the same visit
+  as it was; Save marks it, and the control options' OK writes it.
+
 ### The launcher and Options (6B; P6.26 to P6.32, P6.35, P6.37)
 
 - **Where it runs.** In the game's process, called from `JonesMain_Startup` just before its start-mode switch
