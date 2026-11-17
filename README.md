@@ -327,21 +327,6 @@ timeline
            : 1.0
 ```
 
-| Phase | Outcome | Steps |
-| :---: | --- | :---: |
-| 0 | Compiles and links on arm64 with a null platform | 12 / 12 |
-| 1 | Headless boot, every level loads, 64-bit audit closed | 30 / 30 |
-| 2 | Window, 2D back buffer and Metal renderer | 22 / 22 |
-| 3 | Keyboard, mouse and gamepad input | 10 / 10 |
-| 4 | Audio, with optional HRTF 3D sound | 11 / 11 |
-| 5 | Movies (INSANE) | 12 / 12 |
-| 6 | SwiftUI launcher, options and in-game menus | 41 / 41 |
-| 7 | Full-game verification, Win32 shim reduced | 8 / 10 |
-| 8 | Signed `.app`, data locator, fixes and polish | 12 / 14 |
-
-**Next (phase 9, stretch):** a universal binary, higher-resolution textures from loose files, MSAA and anisotropic
-filtering, and an SDL_GPU backend for Linux and Windows.
-
 ---
 
 ## Documentation
