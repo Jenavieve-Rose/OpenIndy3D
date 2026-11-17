@@ -1174,7 +1174,7 @@ const char* J3DMenuUI_ControlGlyph(int32_t id)
         static const char* const apButtons[] = {
             "a.circle", "b.circle", "x.circle", "y.circle", "lb.rectangle.roundedbottom", "rb.rectangle.roundedbottom",
             "rectangle.on.rectangle.circle", "line.3.horizontal.circle", "l.joystick.press.down", "r.joystick.press.down",
-            "house.circle",
+            "house.circle", NULL, NULL, NULL, NULL, NULL, NULL, "lt.rectangle.roundedtop", "rt.rectangle.roundedtop",
         };
         static const char* const apPov[] = { "dpad.left.filled", "dpad.up.filled", "dpad.right.filled", "dpad.down.filled" };
         const uint32_t rel = (cid - STDCONTROL_JOYSTICK_FIRSTKID) % STDCONTROL_TOTAL_JOYSTICK_CONTROLS;

@@ -977,7 +977,8 @@ which is also what a recording stores (P3.10):
   so a click shorter than a frame still counts. A click that only focuses the window is not the game's.
 - **Controllers** (P3.6): SDL gamepads are laid out as DirectInput showed an Xbox-style pad (left stick X/Y, triggers
   on Z with the left trigger positive, right stick Rx/Ry, buttons A B X Y LB RB Back Start LS RS Guide then the
-  extras, d-pad as hat 1). The right stick's X is copied to Rz, the "twist" axis, because the key sets can bind only X,
+  extras, d-pad as hat 1). The triggers are also buttons 18 (LT/L2) and 19 (RT/R2), down past a third of their
+  travel, so the controller list can bind them as buttons; the bind dialog never captured Z. The right stick's X is copied to Rz, the "twist" axis, because the key sets can bind only X,
   Y, Z and Rz. Other joysticks report their first six axes, 32 buttons and four hats as they are. Axes register as
   -32768..32767 with retail's 0.2 dead zone.
 - **Hot-plug**: controllers take the lowest free of the 8 slots and keep it while away; a slot that empties releases

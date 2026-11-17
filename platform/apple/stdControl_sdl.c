@@ -15,7 +15,9 @@
  *                loop (stdControl_sdl.h), as DirectInput's buffered data did, so a click shorter than a frame counts.
  *   controllers  SDL gamepads, laid out as DirectInput showed an Xbox-style pad (P3.6): left stick X/Y, triggers on Z
  *                (left trigger positive), right stick Rx/Ry and also Rz (the "twist" axis the keysets can bind),
- *                buttons A B X Y LB RB Back Start LS RS Guide then the extras, the d-pad as hat 1. Other joysticks
+ *                buttons A B X Y LB RB Back Start LS RS Guide then the extras, then the left and right triggers again
+ *                as buttons 18 and 19 (pressed past a third of their travel) so they can be bound like any button,
+ *                the d-pad as hat 1. Other joysticks
  *                report their first six axes, 32 buttons and four hats as they are. Up to 8, in slots that keep their
  *                number while a controller is away; one connected into an empty slot is announced through
  *                stdControl_DevicesChanged so the game binds it.
@@ -43,6 +45,8 @@
 
 #define CONTROL_MAX_MOUSE_EVENTS 32u // retail's STDCONTROL_MOUSE_BUFFERSIZE
 #define CONTROL_GAMEPAD_BUTTONS  17u // the buttons a standard gamepad reports, in the order below
+#define CONTROL_GAMEPAD_TRIGGERS 2u  // then the left and right triggers as buttons
+#define CONTROL_TRIGGER_PRESSED  10923 // a third of a trigger's 0..32767 travel
 
 // What one device read saw. Fixed size, every byte set, so a recording can compare and store it as bytes.
 typedef struct ControlPad
@@ -250,7 +254,7 @@ static void control_ReadGamepad(SDL_Gamepad* pGamepad, ControlPad* pPad)
 
     pPad->bPresent   = 1;
     pPad->bDualStick = 1;
-    pPad->numButtons = CONTROL_GAMEPAD_BUTTONS;
+    pPad->numButtons = CONTROL_GAMEPAD_BUTTONS + CONTROL_GAMEPAD_TRIGGERS;
     pPad->numPovs    = 1;
 
     const int32_t leftTrigger  = SDL_GetGamepadAxis(pGamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
@@ -267,6 +271,10 @@ static void control_ReadGamepad(SDL_Gamepad* pGamepad, ControlPad* pPad)
     {
         pPad->aButtons[i] = SDL_GetGamepadButton(pGamepad, aButtons[i]) ? 0x80 : 0;
     }
+
+    // The triggers stay on Z for an axis binding, and are buttons too: LT/L2 then RT/R2.
+    pPad->aButtons[CONTROL_GAMEPAD_BUTTONS]     = leftTrigger >= CONTROL_TRIGGER_PRESSED ? 0x80 : 0;
+    pPad->aButtons[CONTROL_GAMEPAD_BUTTONS + 1] = rightTrigger >= CONTROL_TRIGGER_PRESSED ? 0x80 : 0;
 
     Uint8 hat = SDL_HAT_CENTERED;
     hat |= SDL_GetGamepadButton(pGamepad, SDL_GAMEPAD_BUTTON_DPAD_UP) ? SDL_HAT_UP : 0;
@@ -638,7 +646,7 @@ int J3DAPI stdControl_Startup(int bKeyboardForeground)
             control_ClearPad(&control_scriptPad);
             control_scriptPad.bPresent   = 1;
             control_scriptPad.bDualStick = 1;
-            control_scriptPad.numButtons = CONTROL_GAMEPAD_BUTTONS;
+            control_scriptPad.numButtons = CONTROL_GAMEPAD_BUTTONS + CONTROL_GAMEPAD_TRIGGERS;
             control_scriptPad.numPovs    = 1;
         }
         else if ( !control_IsHeadless() )
