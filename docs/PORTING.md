@@ -349,6 +349,10 @@ are left for the OpenJones3D fix series in Phase 8 (decision 11). The test allow
 - `Sound_Save` writes `now - pauseStart`; `Sound_Restore` sets `pauseStart = saved + now`. Only the sound section's
   fifth word differs. To be looked at with the rest of the sound restore in Phase 4.
 
+Since phase 7 the test runs in every level (P7.2, "Phase 7" below), which found four port-visible bugs, fixed there, and
+one more retail behaviour the comparison allows: the restored sound channels come back in another order, so they are
+matched by guid.
+
 ### Path length (P1.30)
 
 The engine kept file paths in 128-byte buffers (`SITH_PATHSIZE`, `STDCONFFILE_FILENAMESIZE`,
@@ -1675,4 +1679,136 @@ finished level before opening level completed, as the game does; on level 0 the 
 
 Not done by hand: buying in the store, editing a control set and capturing keys and buttons, driving the menus with a
 real controller, VoiceOver. The unattended runs open and capture every menu but close them unanswered.
+
+## Phase 7: full-game verification and the shim
+
+### One command (P7.1)
+
+`tools/check.sh` configures, builds and tests each tree in its own directory: `build/` (apple), `build-null/`,
+`build-asan/` (ASan and UBSan) and, with `--asserts`, `build-asserts/` (`J3D_DEBUG_ASSERTS`). It fails on any compiler
+or linker warning other than Homebrew SDL3's deployment-target one (P8.3), on any failed test, and on the layout audit.
+Running it first found the sanitizer tree's `launcher` test hung: under ASan the game window lost focus before its
+first frame, and an inactive game waits for messages, so `--frames` was never reached. A counted run (`J3D_FRAMES`) now
+stays active when its window loses focus (`wkernel_sdl.c`); interactive runs are unchanged.
+
+### The savegame round trip in every level (P7.2)
+
+`saveload` takes the level number as a fourth argument, and ctest runs it for all seventeen (`saveload-NN_level`). In
+the first level it had always passed; in ten others the second save differed. Fixed:
+
+| Where | What happened | Change |
+| --- | --- | --- |
+| `sithGamesave.c` `sithGamesave_RestoreFile` | Timed events are saved as a delay from the save's game time and recreated as a delay from the current game time, but the level load before them advances game time from the load screen's progress callback (`JonesDisplay_UpdateLoadProgress`); the saved time was put back only at the end. Every restored event (a cog's `Sleep`, a timer) fired late or early by the load's length, which is the host's real time | The saved game time is set before the save's messages are replayed (and again at the end, as retail) |
+| `sithDSSThing.c` `sithDSSThing_ProcessFullDescription` | `sithThing_Initialize` applies the difficulty to a restored actor again (`sithActor_SetDifficulty`): health is rescaled by the template's maximum health, which is clamped to 1000 while the health is scaled by the unclamped value. Volodnikov in Nub's Tomb went from 133 to 176.89, then 235, on each restore | When the rescale leaves the maximum health where it was saved, the saved health is kept; when the maximum changes (a save loaded at another difficulty), retail's rescale stands |
+| `Sound.c` `Sound_Restore` | Each channel's saved pitch was read and dropped: the jeep's reverse loop and the mine cars' motors came back at 1.0 until their cogs set them again | The saved pitch is applied to the replayed channel |
+| `AudioLib.c` `AudioLib_GenerateLipSynchBlock` | A lip-sync frame is `2 * sampleRate / 60` bytes, odd at 22,050 Hz (735); its last 16-bit read takes a byte of the next frame, which is one past the sound data for the last frame (ASan, a Palawan Lagoon voice line). The first loop had the same bug, fixed in P4.9 | The read past the data is dropped; every other frame reads what retail read |
+
+The retail behaviours the comparison allows ("Savegame round trip" above) gained one: `Sound_Save` walks the channels
+from the last and `Sound_Restore` replays them in that order into new channels, so the second save lists them in
+another order. Channels are matched by guid; each must keep its sound, priority, thing, position, volume, pitch, rate,
+guid, radii and environment, with its handle 1234 higher and the far flag set as before. A channel saved only because it
+was far and not looping (a one-shot sound out of earshot) may be missing from the second save: retail does not replay
+it.
+
+### Debug asserts (P7.3)
+
+The tree had never been built with `J3D_DEBUG_ASSERTS`. The debug-only code (console commands, dumps) had 29 errors:
+`%d` given `size_t` (UB on arm64; one `sscanf("%d")` wrote four bytes into an eight-byte `size_t`), a wide string
+printed with `%s`, a format string that was not a literal, narrowings, two functions that fell off their end, and a
+`qsort` comparator that subtracted two `size_t`. All fixed, each marked `// Port:`; `sithCog_CogStatus` also accepted
+index `numCogs`, one past the end. `sithTemplate.c`'s debug template writer calls `sithWrite.c`, the debug build's level
+writer, which is now built with the asserts. The tree then passes every test, and `tools/level_sessions.sh` ran five
+minutes of game time in every level with the asserts on, and again under ASan and UBSan, with no assert or report.
+With no input Indy dies in Meroë (hyenas), King Sol's Mines and the Aetherium; the Game Over dialog, which nobody can
+answer in such a run, is dismissed and the run ends there, which the script reports as such.
+
+### The shim (P7.6 to P7.8, decision 22)
+
+The plan meant to delete `win32_shim_dx.h`, `win32_shim_gui.h`, `win32_null.c` and `win32_shim.h` once the earlier
+phases had removed their users. They had not, and some never will: `std/types.h` embeds DirectX device descriptions
+the backends fill, the key sets store DirectInput scancodes, sith addresses messages with `DPID`, and decision 21
+keeps `jonesConfig.c`'s Win32 dialog procedures over j3dgui. Decision 22 (PORT-PLAN.md) says what was done instead:
+
+- **DirectX.** What the engine names is its own `Libs/std/Win95/stdDirectX.h`: `D3DTLVERTEX` and rdroid's `D3DVAL`
+  macros, the device and surface descriptions, the `DIK_*` table, `DPID` and the two send flags in use. COM interfaces
+  stay opaque. `win32_shim_dx.h` is deleted, with the stand-ins `ddraw.h`, `d3d.h`, `d3dtypes.h`, `dinput.h`,
+  `dplay.h` and `dplobby.h`; `std/types.h` and `rdroid/types.h` include the new header.
+- **Dead declarations.** 111 Win32 declarations and alias macros that no compiled code calls are deleted (threads,
+  critical sections, file mapping, profile strings, the dialog message loop, `LoadString`, `GetDIBits` and others),
+  and the stand-ins `commdlg.h`, `excpt.h` and `initguid.h`, which nothing includes.
+- **Calls that silently did nothing.** Of the stubs in `win32_null.c`, eleven were still reached:
+  - the single-instance mutex in `WinMain` and its release (`JonesMain.c`): compiled out. Launch Services keeps one copy
+    of an app, and the tests run several copies at once;
+  - `CoInitialize` and `CoUninitialize` (`stdPlatform.c`): compiled out, `S_OK` returned;
+  - the GOB file mapping (`stdGob.c`: `CreateFileA`, `CreateFileMappingA`, `MapViewOfFile`, `UnmapViewOfFile`,
+    `LocalAlloc`, `CloseHandle`): compiled out. Its one caller, `JonesFile_Open`, never asks for a mapping;
+  - `FormatMessageA` (`JonesDialog.c`'s error prints): implemented in `crt_posix.c` (the error number);
+  - `GetOpenFileNameA` and `GetSaveFileNameA`: in j3dgui, answering "cancelled" as before; saving and loading are the
+    platform's menus (decision 21);
+  - `ShellExecuteExA` and `GetExitCodeProcess` (`JonesHud.c`): the HUD's Help opened the Windows `.chm` help file,
+    which did nothing on the Mac. It now opens the manual the launcher's Help opens (`J3DMenu_OpenHelp`: `manual.pdf`
+    in the data folder, with `open(1)`; nothing in a run with no menus).
+
+  `win32_null.c` is gone, and `tools/gen_null_platform.py` now stops if a declared Win32 function is implemented
+  nowhere, apart from the null build's window-message queue (`win32_msg_null.c`).
+- **What stays.** `win32_shim.h` (base types, the kernel32 and CRT functions `crt_posix.c` implements) and
+  `win32_shim_gui.h` (the user32, gdi32 and comctl32 API j3dgui and wkernel implement), 2,300 lines from 2,900, and the
+  stand-ins `Windows.h`, `CommCtrl.h`, `windowsx.h`, `io.h`, `malloc.h`, `osfcn.h` and `pbt.h`, so the imported
+  sources include what they always did.
+
+### Performance and memory (P7.9)
+
+- **Leaks.** `leaks --atExit` over a save restore, which closes the world and loads the level again as a level change
+  does: one leak, `stdFileUtil_FileExists`'s search handle, opened on every call and never closed (retail). Closed;
+  `leaks` then reports none.
+- **A long session.** One hour of game time (108,000 frames) in Canyonlands and the Infernal Machine: the engine's peak
+  allocation (`stdMemory`) is the same after five minutes and after an hour, and the resident size is flat (77 and
+  92 MB).
+- **Frame times.** `J3D_FRAME_STATS=1` prints them. On an M4 Pro, windowed at 1024 by 768 on a 120 Hz display, three
+  levels (Canyonlands, Palawan Lagoon, King Sol's Mines) held the refresh: mean 8.33 ms, 99th percentile under 9.6 ms,
+  worst 10.1 ms. Game logic alone, headless, costs 0.2 to 0.9 ms a frame. Not measured: a base M1, which this machine
+  is not.
+
+### Playthrough and the Windows build (P7.4, P7.5)
+
+Every level renders: the Metal renderer's screenshots of all seventeen, at frame 300 and later for the Aetherium, whose
+opening fades from black. Finishing each level is a playthrough by hand, and the A/B against the Windows build needs
+that build in DREAMM; both are open.
+
+### Determinism in every level (Phase 7 audit)
+
+The plan's claim that two headless runs write byte-identical saves had been measured in the first level only. The
+audit started every level twice: six levels' autosaves differed from run to run, in `main` before this phase too. Two
+retail bugs wrote uninitialised bytes into every save; neither changed what the game did (every log matches, and the
+game reads only the bits that were set):
+
+| Where | What happened | Change |
+| --- | --- | --- |
+| `sithAnimate.c` `sithAnimate_UpdateThingFadeAnim` | Sets only the alpha of its local colour (polylines aside), then copies all four channels into `curVector`, which the save writes | The other channels keep their current values (decision 18) |
+| `Sound.c` `Sound_Update` | `sithSoundMixer_GetThingInfo` sets or clears only the underwater bit of the caller's `envflags`; `Sound_Update` passed an uninitialised one, so the other 31 bits were stack garbage, copied into the channel and saved | Zeroed before the call, as `Sound_PlayThing` already did |
+
+The new `determinism` test starts every level twice and requires the same log and the same autosave.
+
+### Phase 7 code audit
+
+1. **Warnings** (`-Wall -Wextra -Wshadow -Wcast-align`) and **the static analyzer** on every C file this phase changed,
+   reporting the lines it wrote: nothing. The debug-only code fixed in P7.3, built with the asserts and `-Wformat=2
+   -Wshadow`: nothing. Two analyzer reports in older code the phase touched: `JonesHud.c` divides two floats left
+   unset when a sliding inventory item moves in none of the four directions (now drawn whole, decision 18); `Sound.c`'s
+   report traces a static sound's index through a wrapper its callers always fill (false positive).
+2. **Newly reachable code under ASan and UBSan:** the round trip in every level, five minutes of every level
+   (`tools/level_sessions.sh`), and the debug-assert tree's sessions. Found and fixed in the steps: the lip-sync read.
+3. **Read-through.** The restore now runs at the saved game time from the first message: everything else the messages
+   restore is stored as an absolute time (cog timers, animations, AI), so only the events, which were relative, change.
+   The kept actor health compares the same float computation on both sides. The restored pitch goes through
+   `Sound_SetPitch`, which ignores a channel with no voice yet. `J3DMenu_OpenHelp` runs only where the platform shows
+   its menus, so a test or a replay never opens a viewer; `open(1)` returns at once. The sound environment flags are
+   read only for the underwater bit (`sithSoundMixer_CalcCameraRelativeSoundMix`), so the garbage bits never changed
+   what was heard.
+4. **Behaviour.** In every level, a headless run of 600 frames prints the same log as `main` before this phase and
+   writes the same level-start autosave, except the bytes that were garbage (null build). Every test passes in the
+   apple (35), null (29), sanitizer (35) and debug-asserts (35) trees, with no compiler warning.
+
+Not done: the playthrough of every level and the A/B against the Windows build in DREAMM (P7.4, P7.5), frame times on a
+base M1 (P7.9), opening the manual from the HUD's Help by hand.
 

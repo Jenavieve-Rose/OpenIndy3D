@@ -22,9 +22,9 @@ confused with section numbers.
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
 | 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 41 of 41 | Complete 2026-11-16 (decisions 20 and 21), audited, merged into `main`; menus by hand open |
-| 7 | Full-game verification, shim removal | 0 of 10 | Not started |
+| 7 | Full-game verification, shim reduced (decision 22) | 8 of 10 | Code complete and audited 2026-11-17; playthrough (P7.4) and DREAMM A/B (P7.5) by hand open |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **138 of 162** | |
+| **All** | | **146 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -113,7 +113,7 @@ Line counts were measured on the decomp tree for draft 1.
 | `Libs/sound` | 6,713 | `Driver.c` is DirectSound; `Sound.c` and `AudioLib.c` are portable apart from the buffer handle type and one asm loop | Phase 4: `Driver.c` replaced by `platform/common/SoundDriver_mix.c` over an AVAudioEngine device; the handles are opaque; the asm loop's C translation verified (P4.8). Save and restore run with sound open. |
 | `Libs/smush` (INSANE) | 10,267 | 6 MASM files (1,815 lines), `Dsnd.c`, `Timer.c`, `Stdfile.c`, `Stdio.c` | OS modules register nothing; the 14 asm entry points abort if reached. No movies. File handles and Blocky16 frame offsets made 64-bit clean in phase 1. |
 | `Libs/wkernel`, `Libs/w32util` | 692 | 100% | `wkernel` is a hand-written null (message queue, quit). `wuRegistry` is done (`settings.ini`). |
-| `Jones3D/` (game shell) | 23,318 | `jonesConfig.c` (9,955 lines of dialog procedures), `JonesDialog.c`, `JonesDevDialog.c`, `Indy3D.rc` (26 dialog templates) | Compiles against the shim headers. Every dialog call returns failure. `jonesConfig.c` keeps 58 narrowing warnings until P6.24. |
+| `Jones3D/` (game shell) | 23,318 | `jonesConfig.c` (9,955 lines of dialog procedures), `JonesDialog.c`, `JonesDevDialog.c`, `Indy3D.rc` (26 dialog templates) | Its dialogs are SwiftUI menus (decision 21) or, with no menu, its own dialog procedures over j3dgui (phase 6). Builds with `-Werror` since P6.24; its Win32 names are the port's emulation (decision 22). |
 | `Libs/zlib` | 7,512 | None | Vendored and built (it is modified to read through INSANE's file table). |
 
 Facts that shape the remaining design:
@@ -127,7 +127,7 @@ Facts that shape the remaining design:
   The input layer must produce DIK codes. `stdControl` is 30 functions.
 - `SoundDriver` is 36 functions, a thin DirectSound buffer wrapper with 3D positioning.
 - `platform/common/null/win32_null.c` holds 254 Win32 stubs. That list is the exact surface the dialog work (phase 6)
-  must either implement or prove dead.
+  must either implement or prove dead. (Done by phase 7: the file is deleted, decision 22.)
 - The dialog templates use buttons, statics, 14 combo boxes, 3 list boxes, 5 list views, 4 trackbars, one edit control
   and one scroll bar. `Indy3D.rc` also names 43 icon and bitmap files that are **not** in the repository: they exist
   only inside the retail executable (see P6.10 and risk 7.3).
@@ -216,6 +216,18 @@ Decision made while doing phase 6 (2026-11-16):
     tests, and `J3D_MENUS=classic`. The file dialogs are the exception: saving and loading have no Win32 fallback and
     cancel where there is no menu.
 
+Decision made while doing phase 7 (2026-11-17):
+
+22. **The Win32 and DirectX vocabulary that is used by design stays, declared by the port; nothing declared does
+    nothing.** Phase 7 meant to delete the shim headers once the earlier phases had removed their users (P7.6 to
+    P7.8). Some users stay by design: the device descriptions in `std/types.h`, the `DIK_*` scancodes the key sets
+    store, sith's `DPID` addresses, the game window procedure over wkernel, and `jonesConfig.c`'s Win32 dialog
+    procedures over j3dgui (decisions 9 and 21). Rewriting those would change thousands of lines of imported code
+    against decision 2 for no change in behaviour. So: the DirectX names are the engine's own header
+    (`Libs/std/Win95/stdDirectX.h`); every declaration nothing calls is deleted, with `win32_null.c`; every stub still
+    reached is compiled out where Windows alone needed it, or made real; and the null generator refuses a declared
+    function nobody implements. `win32_shim.h` and `win32_shim_gui.h` stay as the API of the port's Win32 emulation.
+
 ## 4. Target architecture
 
 ```
@@ -232,7 +244,7 @@ sith (game) ── rdroid (renderer front end) ── sound/Sound.c        impor
    ├─ common/stdDisplay_vbuffer.c       system-memory VBuffers               exists
    ├─ common/null/*_null.c              generated null backends              exists, shrinks every phase
    ├─ apple/main.c                      entry point, --data                  exists
-   ├─ apple/shim/                       Win32 and DirectX type headers       exists, deleted in phase 7
+   ├─ apple/shim/                       the Win32 emulation's API            exists; trimmed in phase 7 (decision 22)
    ├─ apple/wkernel_sdl.c               event loop, window proc messages     exists
    ├─ apple/stdDisplay_sdl.c            display device, modes                exists
    ├─ apple/display_metal.m             back-buffer present over Metal       exists
@@ -896,7 +908,11 @@ launcher's Options window; both must leave `settings.ini` in the same state.
       (decision 18); the host-path buffers still reached (game over's restart save, the last save's lookup, deleted key
       sets) are `J3D_PATHSIZE`. The 128-byte buffers left are in the Win32 file dialogs' hooks, which no longer run.
 - [x] **P6.25** (M) Content pass: every dialog compared with a reference screenshot from the Windows build for what
-      it holds (every control present, in the same order, with the same text and behaviour), not for its look.
+      it holds (every control present, in the same order, with the same text and behaviour), not for its look. Done
+      2026-11-16 against the templates in `Indy3D.rc` and the dialog procedures, as no screenshot of the
+      Windows build was at hand: the table in `docs/PORTING.md` ("Content pass") lists each dialog's controls and
+      every deliberate difference.
+
 ## Complete Phase 6 Code Audit
 
 Done 2026-11-16; details in `docs/PORTING.md`, "Phase 6 code audit". Extra warnings and the static analyzer on the
@@ -914,49 +930,88 @@ nesting.
       (18), null (12) and sanitizer (18) trees, with no compiler warning.
 - Not yet done by hand: buying in the store, editing a control set and capturing keys and buttons, a real controller
       in the menus, VoiceOver.
-### Phase 7: Full-game verification and 64-bit closure Done 2026-11-16 against the templates in `Indy3D.rc` and the dialog procedures, as no screenshot of the
-      Windows build was at hand: the table in `docs/PORTING.md` ("Content pass") lists each dialog's controls and
-      every deliberate difference.
+
+### Phase 7: Full-game verification and 64-bit closure
 
 Exit test: all 17 levels completed on the port with no assert, crash or blocker, and no Win32 type outside
-`platform/`.
+`platform/`. The second half was replaced by decision 22: the Win32 and DirectX names the engine keeps by design stay,
+declared by the port, and nothing declared silently does nothing.
 
-- [ ] **P7.1** (S) One command that configures, builds, runs `ctest` and `layout_audit.py`; run it before every
-      commit.
-- [ ] **P7.2** (M) Savegame round trip (P1.20) for every level.
-- [ ] **P7.3** (M) Build with `J3D_DEBUG_ASSERTS=ON`, run the tests and a session per level, fix what asserts.
-- [ ] **P7.4** (L) Playthrough, recorded in the table below.
+State on 2026-11-17: code complete and audited (`docs/PORTING.md`, "Phase 7"). Eight steps are done; the playthrough
+(P7.4) and the A/B against the Windows build (P7.5) are by hand and open, as are the base M1's frame times (P7.9).
+
+- [x] **P7.1** (S) One command that configures, builds, runs `ctest` and `layout_audit.py`; run it before every
+      commit. Done 2026-11-17: `tools/check.sh` (apple, null and sanitizer trees, `--asserts` adds the debug-asserts
+      tree), failing on any warning but SDL3's linker one. It found the sanitizer tree's `launcher` test hung (a counted
+      run lost focus and waited; it now stays active).
+- [x] **P7.2** (M) Savegame round trip (P1.20) for every level. Done 2026-11-17: `saveload-NN_level` for all 17. Found
+      and fixed: restored timed events fired late or early by the load time; an actor whose template health is clamped
+      gained health on every restore (Volodnikov, Nub's Tomb); restored loops lost their pitch; a lip-sync read past a
+      voice line (ASan). Restored sound channels are matched by guid (retail reorders them).
+- [x] **P7.3** (M) Build with `J3D_DEBUG_ASSERTS=ON`, run the tests and a session per level, fix what asserts.
+      Done 2026-11-17: the debug-only code needed 29 compile fixes (formats, narrowings, two missing returns, an
+      `sscanf` into a `size_t`) and `sithWrite.c`; then every test passes and `tools/level_sessions.sh` ran five
+      minutes of every level with no assert, and again under ASan and UBSan with no report.
+- [ ] **P7.4** (L) Playthrough, recorded in the table below. Rendering checked 2026-11-17 (screenshots of every
+      level); completing the levels is by hand and open.
 - [ ] **P7.5** (M) A/B against the Windows build in DREAMM for the physics-sensitive places: long jumps, whip swings,
       raft and jeep handling, the Marduk statue push that 1.2 fixed (risk 7.1). Include the end of every item push
-      and pull: retail's final step used an unset direction, which the port sets to the push direction (audit).
-- [ ] **P7.6** (M) Delete `win32_shim_dx.h` (489 lines) once phases 2 to 5 have removed its last users.
-- [ ] **P7.7** (M) Delete `win32_shim_gui.h` (1,538 lines) and `win32_null.c` once phase 6 is complete.
-- [ ] **P7.8** (M) Delete `win32_shim.h` (490 lines): no `HWND`, `HDC` or `DWORD` left outside `platform/`.
-- [ ] **P7.9** (M) Performance and memory: frame times on a base M1, leak check over a level change, a long session.
-- [ ] **P7.10** (S) `docs/PORTING.md` covers every phase.
+      and pull: retail's final step used an unset direction, which the port sets to the push direction (audit). Open:
+      needs the Windows build in DREAMM and a player; `--record` and `--replay` (P3.10) make the port's side repeatable.
+- [x] **P7.6** (M) Delete `win32_shim_dx.h` (489 lines) once phases 2 to 5 have removed its last users. Done
+      2026-11-17 (decision 22): deleted, with six stand-in headers. What the engine still names (the std3D vertex,
+      the device descriptions, the `DIK_*` scancodes, `DPID`) is its own `Libs/std/Win95/stdDirectX.h`.
+- [x] **P7.7** (M) Delete `win32_shim_gui.h` (1,538 lines) and `win32_null.c` once phase 6 is complete. Done
+      2026-11-17 (decision 22): `win32_null.c` is deleted, with every declaration nothing calls (111); the stubs still
+      reached were compiled out or made real, and the HUD's Help, which did nothing, opens the manual.
+      `win32_shim_gui.h` stays as the API j3dgui implements (decisions 9 and 21).
+- [x] **P7.8** (M) Delete `win32_shim.h` (490 lines): no `HWND`, `HDC` or `DWORD` left outside `platform/`. Closed
+      2026-11-17 by decision 22: kept, trimmed to what `crt_posix.c` implements and the engine calls (429 lines); the
+      dialog shell, the game window procedure and the engine's structures use its types by design.
+- [x] **P7.9** (M) Performance and memory: frame times on a base M1, leak check over a level change, a long session.
+      Done 2026-11-17 on an M4 Pro: frame times held the 120 Hz refresh (`J3D_FRAME_STATS`); one retail leak fixed, then
+      `leaks` reports none over a world reload; an hour of game time with flat memory. The base M1 is open.
+- [x] **P7.10** (S) `docs/PORTING.md` covers every phase. Done 2026-11-17: phases 0 to 7; `docs/BUILDING.md` updated.
 
-Playthrough record for P7.4. "Loads" is the `levelload` test.
+Playthrough record for P7.4. "Loads" is the `levelload` test; "Renders" the Metal renderer's screenshots of every level
+(`tools/level_shots.sh`, 2026-11-17); "Completed" is by hand.
 
 | Level | File | Loads | Renders | Completed |
 | --- | --- | --- | --- | --- |
-| Canyonlands | `00_cyn` | ✅ | ⬜ | ⬜ |
-| Babylon | `01_bab` | ✅ | ⬜ | ⬜ |
-| Tian Shan River | `02_riv` | ✅ | ⬜ | ⬜ |
-| Shambala Sanctuary | `03_shs` | ✅ | ⬜ | ⬜ |
-| Palawan Lagoon | `05_lag` | ✅ | ⬜ | ⬜ |
-| Palawan Volcano | `06_vol` | ✅ | ⬜ | ⬜ |
-| Palawan Temple | `07_tem` | ✅ | ⬜ | ⬜ |
-| Teotihuacan | `08_teo` | ✅ | ⬜ | ⬜ |
-| Olmec Valley | `09_olv` | ✅ | ⬜ | ⬜ |
-| V.I. Pudovkin | `10_sea` | ✅ | ⬜ | ⬜ |
-| Meroë | `11_pyr` | ✅ | ⬜ | ⬜ |
-| King Sol's Mines | `12_sol` | ✅ | ⬜ | ⬜ |
-| Nub's Tomb | `13_nub` | ✅ | ⬜ | ⬜ |
-| Infernal Machine | `14_inf` | ✅ | ⬜ | ⬜ |
-| Aetherium | `15_aet` | ✅ | ⬜ | ⬜ |
-| Jeep Trek | `16_jep` | ✅ | ⬜ | ⬜ |
-| Return to Peru (bonus) | `17_pru` | ✅ | ⬜ | ⬜ |
+| Canyonlands | `00_cyn` | ✅ | ✅ | ⬜ |
+| Babylon | `01_bab` | ✅ | ✅ | ⬜ |
+| Tian Shan River | `02_riv` | ✅ | ✅ | ⬜ |
+| Shambala Sanctuary | `03_shs` | ✅ | ✅ | ⬜ |
+| Palawan Lagoon | `05_lag` | ✅ | ✅ | ⬜ |
+| Palawan Volcano | `06_vol` | ✅ | ✅ | ⬜ |
+| Palawan Temple | `07_tem` | ✅ | ✅ | ⬜ |
+| Teotihuacan | `08_teo` | ✅ | ✅ | ⬜ |
+| Olmec Valley | `09_olv` | ✅ | ✅ | ⬜ |
+| V.I. Pudovkin | `10_sea` | ✅ | ✅ | ⬜ |
+| Meroë | `11_pyr` | ✅ | ✅ | ⬜ |
+| King Sol's Mines | `12_sol` | ✅ | ✅ | ⬜ |
+| Nub's Tomb | `13_nub` | ✅ | ✅ | ⬜ |
+| Infernal Machine | `14_inf` | ✅ | ✅ | ⬜ |
+| Aetherium | `15_aet` | ✅ | ✅ | ⬜ |
+| Jeep Trek | `16_jep` | ✅ | ✅ | ⬜ |
+| Return to Peru (bonus) | `17_pru` | ✅ | ✅ | ⬜ |
 ## Complete Phase 7 Code Audit
+
+Done 2026-11-17; details in `docs/PORTING.md`, "Phase 7 code audit". Extra warnings and the static analyzer on the
+phase's C, the round trip and five-minute sessions of every level under ASan and UBSan and with the debug asserts, a
+read-through, and every level compared with `main` before the phase.
+
+- [x] Warnings and static analysis: nothing in the phase's lines; in older code, an unset fade in the HUD's sliding
+      inventory items, fixed (decision 18).
+- [x] Newly reachable code: the lip-sync read past a voice line, fixed in P7.2.
+- [x] Read-through: the restore's earlier game time affects only the relative event times; the help viewer opens only
+      in interactive runs.
+- [x] Determinism: six levels wrote different saves from run to run (retail: a thing fade's colour and the sound
+      channels' environment flags, uninitialised); fixed, with a `determinism` test over every level.
+- [x] Behaviour: in every level the log is `main`'s before the phase and the autosave too, but for the bytes that were
+      garbage; every test passes in the apple (35), null (29), sanitizer (35) and debug-asserts (35) trees, with no
+      compiler warning.
+- Not yet done by hand: the playthrough (P7.4), the DREAMM A/B (P7.5), a base M1's frame times, the HUD's Help.
 ### Phase 8: Mac product polish
 
 Exit test: a notarized `.app` that a player with a retail copy can install and finish the game with, on a machine that
@@ -998,7 +1053,7 @@ What exists today, and what each phase adds.
 j3dport/
   CMakeLists.txt        exists
   LICENSE, NOTICE       exists
-  Jones3D/              imported; Win32 calls resolved by the shim until phase 7
+  Jones3D/              imported; its Win32 calls are the port's emulation (decision 22)
   Libs/{sith,rdroid,std,sound,smush,zlib,j3dcore,wkernel,w32util,intel}   imported
   platform/apple/       main.c, shim/, host_apple.m, wkernel_sdl.c, stdDisplay_sdl.c, display_metal.m,
                         std3D_metal.c, render_metal.m, stdControl_sdl.c, audio_device_avf.m
@@ -1007,9 +1062,10 @@ j3dport/
                         stdDisplay_vbuffer.c, stdDisplay_common.c, host_screenshot.c,
                         null/ (with stdDisplay_headless.c)
                         SoundDriver_mix.c, host_audio.h     + insane_os/ (5), j3dgui/ (6)
-  tools/                gen_null_platform.py, layout_audit.py, gobtool.py     + rc2table.py (6)
+  tools/                gen_null_platform.py, layout_audit.py, gobtool.py, rc2table.py (6), check.sh,
+                        level_sessions.sh (7)
   tests/                harness.c, levelload.c, cogcheck.c, saveload.c, display.c, present.c, render.c,
-                        keys.c, input.sh, sounddriver.c, audio3d.c     + moviecheck.c (5)
+                        keys.c, input.sh, sounddriver.c, audio3d.c, moviecheck.c (5), determinism.sh (7)
   docs/                 PORT-PLAN.md, PORTING.md, and the decomp's reference documents
 ```
 
@@ -1085,7 +1141,7 @@ guide.
 | 4 | Audio complete | 2 weeks | Complete 2026-11-13, with 3D sound; listened to by hand in `12_sol` |
 | 5 | Movies complete | 2 to 3 weeks | Complete 2026-11-13, audited: the intro plays with sound; every movie decodes headlessly; watching by hand open |
 | 6 | Launcher, Options, all dialogs, save and load in-app | 4 to 6 weeks | Complete 2026-11-16, audited: SwiftUI launcher, Options and in-game menus, Win32 dialogs as the fallback; using them by hand open |
-| 7 | Full playthrough verified | 2 to 3 weeks | Not started |
+| 7 | Full playthrough verified | 2 to 3 weeks | Code complete 2026-11-17, audited: every level saves and restores, renders, runs with the asserts and the sanitizers; the playthrough and DREAMM A/B by hand open |
 | 8 | Signed `.app`, data locator, fixes | 2 to 3 weeks | Not started |
 
 Ordering: phase 2 needs 1C (P1.17, P1.18) but not 1D. Phases 3, 4 and 5 are independent of each other once phase 2
@@ -1101,18 +1157,14 @@ lands. Phase 6 needs phases 2 and 3. Phase 7 needs everything before it.
    nobody has listened), fullscreen and windowed.
 3. **Phase 6, by hand:** start a game from the launcher and resume one; buy in the store; create and edit a control set,
    capturing keys and controller buttons; drive the menus with a controller; read them with VoiceOver.
-4. Keep the sanitizer build in the pre-commit routine (`docs/BUILDING.md`); every phase from 2 on adds code paths the
-   current tests do not reach.
+4. **Phase 7, by hand:** the playthrough (P7.4), level by level in the table, under the sanitizer build where it can
+   be; the A/B against the Windows build in DREAMM (P7.5); `J3D_FRAME_STATS=1` on a base M1 (P7.9).
+5. Run `tools/check.sh` before every commit (P7.1); it keeps the sanitizer tree in the routine.
 
 To reproduce the measurements at the top of this file:
 
 ```
-cmake -S . -B build -G Ninja -DJ3D_TEST_DATA=<folder holding RESOURCE/>
-cmake --build build
-ctest --test-dir build --output-on-failure
-python3 tools/layout_audit.py
-cmake -S . -B build-asan -G Ninja -DJ3D_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DJ3D_TEST_DATA=<same folder>
-cmake --build build-asan && ctest --test-dir build-asan --output-on-failure
+tools/check.sh --data <folder holding RESOURCE/> --asserts
 ```
 
 When a step is finished, tick it here and update its row

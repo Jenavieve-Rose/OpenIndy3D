@@ -67,14 +67,14 @@ Regenerate the project with the first command after adding or removing source fi
 | --- | --- | --- |
 | `J3D_PLATFORM` | `apple` | `apple`: SDL3 window and input, Metal renderer (needs SDL3). `null`: the null backends only, no window; builds without SDL3. Tests use the null backends either way. |
 | `J3D_TEST_DATA` | empty | Data root used by the tests. Registers the tests that need game data with `ctest` when set. |
-| `J3D_DEBUG_ASSERTS` | `OFF` | Compiles the engine's debug-only `J3D_ASSERT` checks. Off matches the decomp's release build. |
-| `J3D_WERROR_SHORTEN` | `ON` | Makes `-Wshorten-64-to-32` an error. `Jones3D/Display/jonesConfig.c` is exempt until Phase 6 rewrites its dialog code (PORT-PLAN.md P6.24). |
+| `J3D_DEBUG_ASSERTS` | `OFF` | Compiles the engine's debug-only `J3D_ASSERT` checks and debug code (console commands, dumps, `sithWrite.c`'s level writer). Off matches the decomp's release build. `tools/check.sh --asserts` builds and tests it in `build-asserts/` (PORT-PLAN.md P7.3). |
+| `J3D_WERROR_SHORTEN` | `ON` | Makes `-Wshorten-64-to-32` an error, in every file since P6.24. |
 | `J3D_SANITIZE` | `OFF` | Builds everything, tests included, with AddressSanitizer and UndefinedBehaviorSanitizer. Use a separate build directory (below). |
 | `CMAKE_BUILD_TYPE` | none | `Debug` or `RelWithDebInfo` as usual, for the Ninja generator. |
 
-Every compiler warning is an error (`-Werror`), apart from two known sets: the 58 narrowing conversions in
-`jonesConfig.c` and one unsequenced write in `Libs/sound/AudioLib.c` (PORT-PLAN.md P4.8). A clean build prints exactly
-those 59 warnings, and in an apple build one linker warning for each program that links SDL3 (`jones3d`, `present`, `render`): Homebrew's SDL3 is built for the current macOS, newer than
+Every compiler warning is an error (`-Werror`), with no exception since P6.24. A clean build prints no compiler
+warning; an apple build prints one linker warning for each program that links SDL3 (`jones3d`, `present`, `render`,
+and the tests that link the apple platform): Homebrew's SDL3 is built for the current macOS, newer than
 the 13.0 deployment target, so a binary built this way runs only on a macOS as new as the build machine's until SDL3
 ships inside the app bundle (PORT-PLAN.md P8.3). The MSVC-dialect warnings the decomp would otherwise raise (missing braces, `sprintf` deprecation
 and so on) are switched off in `CMakeLists.txt`.
@@ -136,8 +136,8 @@ Start inventory, d-pad left and right weapons, down health, up chalk. Every key 
   `Mouse Scale=i:<percent>` (default 100) scales its motion.
 - `Joystick Control` is on by default in the port (retail: off until set in the controls dialog). Controllers can be
   connected and disconnected while playing; up to eight. An analog stick walks at part deflection and runs at full.
-- The controls dialog, where retail chose and edited key sets, arrives with the other dialogs (PORT-PLAN.md Phase 6);
-  until then edit `Configuration` or the `.kfg` files.
+- Key sets are chosen, viewed, created and edited in the game's control options (the HUD's options, or the launcher's
+  Options, Controls tab), or by editing `Configuration` and the `.kfg` files.
 
 ### Sound
 
@@ -148,8 +148,8 @@ are silent.
 **3D sound** is off by default, as in retail: every sound is then placed by the game's own mix (volume and left/right
 pan from where it is relative to the camera). `Sound 3D=i:1` turns it on (PORT-PLAN.md decision 19): mono sounds in
 the world are placed around the camera with HRTF, which gives them direction on headphones; they fade with distance as DirectSound 3D faded them; and their pitch shifts with doppler as they or the
-camera move. Music, interface sounds and stereo sounds stay as they were. The settings dialog that toggles it arrives
-in phase 6; until then set it in the settings file or for one run:
+camera move. Music, interface sounds and stereo sounds stay as they were. Switch it in the sound options (in the game,
+or the launcher's Options), in the settings file, or for one run:
 
 ```sh
 J3D_REG_Sound_3D=1 build/jones3d --data /path/to/data-root
@@ -161,8 +161,8 @@ J3D_REG_Sound_3D=1 build/jones3d --data /path/to/data-root
 | `Sound 3D Rendering=i:<n>` | 0 (default) Apple's best rendering for headphones; 1 HRTF, high quality; 2 HRTF; 3 Apple's rendering for a Mac's built-in speakers (places sounds only slightly apart). 0 to 2 work on any output and are made for headphones. |
 | `Sound Head Tracking=i:1` | macOS 15 and later, with rendering 0 and headphones that track the head (AirPods Pro, for example): the sound field stays put as you turn your head. Default 0. |
 
-The game's "Reverse sound" option swaps left and right in 3D sound. The game applies it only from the sound settings
-dialog (retail never read it back at startup), so it arrives with the dialogs in phase 6.
+The game's "Reverse sound" option swaps left and right in 3D sound. Retail applied it only from a hidden box in the
+sound settings dialog and never read it back at startup; the port's sound options leave it out (PORT-PLAN.md P6.15).
 
 `J3D_NO_AUDIO=1` opens no output device: the game runs and keeps its sound state exactly as with one, silently.
 `--headless` does the same. `J3D_AUDIO_DUMP=<file.wav>` writes everything the device is given to a 16-bit stereo WAV
@@ -209,6 +209,7 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_REG_Sound_3D` | `1` turns 3D sound on for the run (it is the `Sound 3D` setting). |
 | `J3D_INSANE_LOG` | `1` prints the movie player's (INSANE's) messages to stderr, including which movie it plays. |
 | `J3D_INSANE_MEMLOG` | `1` prints every allocation of the movie player's debug allocator to stdout. |
+| `J3D_FRAME_STATS` | `1` (apple builds) prints the game loop's frame times at exit: mean, median, 95th and 99th percentiles, worst; presenting and the wait for the display included (PORT-PLAN.md P7.9). |
 
 ## Tests
 
@@ -225,6 +226,8 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `levelload` | Loads the static world and all 17 levels through every binary `.cnd` section loader. | about 40 s |
 | `cogcheck` | Compiles every `.cog` in the three GOBs through the engine's lookup, so loose overrides are the files compiled. | about 2 s |
 | `saveload` | Runs the game headless for 300 frames, saves, restores the save into a freshly loaded level and compares the world (things, positions, sectors, health, COG globals, game time), saves again and compares the two files, then plays 300 more frames. Saves go to `build/saveload-out/SaveGames/`. | under 1 s |
+| `saveload-NN_level` | The same in each of the other sixteen levels (`saveload-02_01_bab` to `saveload-17_17_pru`, numbered in the game's order), each saving under `build/saveload-out/NN/` (PORT-PLAN.md P7.2). | under 1 s each |
+| `determinism` | Starts every level twice, headless for 600 frames: the two runs must print the same log and write byte-identical level-start autosaves (`tests/determinism.sh`). Runs go to `build/determinism-out/`. | about 15 s |
 | `boot` | Runs `jones3d --headless --frames 600` (`jones3d-null` in an apple build): level open, the level-start autosave and 20 s of game time in the first level. Must exit 0 with no assert. Its autosave goes to `build/boot/SaveGames/`, not the game folder. | under 1 s |
 | `display` | No game data needed. The back buffer, fills, every blit case (8, 16 and 32 bpp, clipped, colour-keyed) against a pixel-by-pixel reference, the RGB565 encoder, a `SaveScreen` BMP, and the conversion of 16-bit material textures (565, 1555, 4444) to the renderer's 32 bpp at full range. | under 1 s |
 | `present` | Apple builds only, no game data needed. Presents a pattern through `stdDisplay` in a real window (it flashes up briefly), reads the screen image back from Metal and compares it, unscaled and scaled; then checks that a frame with a 3D scene presents the scene's picture. Skipped without a window server, for example over SSH. | under 1 s |
@@ -236,6 +239,8 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `audio3d` | Apple builds only, no game data needed; skipped with no audio output device. A tone in a 3D voice at known positions around the listener, captured through `J3D_AUDIO_DUMP` (nothing is heard): right of the camera is louder on the right, left on the left, ahead and behind balanced, a turned listener and "Reverse sound" swap sides as they should. | about 3 s |
 | `insaneasm` | No game data needed. The C translations of the movie player's assembler helpers: each pixel converter against a register-level model of its assembler for every 16-bit input and every RGB triple; the copies, fills, table lookups and rectangle blit. | under 1 s |
 | `moviecheck` | Decodes every intro movie in `RESOURCE/` headlessly, as fast as it decodes: every picture frame shown, every Blocky16 codec-2 frame equal to a port of ScummVM's decoder, the audio mixed through the movie player's engine and not silent, and the frames' and audio's checksums as pinned. `MOVIECHECK_DUMP=<dir>` writes every 50th frame as a BMP and the audio as a WAV. | about 4 s |
+| `launcher` | Apple builds only (`tests/launcher.sh`): Start New Game, Resume Play and Options through the launcher, answered without clicks; skipped with no window server. | about 50 s |
+| `dialogs`, `gamedialogs` | The Win32 dialog emulation on the game's templates, and the game's own dialogs through their entry points (Phase 6). | under 1 s |
 | `input` | Apple builds only (`tests/input.sh`). Scripted headless runs of level 2 that quicksave at frame 800: holding a key moves Indy; a recorded run replays to a byte-identical quicksave, and recording does not change the run; a scripted controller's A jumps exactly as the jump key does (the port's default key set); with the retail "Microsoft SideWinder game pad" key set its button 7 sidesteps exactly as A does; mouse motion turns Indy. Runs go to `build/input-out/`. | about 10 s |
 
 Each can be run directly, which shows its output:
@@ -244,12 +249,13 @@ Each can be run directly, which shows its output:
 build/levelload /path/to/data-root                  # all levels, with section counts per level
 build/levelload /path/to/data-root 00_cyn.cnd       # just the levels named
 build/cogcheck  /path/to/data-root
-J3D_REG_Install_Path=/tmp/j3d/ build/saveload /path/to/data-root 3000 3000   # frames before the save, after the restore
+J3D_REG_Install_Path=/tmp/j3d/ build/saveload /path/to/data-root 3000 3000      # frames before the save, after the restore
+J3D_REG_Install_Path=/tmp/j3d/ build/saveload /path/to/data-root 300 300 14      # in level 14, Nub's Tomb
 ```
 
 `saveload` needs `J3D_REG_Install_Path` set to a folder it may write to. The second save may differ from the first
-only in ways that are retail behaviour (the order of AI status records, animation IDs, and the sound channel handles
-and flags retail's restore changes), which the comparison allows and PORTING.md describes ("Savegame round
+only in ways that are retail behaviour (the order of AI status records, animation IDs, and the sound channels' order,
+handles and far flag, which retail's restore changes; channels are matched by guid), which the comparison allows and PORTING.md describes ("Savegame round
 trip"); anything else fails the test.
 
 The exit status is the number of failures. Lines such as `Symbol … not defined. Assuming float=0.0` come from
@@ -267,14 +273,17 @@ Run these from the repository root.
 | `python3 tools/layout_audit.py` | Compares the layout of every on-disk record between the retail 32-bit ABI and arm64. Needs a configured `build/` tree. Must end with `0 retail on-disk type(s) differ`. `--all` lists every differing record, not only on-disk ones. |
 | `python3 tools/gobtool.py list <file.gob> [glob]` | Lists a GOB's entries, for example `'*.cnd'`. |
 | `python3 tools/gobtool.py extract <file.gob> <outdir> [glob]` | Extracts matching entries. Extracted files are game data: keep them out of the repository. |
+| `tools/check.sh [--data <dir>] [--quick] [--asserts] [tree ...]` | The whole check, before every commit: configures, builds and tests the apple, null and sanitizer trees (and with `--asserts` the debug-asserts tree in `build-asserts/`), fails on any compiler or linker warning but SDL3's, and runs the layout audit (PORT-PLAN.md P7.1). `--quick` checks the apple tree only. About 15 minutes for all trees. |
 | `tools/level_shots.sh <data-root> <out-dir> [frames]` | Screenshots of all 17 levels, headless, at the given frames (default `1,300`). Needs an apple build in `build/`. |
-| `python3 tools/gen_null_platform.py` | Regenerates `platform/common/null/*_null.c` from the public headers of the replaced modules. Run it after changing the script's overrides or its `IMPLEMENTED_ELSEWHERE` set. |
+| `tools/level_sessions.sh <jones3d> <data-root> <out-dir> [frames]` | A headless session in every level with any build's game binary (default 9000 frames, five minutes of game time): reports asserts, sanitizer reports, an idle Indy's death, the run time and peak memory (PORT-PLAN.md P7.3, P7.9). |
+| `python3 tools/gen_null_platform.py` | Regenerates `platform/common/null/*_null.c` from the public headers of the replaced modules. Run it after changing the script's overrides or its `IMPLEMENTED_ELSEWHERE` set. It stops if a Win32 function is declared that nothing implements (PORT-PLAN.md P7.7). |
 
 ## Before committing
 
 ```sh
-cmake --build build && ctest --test-dir build --output-on-failure && python3 tools/layout_audit.py
-cmake --build build-asan && ctest --test-dir build-asan --output-on-failure
+tools/check.sh --data /path/to/data-root
 ```
+
+It needs the game data for the tests that use it; without `--data` it takes `J3D_TEST_DATA` or the trees' CMake caches.
 
 Record any change to the imported sources in [PORTING.md](PORTING.md).
