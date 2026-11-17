@@ -2,6 +2,7 @@
 
 #include <rdroid/Primitives/rdModel3.h>
 
+#include <sith/World/sithThing.h>
 #include <sith/World/sithWorld.h>
 
 #include <std/General/stdConffile.h>
@@ -23,6 +24,118 @@ int sithModel_bHiPoly = 0;
 void J3DAPI sithModel_CacheRemove(const rdModel3* pModel);
 void J3DAPI sithModel_CacheAdd(rdModel3* pModel);
 rdModel3* J3DAPI sithModel_CacheFind(const char* pName);
+
+#ifdef J3D_PORT
+/*
+ * Port: Indy's outfit (docs/PORTING.md, "Indy's outfit"). Every level holds both of Indy's walking models, gen_in.3do
+ * (with his jacket) and gen_in_shirt.3do (without), each named by a player template (walkplayer, shirtplayer) and a
+ * cutscene actor template (indy_actor, indy_sh_actor); the level's things and cogs pick one. 17_pru also has both raft
+ * models. Each pair has the same joints and meshes, so the puppet, the hands' weapons and the holster mesh swaps work
+ * with either. With an outfit chosen, a model of the other outfit asked for by name while the level loads (templates,
+ * things, cog model symbols) or later (LoadModel, a restored mesh swap) is answered with the chosen one, if the level
+ * holds it: levels 02, 03 and 10 have no jacketless model, so there Indy keeps his jacket. The level's model list
+ * itself is read unchanged, so model indices, which saved games hold, do not depend on the setting.
+ */
+static const char* const sithModel_aaOutfitModels[][2] = {
+    // { with the jacket, without }
+    { "gen_in.3do", "gen_in_shirt.3do" },
+    { "gen_ir.3do", "gen_ir_shirt.3do" },
+};
+
+static int sithModel_outfit = SITHMODEL_OUTFIT_GAME;
+static int sithModel_bReadingModelsList; // the world's models section is being read: names are taken as they are
+
+void sithModel_SetOutfit(int outfit)
+{
+    sithModel_outfit = outfit == SITHMODEL_OUTFIT_JACKET || outfit == SITHMODEL_OUTFIT_NOJACKET ? outfit : SITHMODEL_OUTFIT_GAME;
+}
+
+int sithModel_GetOutfit(void)
+{
+    return sithModel_outfit;
+}
+
+// The model to use for pName under the chosen outfit: the other outfit's model when pName is one of Indy's models and
+// the loaded worlds hold its counterpart, else NULL (pName as it is).
+static rdModel3* sithModel_OutfitModel(const char* pName)
+{
+    size_t i;
+    if ( sithModel_outfit == SITHMODEL_OUTFIT_GAME || !pName )
+    {
+        return NULL;
+    }
+
+    const int want = sithModel_outfit == SITHMODEL_OUTFIT_JACKET ? 0 : 1;
+    for ( i = 0; i < STD_ARRAYLEN(sithModel_aaOutfitModels); ++i )
+    {
+        if ( !strcmpi(pName, sithModel_aaOutfitModels[i][1 - want]) )
+        {
+            return sithModel_CacheFind(sithModel_aaOutfitModels[i][want]);
+        }
+    }
+
+    return NULL;
+}
+
+// The pair of Indy's models pName belongs to, or -1.
+static int sithModel_OutfitPair(const char* pName)
+{
+    size_t i;
+    for ( i = 0; i < STD_ARRAYLEN(sithModel_aaOutfitModels); ++i )
+    {
+        if ( !strcmpi(pName, sithModel_aaOutfitModels[i][0]) || !strcmpi(pName, sithModel_aaOutfitModels[i][1]) )
+        {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+void sithModel_ApplyOutfit(SithWorld* pWorld)
+{
+    size_t i;
+    if ( !pWorld || !pWorld->aThings )
+    {
+        return;
+    }
+
+    // A restored thing drawn with one of Indy's models takes its template's model when that is the other model of the
+    // pair: the templates were loaded with the outfit chosen now (or as the level has them, with the game's choice).
+    // Retail never gives an Indy thing the other model of its template's pair (no cog swaps between them), so with
+    // the game's choice a save made without an outfit comes back exactly as it was.
+    for ( i = 0; i < pWorld->numThings; ++i )
+    {
+        SithThing* pThing = &pWorld->aThings[i];
+        if ( pThing->type == SITH_THING_FREE || pThing->renderData.type != RD_THING_MODEL3 || !pThing->renderData.data.pModel3 )
+        {
+            continue;
+        }
+
+        const int pair = sithModel_OutfitPair(pThing->renderData.data.pModel3->aName);
+        if ( pair < 0 )
+        {
+            continue;
+        }
+
+        rdModel3* pModel = NULL;
+        const SithThing* pTemplate = pThing->pTemplate;
+        if ( pTemplate && pTemplate->renderData.type == RD_THING_MODEL3 && pTemplate->renderData.data.pModel3
+            && sithModel_OutfitPair(pTemplate->renderData.data.pModel3->aName) == pair )
+        {
+            pModel = pTemplate->renderData.data.pModel3;
+        }
+        else
+        {
+            pModel = sithModel_OutfitModel(pThing->renderData.data.pModel3->aName);
+        }
+
+        if ( pModel && pModel != pThing->renderData.data.pModel3 )
+        {
+            sithThing_SetThingModel(pThing, pModel);
+        }
+    }
+}
+#endif
 
 int J3DAPI sithModel_Startup(void)
 {
@@ -127,12 +240,18 @@ int J3DAPI sithModel_ReadStaticModelsListText(SithWorld* pWorld, int bSkip)
     sithWorld_UpdateLoadProgress(60.0f);
     progressDelta = SITHWORLD_PROGRESSSTEP(10.0f, numModels);
     progress      = 60.0f;
+#ifdef J3D_PORT
+    sithModel_bReadingModelsList = 1; // Port: the list is loaded as it is, whatever Indy's outfit
+#endif
     while ( stdConffile_ReadArgs() && strcmp(stdConffile_entry.aArgs[0].argValue, "end") )
     {
         sithModel_Load(stdConffile_entry.aArgs[1].argValue, 0);
         progress += progressDelta;
         sithWorld_UpdateLoadProgress(progress);
     }
+#ifdef J3D_PORT
+    sithModel_bReadingModelsList = 0;
+#endif
 
     sithWorld_UpdateLoadProgress(70.0f);
 #line 173
@@ -179,6 +298,9 @@ int J3DAPI sithModel_ReadStaticModelsListBinary(tFileHandle fh, SithWorld* pWorl
         goto error;
     }
 
+#ifdef J3D_PORT
+    sithModel_bReadingModelsList = 1; // Port: the list is loaded as it is, whatever Indy's outfit
+#endif
     for ( i = 0; i < numModels; ++i )
     {
         nRead = sith_pHS->pFileRead(fh, aName, STD_ARRAYLEN(aName));
@@ -190,9 +312,15 @@ int J3DAPI sithModel_ReadStaticModelsListBinary(tFileHandle fh, SithWorld* pWorl
         sithModel_Load(aName, 0);
     }
 
+#ifdef J3D_PORT
+    sithModel_bReadingModelsList = 0;
+#endif
     return 0;
 
 error:
+#ifdef J3D_PORT
+    sithModel_bReadingModelsList = 0;
+#endif
     return 1;
 }
 
@@ -240,6 +368,18 @@ rdModel3* J3DAPI sithModel_Load(const char* pName, int bSkipDefault)
 
 #line 327
     SITH_ASSERTREL(pWorld->aModels != NULL);
+
+#ifdef J3D_PORT
+    // Port: Indy's outfit (above)
+    if ( !sithModel_bReadingModelsList )
+    {
+        pModel = sithModel_OutfitModel(pName);
+        if ( pModel )
+        {
+            return pModel;
+        }
+    }
+#endif
 
     pModel = sithModel_CacheFind(pName);
     if ( pModel )

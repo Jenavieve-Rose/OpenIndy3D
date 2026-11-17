@@ -60,6 +60,7 @@ int main(int argc, char** argv)
                    "  --level <n>       start a new game at level n (1 to 17), without the launcher\n"
                    "  --windowed        play in a window\n"
                    "  --fullscreen      play full screen\n"
+                   "  --outfit <o>      Indy's outfit for this run: game (as the level chooses), jacket or nojacket\n"
                    "Holding Option as the app starts asks for the game's folder again.\n", argv[0]);
             free(pCmdLine);
             return EXIT_SUCCESS;
@@ -83,6 +84,29 @@ int main(int argc, char** argv)
         if ( strcmp(argv[i], "--windowed") == 0 || strcmp(argv[i], "--fullscreen") == 0 )
         {
             setenv("J3D_REG_InWindow", strcmp(argv[i], "--windowed") == 0 ? "1" : "0", 1);
+            continue;
+        }
+
+        // Indy's outfit for this run (the "Indy Outfit" setting, docs/BUILDING.md); the settings file is not changed
+        if ( strcmp(argv[i], "--outfit") == 0 )
+        {
+            static const char* const aOutfits[] = { "game", "jacket", "nojacket" };
+            const char* pValue = NULL;
+            for ( int k = 0; i + 1 < argc && k < 3; k++ )
+            {
+                if ( strcmp(argv[i + 1], aOutfits[k]) == 0 || (argv[i + 1][0] == '0' + k && argv[i + 1][1] == 0) )
+                {
+                    pValue = k == 0 ? "0" : k == 1 ? "1" : "2";
+                }
+            }
+            if ( !pValue )
+            {
+                fprintf(stderr, "%s: --outfit needs game, jacket or nojacket\n", argv[0]);
+                free(pCmdLine);
+                return EXIT_FAILURE;
+            }
+            setenv("J3D_REG_Indy_Outfit", pValue, 1);
+            ++i;
             continue;
         }
 

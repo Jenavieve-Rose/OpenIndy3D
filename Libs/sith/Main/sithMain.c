@@ -303,6 +303,11 @@ int J3DAPI sithOpenNormal(const char* pWorldName, const wchar_t* pwPlayerName)
 
     sithAIUtil_AIResetWaypoints();
 
+#ifdef J3D_PORT
+    // Port: Indy's outfit, chosen in the Game Play options and taken at each level start or restore (sithModel.c)
+    sithModel_SetOutfit(wuRegistry_GetInt("Indy Outfit", SITHMODEL_OUTFIT_GAME));
+#endif
+
     STD_MAKEPATH(aPath, "ndy", pWorldName);
     if ( sithWorld_Load(sithWorld_pCurrentWorld, aPath) ) {
         goto error;

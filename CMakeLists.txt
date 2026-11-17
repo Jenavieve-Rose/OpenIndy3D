@@ -476,6 +476,24 @@ if(J3D_TEST_DATA)
     endforeach()
 endif()
 
+# outfit: Indy's outfit, the "Indy Outfit" setting (docs/PORTING.md). Starts a level with an outfit, checks the player's
+# and Indy's templates' models, then restores a save of it with each outfit and checks again. Three levels: 1 (Canyonlands,
+# jacketless in retail) started with the jacket, 3 (Tian Shan River, which has no jacketless model) started without,
+# and 17 (Peru, both raft models too) started without.
+j3d_executable(outfit platform_null ${J3D_ROOT}/tests/outfit.c ${J3D_ROOT}/tests/harness.c)
+if(J3D_TEST_DATA)
+    foreach(run IN ITEMS "01_cyn;1;1" "03_riv;3;2" "17_pru;17;2")
+        list(GET run 0 level)
+        list(GET run 1 level_num)
+        list(GET run 2 start_outfit)
+        set(test outfit-${level})
+        add_test(NAME ${test} COMMAND outfit ${J3D_TEST_DATA} ${level_num} 300)
+        set_tests_properties(${test} PROPERTIES
+            ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Indy_Outfit=${start_outfit};J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/outfit-out/${level}/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/outfit-out/${level}/logs/;${J3D_SANITIZER_ENV}"
+            FAIL_REGULAR_EXPRESSION "ASSERT")
+    endforeach()
+endif()
+
 # gamedialogs: the game's own dialogs through their entry points, with the player's data (Phase 6).
 j3d_executable(gamedialogs platform_null ${J3D_ROOT}/tests/gamedialogs.c ${J3D_ROOT}/tests/harness.c)
 if(J3D_TEST_DATA)

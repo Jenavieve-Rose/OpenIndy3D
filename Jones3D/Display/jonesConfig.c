@@ -5058,6 +5058,7 @@ static void jonesConfig_GetGamePlayMenu(J3DMenuGamePlay* pOptions)
     pOptions->bMapRotation  = sithOverlayMap_GetMapRotation();
     pOptions->bDefaultRun   = jonesConfig_gamePlayOptions_bDefaultRun;
     pOptions->bShowText     = sithVoice_GetShowText();
+    pOptions->outfit        = wuRegistry_GetInt("Indy Outfit", 0); // Port: Indy's outfit, taken at the next level start
 }
 
 static void jonesConfig_ApplyGamePlayMenu(const J3DMenuGamePlay* pOptions)
@@ -5077,6 +5078,7 @@ static void jonesConfig_ApplyGamePlayMenu(const J3DMenuGamePlay* pOptions)
 
     jonesConfig_gamePlayOptions_bDefaultRun = options.bDefaultRun;
     wuRegistry_SaveIntEx("Default Run", jonesConfig_gamePlayOptions_bDefaultRun);
+    wuRegistry_SaveInt("Indy Outfit", options.outfit); // Port: Indy's outfit (sithModel.c)
     if ( jonesConfig_gamePlayOptions_bDefaultRun )
     {
         sithControl_controlOptions |= 0x02;

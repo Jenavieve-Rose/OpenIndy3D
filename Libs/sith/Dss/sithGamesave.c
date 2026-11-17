@@ -20,6 +20,7 @@
 #include <sith/Gameplay/sithTime.h>
 #include <sith/Gameplay/sithWhip.h>
 #include <sith/Main/sithString.h>
+#include <sith/World/sithModel.h>
 #include <sith/World/sithThing.h>
 #include <sith/World/sithVoice.h>
 #include <sith/World/sithWeapon.h>
@@ -628,6 +629,10 @@ int J3DAPI sithGamesave_RestoreFile(const char* pFilename, int bNotify)
 
     // Load post process
     sithThing_LoadPostProcess(sithWorld_pCurrentWorld);
+#ifdef J3D_PORT
+    // Port: the restored things have the models they were saved with; give Indy the outfit chosen now (sithModel.c)
+    sithModel_ApplyOutfit(sithWorld_pCurrentWorld);
+#endif
     sithPlayer_SetLocalPlayer(hdr.localPlayerNum);
 
     // Close savegame file
