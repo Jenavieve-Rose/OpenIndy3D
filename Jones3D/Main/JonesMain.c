@@ -1058,7 +1058,11 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
         case JONES_STARTMODE_STARTGAME:
         {
             sscanf(lpCmdLine, "%zd", &JonesMain_curLevelNum);
+#ifdef J3D_FIXES
+            if ( JonesMain_curLevelNum < JONESLEVEL_FIRSTLEVELNUM || JonesMain_curLevelNum >= JONESLEVEL_NUMLEVELS ) // Fix (OpenJones3D 24ab38b): 18 read past the level table
+#else
             if ( JonesMain_curLevelNum < JONESLEVEL_FIRSTLEVELNUM || JonesMain_curLevelNum > JONESLEVEL_NUMLEVELS ) // Retail bug: allows the out-of-range level 18
+#endif
             {
                 JonesMain_curLevelNum = JONESLEVEL_FIRSTLEVELNUM;
             }

@@ -51,6 +51,23 @@ float J3DAPI stdMath_NormalizeAngle(float angle)
     float normAngle;
     float rounded;
 
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D, v0.1): in float, an angle just under a multiple of 360 came out slightly negative, and
+    // stdMath_SinCos read in front of its table with it (a crash opening the inventory). In double it stays in range.
+    (void)absAngle; (void)rounded;
+    if ( isnan(angle) || (angle >= 0.0f && angle < 360.0f) )
+    {
+        return angle;
+    }
+    double normAngleD = (double)angle - floor((double)angle / 360.0) * 360.0;
+    normAngle = (float)normAngleD;
+    if ( normAngle >= 360.0f || normAngle < 0.0f )
+    {
+        normAngle = 0.0f;
+    }
+    return normAngle;
+#endif
+
     if ( angle < 0.0f )
     {
         absAngle = -angle;

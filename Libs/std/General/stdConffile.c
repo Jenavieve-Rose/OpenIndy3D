@@ -207,7 +207,11 @@ int J3DAPI stdConffile_ReadArgsFromStr(char* pStr)
     ptok = strtok(pStr, ", \t\n\r");
     while ( ptok )
     {
+#ifdef J3D_FIXES
+        if ( argNum >= 512 ) // Fix (OpenJones3D, v0.2): retail stored a 513th argument past the end of the table
+#else
         if ( argNum > 512 ) /* Retail accepts index 512 before reporting overflow. */
+#endif
         {
 #line 385
             stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "conffile  %s line %d too many args.\n", stdConffile_pFilename, stdConffile_linenum, 0, 0);

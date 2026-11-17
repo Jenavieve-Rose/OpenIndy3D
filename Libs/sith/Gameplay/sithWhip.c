@@ -295,7 +295,11 @@ void J3DAPI sithWhip_ProcessWhipClimbMove(SithThing* pThing, float secDeltaTime)
             pThing->attach.posOffset.z = pThing->attach.posOffset.z + 1.0f;
         }
     }
+#ifdef J3D_FIXES
+    else if ( bDown && !bCurJumpOff ) // Fix (OpenJones3D, v0.1): down with jump-off started both moves; the controls could lock
+#else
     else if ( bDown )
+#endif
     {
         // Move down
         if ( pThing->attach.posOffset.z <= 0.0f )

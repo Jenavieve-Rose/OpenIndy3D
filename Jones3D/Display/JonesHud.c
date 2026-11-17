@@ -1747,6 +1747,13 @@ void J3DAPI JonesHud_StartItemTranslation(JonesHudMenuItem* pItem, uint32_t msec
 {
     float delta;
 
+#ifdef J3D_FIXES
+    if ( moveRate == 0.0f )
+    {
+        moveRate = 0.001f; // Fix (OpenJones3D, v0.1): divided by below; an infinite duration does not fit the int
+    }
+#endif
+
     if ( bMoveUp )
     {
         delta = D3DVAL(fabs(pItem->endMovePos.z - pItem->startMovePos.z) / moveRate);
@@ -2900,7 +2907,14 @@ void J3DAPI JonesHud_UpdateItem(JonesHudMenuItem* pItem)
             }
             else
             {
+#ifdef J3D_FIXES
+                // Fix (OpenJones3D, v0.1): from the angle within one turn. The whole angle grows while the item spins,
+                // and after hours it is so large that adding a few degrees changes nothing in float: the item never
+                // came back to rest.
+                pItem->pyr.yaw = (float)((360.0 - diffYaw) / 2.0) + fyaw;
+#else
                 pItem->pyr.yaw = (float)((360.0 - diffYaw) / 2.0) + pItem->pyr.yaw;
+#endif
             }
         }
     }
@@ -4047,7 +4061,13 @@ void J3DAPI JonesHud_RenderInventoryItemChange(void)
                 }
                 else if ( dyaw > 0.0f )
                 {
+#ifdef J3D_FIXES
+                    // Fix (OpenJones3D, v0.1): the same for the item shown when the inventory changes; there it could
+                    // hang the menu, which waits for the item to come to rest before it opens
+                    JonesHud_pCurInvChangedItem->pyr.yaw = (float)((360.0 - dyaw) / 2.0) + normYaw;
+#else
                     JonesHud_pCurInvChangedItem->pyr.yaw = (float)((360.0 - dyaw) / 2.0) + JonesHud_pCurInvChangedItem->pyr.yaw;
+#endif
                 }
             }
             else
@@ -4691,7 +4711,11 @@ int J3DAPI JonesHud_DrawCredits(int bEndCredits, tSoundChannelHandle hSndChannel
 
     // Draw credits
     i = JonesHud_creditsCurIdx;
+#ifdef J3D_FIXES
+    while ( i < 327 && i <= JonesHud_creditsCurEndIdx && JonesHud_creditsCanvasHeight + 64 >= JonesHud_aCreditsCurPosY[i] ) // Fix (OpenJones3D, v0.1): bounds before the read
+#else
     while ( JonesHud_creditsCanvasHeight + 64 >= JonesHud_aCreditsCurPosY[i] && i < 327 && i <= JonesHud_creditsCurEndIdx )
+#endif
     {
         int bIcon;
 

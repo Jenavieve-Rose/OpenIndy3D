@@ -223,6 +223,23 @@ int J3DAPI stdStrTable_ReadLine(tFileHandle fh, char* pStr, int size)
 
     do
     {
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D 6b71793): at the end of a file with no line break after its last line, the reads return
+        // nothing and the loops never ended (a .uni file edited without one hung the game)
+        char* pRead = std_pHS->pFileGets(fh, pStr, size);
+        if ( pRead && !strchr(pStr, '\n') )
+        {
+            do
+            {
+                aBuf[0] = '\0';
+                pRead = std_pHS->pFileGets(fh, aBuf, sizeof(aBuf));
+            } while ( pRead && !strchr(aBuf, '\n') );
+        }
+        if ( !pRead )
+        {
+            bFinish = 1;
+        }
+#else
         std_pHS->pFileGets(fh, pStr, size);
         pch = strchr(pStr, '\n');
         while ( !pch )
@@ -230,6 +247,7 @@ int J3DAPI stdStrTable_ReadLine(tFileHandle fh, char* pStr, int size)
             std_pHS->pFileGets(fh, aBuf, sizeof(aBuf));
             pch = strchr(aBuf, '\n');
         }
+#endif
 
         // Skip spaces
         pch = pStr;

@@ -12,6 +12,7 @@
 #include <sith/Engine/sithPhysics.h>
 #include <sith/Engine/sithPuppet.h>
 #include <sith/Gameplay/sithInventory.h>
+#include <sith/Gameplay/sithPlayerActions.h>
 #include <sith/World/sithActor.h>
 #include <sith/World/sithThing.h>
 #include <sith/World/sithWeapon.h>
@@ -50,6 +51,17 @@ void J3DAPI sithPlayer_Open(const wchar_t* awName)
 
 void J3DAPI sithPlayer_Close(void)
 {
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D 645471a): state the next level would otherwise start with. Nothing resets it on open: an IMP
+    // still firing, the player left invisible, jewel flying, and the inventory as swimming (or jewel flying) left it.
+    sithPlayer_impFireType = -1;
+    sithPlayerActions_bPlayerInvisible = 0;
+    sithPlayerActions_DisableJewelFlying();
+    if ( sithPlayer_pLocalPlayerThing )
+    {
+        sithInventory_SetSwimmingInventory(sithPlayer_pLocalPlayerThing, /*bItemsAvailable=*/1);
+    }
+#endif
     sithPlayer_pLocalPlayerThing = NULL;
     sithPlayer_pLocalPlayer        = NULL;
 }
@@ -274,7 +286,14 @@ void J3DAPI sithPlayer_Update(SithPlayer* pPlayer, float secDeltaTime)
                 if ( sithPlayer_impState > 180.0f )
                 {
                     sithPlayer_impState = 180.0f;
+#ifdef J3D_FIXES
+                    // Fix (OpenJones3D, v0.1): sithThing_DamageThing drops damage under 1, which a frame's share is
+                    // above 40 frames a second: an overheated part stopped hurting the player at 60 or 120 Hz
+                    float damage = (secDeltaTime * 40.0f) * sithGetIMPDamageScalar();
+                    sithThing_DamageThing(pThing, pThing, damage < 1.0f ? 1.0f : damage, SITH_DAMAGE_IMP_BLAST);
+#else
                     sithThing_DamageThing(pThing, pThing, (secDeltaTime * 40.0f) * sithGetIMPDamageScalar(), SITH_DAMAGE_IMP_BLAST);
+#endif
                 }
                 break;
         }

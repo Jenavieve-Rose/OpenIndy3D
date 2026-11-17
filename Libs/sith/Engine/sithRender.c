@@ -634,7 +634,7 @@ void J3DAPI sithRender_BuildVisibleSector(SithSector* pSector, const rdClipFrust
         // Port: retail returned with the sector still pointing at the frustum its caller built in a block-scoped local
         // (sithRender_PVSBuildVisibleSectorList), which the PVS walk then read after the block, and the draw after the
         // function, had ended: dead stack. The sector is not drawn and nothing past it can be added; its frustum only
-        // has to be valid, so it takes the camera's. Raising the 128-sector limit is the phase 8 fix series.
+        // has to be valid, so it takes the camera's. Raising the 128-sector limit is the phase 8 fix series (J3D_FIXES).
         pSector->pClipFrustum = rdCamera_pCurCamera->pFrustum;
         return;
     }

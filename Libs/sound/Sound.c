@@ -162,6 +162,9 @@ static rdVector3 Sound_curUpdatePos = { 0 };
 
 tSoundHandle J3DAPI Sound_GenerateSoundHandle(void);
 tSoundChannelHandle J3DAPI Sound_GenerateChannelHandle(void);
+#ifdef J3D_FIXES
+static int Sound_GetEntropyFromHandle(uint32_t handle, int bChannel);
+#endif
 
 size_t J3DAPI Sound_GetFreeCache(size_t bankNum, size_t requiredSize);
 void J3DAPI Sound_IncreaseFreeCache(size_t bankNum, size_t nSize);
@@ -714,6 +717,9 @@ int J3DAPI Sound_Restore(tFileHandle fh)
                 return 0;
             }
 
+#ifdef J3D_FIXES
+            uint32_t maxEntropy = 0; // Fix (OpenJones3D 6c3acc4): see below
+#endif
             while ( value != 0 )
             {
                 if ( (int)value <= (int)STD_ARRAYLEN(Sound_sndFilename) )
@@ -756,6 +762,13 @@ int J3DAPI Sound_Restore(tFileHandle fh)
                     {
                         return 0;
                     }
+#ifdef J3D_FIXES
+                    // Fix (OpenJones3D 6c3acc4): the saved handle is the entropy that made it plus SOUND_HANDLE_MIN, and
+                    // loading added SOUND_HANDLE_MIN again: every restored handle was 1234 higher than the saved one, so
+                    // a script holding a handle lost its sound. The entropy is taken back out of the handle.
+                    Sound_handleEntropy = Sound_GetEntropyFromHandle((uint32_t)Sound_handleEntropy, /*bChannel=*/0);
+                    maxEntropy = Sound_handleEntropy > (int)maxEntropy ? (uint32_t)Sound_handleEntropy : maxEntropy;
+#endif
 
                     if ( bankNum == SOUNDBANK_STATIC_NUM )
                     {
@@ -771,6 +784,10 @@ int J3DAPI Sound_Restore(tFileHandle fh)
                     {
                         return 0;
                     }
+#ifdef J3D_FIXES
+                    Sound_handleEntropy = Sound_GetEntropyFromHandle((uint32_t)Sound_handleEntropy, /*bChannel=*/1);
+                    maxEntropy = Sound_handleEntropy > (int)maxEntropy ? (uint32_t)Sound_handleEntropy : maxEntropy;
+#endif
 
                     if ( Sound_pHS->pFileRead(fh, &priority, sizeof(priority)) != sizeof(priority) )
                     {
@@ -884,6 +901,14 @@ int J3DAPI Sound_Restore(tFileHandle fh)
             {
                 return 0;
             }
+#ifdef J3D_FIXES
+            // Fix (OpenJones3D 6c3acc4): new handles must not collide with the restored ones; a collision swapped two
+            // playing sounds, and a looping one could stay stuck at the player
+            if ( Sound_handleEntropy < (int)maxEntropy )
+            {
+                Sound_handleEntropy = (int)maxEntropy;
+            }
+#endif
 
             // Read fades
             if ( Sound_pHS->pFileRead(fh, Sound_aFades, sizeof(Sound_aFades)) != sizeof(Sound_aFades) )
@@ -3071,6 +3096,20 @@ tSoundHandle J3DAPI Sound_GenerateSoundHandle(void)
     Sound_handleEntropy = (hNext + 1) % SOUND_HANDLE_ENTROPY_MAX;
     return hNext + SOUND_HANDLE_MIN;
 }
+
+#ifdef J3D_FIXES
+// Fix (OpenJones3D 6c3acc4): the entropy a handle was made from. Sound handles are made from even values and channel
+// handles from odd ones; a value of the other parity was moved up by one, so one is taken back off.
+static int Sound_GetEntropyFromHandle(uint32_t handle, int bChannel)
+{
+    const int hNext = (int)(handle - SOUND_HANDLE_MIN);
+    if ( (hNext & 1) == (bChannel ? 1 : 0) )
+    {
+        return hNext;
+    }
+    return hNext > 0 ? hNext - 1 : SOUND_HANDLE_ENTROPY_MAX - 1;
+}
+#endif
 
 tSoundChannelHandle J3DAPI Sound_GenerateChannelHandle(void)
 {

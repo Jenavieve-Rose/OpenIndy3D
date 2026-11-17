@@ -317,7 +317,13 @@ void J3DAPI rdPuppet_AdvanceTrack(rdPuppet* pPuppet, size_t track, float frames)
         {
             progress = floorf(D3DVAL(pTrackEntry->curFrame) / D3DVAL(pTrackEntry->pKFTrack->numFrames));
             pTrackEntry->curFrame -= (float)pTrackEntry->pKFTrack->numFrames * progress;
+            #ifdef J3D_FIXES
+            // Fix (OpenJones3D, v0.1): a model with more nodes than the track keeps wrote past its table
+            memset(pTrackEntry->aCurKfNodeEntryNums, 0, sizeof(pTrackEntry->aCurKfNodeEntryNums[0])
+                * (pPuppet->pThing->data.pModel3->numHNodes < STD_ARRAYLEN(pTrackEntry->aCurKfNodeEntryNums) ? pPuppet->pThing->data.pModel3->numHNodes : STD_ARRAYLEN(pTrackEntry->aCurKfNodeEntryNums)));
+#else
             memset(pTrackEntry->aCurKfNodeEntryNums, 0, sizeof(pTrackEntry->aCurKfNodeEntryNums[0]) * pPuppet->pThing->data.pModel3->numHNodes);
+#endif
         }
     }
 
@@ -449,7 +455,13 @@ void J3DAPI rdPuppet_ResetTrack(rdPuppet* pPuppet, size_t track)
 #line 788
     RD_ASSERTREL((track>=0)&&(track<8));
 
+    #ifdef J3D_FIXES
+    // Fix (OpenJones3D, v0.1): a model with more nodes than the track keeps wrote past its table
+    memset(pTrack->aCurKfNodeEntryNums, 0, sizeof(pTrack->aCurKfNodeEntryNums[0])
+        * (pPuppet->pThing->data.pModel3->numHNodes < STD_ARRAYLEN(pTrack->aCurKfNodeEntryNums) ? pPuppet->pThing->data.pModel3->numHNodes : STD_ARRAYLEN(pTrack->aCurKfNodeEntryNums)));
+#else
     memset(pTrack->aCurKfNodeEntryNums, 0, sizeof(pTrack->aCurKfNodeEntryNums[0]) * pPuppet->pThing->data.pModel3->numHNodes);
+#endif
     pTrack->curFrame  = 0.0f;
     pTrack->prevFrame = 0.0f;
     pTrack->status    = RDPUPPET_TRACK_PLAYING | RDPUPPET_TRACK_UNKNOWN_1;

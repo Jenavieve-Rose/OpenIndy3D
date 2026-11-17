@@ -336,6 +336,9 @@ void J3DAPI sithVoice_PlayVoice(SithCog* pCog)
 #line 364
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Bad params passed to PlayVoice().\n", pCog->aName, 0, 0, 0);
         sithCogExec_PushInt(pCog, -1); // Note, no return in retail
+#ifdef J3D_FIXES
+        return; // Fix (OpenJones3D e9d4167): went on with a null thing, and pushed a second result
+#endif
     }
 
 #line 368
@@ -550,7 +553,17 @@ void J3DAPI sithVoice_AddSubtitle(int msecSoundLen, const char* pSoundFilename, 
             count = 0;
             while ( pText )
             {
+#ifdef J3D_FIXES
+                // Fix (OpenJones3D, v0.1): a word too long for the line comes back unwrapped, which looped forever
+                const char* pInText = pText;
                 pText = rdFont_GetWrapLine(pText, sithVoice_pTextFont, 2.0f * fontWidth - 1.0f);
+                if ( pText == pInText )
+                {
+                    pText = NULL;
+                }
+#else
+                pText = rdFont_GetWrapLine(pText, sithVoice_pTextFont, 2.0f * fontWidth - 1.0f);
+#endif
                 ++count;
             }
             numLines = count;
@@ -566,7 +579,15 @@ void J3DAPI sithVoice_AddSubtitle(int msecSoundLen, const char* pSoundFilename, 
         ++lineIdx;
 
         pLineEnd = rdFont_GetWrapLine(pCurLine, sithVoice_pTextFont, 2.0f * fontWidth - 1.0f);
+#ifdef J3D_FIXES
+        if ( pLineEnd == pCurLine )
+        {
+            pLineEnd = NULL; // Fix (OpenJones3D, v0.1): the same long word; the rest is taken as the last line
+        }
+        if ( sithVoice_numSubtitleInfos >= STD_ARRAYLEN(sithVoice_aSubtitleInfos) ) // Fix (OpenJones3D, v0.1): was ==
+#else
         if ( sithVoice_numSubtitleInfos == STD_ARRAYLEN(sithVoice_aSubtitleInfos) )
+#endif
         {
             sithVoice_PurgeDrawnSubtitles();
         }
@@ -574,20 +595,33 @@ void J3DAPI sithVoice_AddSubtitle(int msecSoundLen, const char* pSoundFilename, 
         if ( !pLineEnd )
         {
             lineWidth = rdFont_GetTextWidth(pCurLine, sithVoice_pTextFont);
+#ifdef J3D_FIXES
+            // Fix (OpenJones3D, v0.1): copies bounded by the line's buffer, and always terminated
+            STD_STRCPY(sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].aSubtitleText, pCurLine);
+#else
             strcpy(sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].aSubtitleText, pCurLine);
+#endif
             sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].msecEndTime = msecEndTime;
             pCurLine = NULL;
         }
         else
         {
             sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].msecEndTime = msecEndTime;
+#ifdef J3D_FIXES
+            STD_STRNCPY(sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].aSubtitleText, pCurLine, pLineEnd - pCurLine);
+#else
             strncpy(sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].aSubtitleText, pCurLine, pLineEnd - pCurLine);
+#endif
             pCurLine = pLineEnd;
         }
 
         sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].msecStartTime   = msecStartTime;
         sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].msecShowEndTime = sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].msecEndTime + SITHVOICE_MSEC_EXTRA_SUBTITLE_SHOW_DURATION;
+#ifdef J3D_FIXES
+        STD_STRCPY(sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].aSoundFileName, pSoundFilename);
+#else
         strcpy(sithVoice_aSubtitleInfos[sithVoice_numSubtitleInfos].aSoundFileName, pSoundFilename);
+#endif
 
         if ( pSubtitleColor->top.red == -1.0f )
         {
@@ -673,6 +707,14 @@ void J3DAPI sithVoice_Draw(void)
         && curTime > sithVoice_aSubtitleInfos[sithVoice_curSubtitleInfoNum].msecShowEndTime )
     {
         ++sithVoice_curSubtitleInfoNum;
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D, v0.1): with every line expired the index ran off the end of the table
+        if ( sithVoice_curSubtitleInfoNum >= STD_ARRAYLEN(sithVoice_aSubtitleInfos) )
+        {
+            sithVoice_curSubtitleInfoNum = STD_ARRAYLEN(sithVoice_aSubtitleInfos) - 1;
+            return;
+        }
+#endif
     }
 
     if ( strlen(sithVoice_aSubtitleInfos[sithVoice_curSubtitleInfoNum].aSubtitleText) == 0 )

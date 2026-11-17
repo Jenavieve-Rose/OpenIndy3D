@@ -543,7 +543,13 @@ int J3DAPI JonesFile_FilePrintf(tFileHandle fh, const char* aFormat, ...)
 
     if ( pHandle->bFileHandle )
     {
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D, v0.1): the formatted text was handed on as a format string, so a '%' in it read stray
+        // arguments; it is written as it is
+        JonesFile_pHS->pFileWrite(pHandle->hFile, std_genBuffer, size < sizeof(std_genBuffer) ? size : sizeof(std_genBuffer) - 1);
+#else
         JonesFile_pHS->pFilePrintf(pHandle->hFile, std_genBuffer, size);
+#endif
     }
     else
     {

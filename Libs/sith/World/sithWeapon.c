@@ -1648,7 +1648,11 @@ int J3DAPI sithWeapon_GetAimOrient(rdMatrix34* pOutOrient, SithThing* pShooter, 
             curDot = -1.0f;
             for ( i = 0; i < numThings; ++i )
             {
+#ifdef J3D_FIXES
+                if ( !aTarget[i] || aTarget[i] == pShooter || (aTarget[i]->thingInfo.actorInfo.flags & SITH_AF_NOTARGET) != 0 ) // Fix (OpenJones3D, v0.3): an empty slot
+#else
                 if ( aTarget[i] == pShooter || (aTarget[i]->thingInfo.actorInfo.flags & SITH_AF_NOTARGET) != 0 )
+#endif
                 {
                     continue;
                 }
@@ -2012,7 +2016,12 @@ void J3DAPI sithWeapon_SendMessageAim(SithThing* pThing, int bAim)
             return;
         }
 
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D, v0.1): no local player while the game closes with the whip aimed; the check reads it
+        if ( !sithPlayer_pLocalPlayerThing || sithWeapon_IsLocalPlayerUnableToUseWeapon() )
+#else
         if ( sithWeapon_IsLocalPlayerUnableToUseWeapon() )
+#endif
         {
             return;
         }

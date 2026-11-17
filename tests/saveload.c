@@ -360,12 +360,18 @@ static int saveload_SplitChannels(const unsigned char* pSec, size_t size, Savelo
 //   - the order: Sound_Save walks the channels from the last, and Sound_Restore replays them in the saved order into
 //     new channels, so the second save lists them in another order: channels are matched by guid;
 //   - each channel's handle: Sound_Restore reads it into the handle entropy and Sound_GenerateChannelHandle adds
-//     SOUND_HANDLE_MIN (1234) to it, so a restored channel's handle is 1234 higher;
+//     SOUND_HANDLE_MIN (1234) to it, so a restored channel's handle is 1234 higher; with OpenJones3D's fix (J3D_FIXES,
+//     P8.9) it is the same;
 //   - each channel's flags gain SOUND_CHANNEL_FAR: Sound_Restore moves the listener 100,000 units away before replaying
 //     the channels, so each starts far and the next Sound_Update brings it back;
 //   - a channel saved only because it was far, and not looping (a one-shot sound out of earshot), is not replayed.
 // Everything else (the other channel words, the names, the entropy and fades after the list, the weapon section) must
 // be identical.
+#ifdef J3D_FIXES
+#define SAVELOAD_HANDLE_SHIFT 0u
+#else
+#define SAVELOAD_HANDLE_SHIFT 1234u
+#endif
 static int saveload_CompareSound(const unsigned char* pSecA, size_t sizeA, const unsigned char* pSecB, size_t sizeB)
 {
     static SaveloadChannel aChannelsA[SAVELOAD_MAXCHANNELS], aChannelsB[SAVELOAD_MAXCHANNELS];
@@ -416,10 +422,10 @@ static int saveload_CompareSound(const unsigned char* pSecA, size_t sizeA, const
             SAVELOAD_SOUNDDIFF("sound channel guid %u: another sound\n", pA->aWords[SAVELOAD_CHANNEL_GUID]);
             continue;
         }
-        if ( pB->aWords[SAVELOAD_CHANNEL_HANDLE] != pA->aWords[SAVELOAD_CHANNEL_HANDLE] + 1234 )
+        if ( pB->aWords[SAVELOAD_CHANNEL_HANDLE] != pA->aWords[SAVELOAD_CHANNEL_HANDLE] + SAVELOAD_HANDLE_SHIFT )
         {
             SAVELOAD_SOUNDDIFF("sound channel handle %u restored as %u, not %u\n", pA->aWords[SAVELOAD_CHANNEL_HANDLE],
-                pB->aWords[SAVELOAD_CHANNEL_HANDLE], pA->aWords[SAVELOAD_CHANNEL_HANDLE] + 1234);
+                pB->aWords[SAVELOAD_CHANNEL_HANDLE], pA->aWords[SAVELOAD_CHANNEL_HANDLE] + SAVELOAD_HANDLE_SHIFT);
         }
         if ( pB->aWords[SAVELOAD_CHANNEL_FLAGS] != (flagsA | SAVELOAD_SOUND_FAR) )
         {

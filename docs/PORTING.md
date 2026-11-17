@@ -1869,3 +1869,24 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
   period as the no-presenter path holds 60 Hz. Their controls are items 6 and 7 of the launcher's Display tab, saved
   on OK. In a window macOS composites at the display's rate, so vsync off changes nothing there (measured: 8.33 ms
   frames at 120 Hz either way); a 30 limit measured 33.33 ms.
+
+### OpenJones3D's fixes (P8.8, P8.9)
+
+- `docs/UPSTREAM-FIXES.md` triages OpenJones3D's changelog entry by entry against its history (upstream `a675b39`,
+  cloned to read each commit). Many entries are OpenJones3D's own work or correct its own transcription; where the
+  decomp has retail's code and retail was right, the entry is marked so and nothing is changed.
+- The fixes are in the source under `#ifdef J3D_FIXES`, each marked `Fix (OpenJones3D <commit>)`; the CMake option is
+  on by default. `J3D_FIXES=OFF` builds retail's behaviour (a null tree built that way passes every test, with the
+  `saveload` tests expecting retail's +1234 sound handles).
+- Applied: the crash and memory fixes (angle normalisation, subtitles, string tables, config arguments, control
+  bindings, the whip and weapon on quit, explosion damage, the face-scroll loop, zero-time animations, attachments to
+  another mesh's face, puppet tracks, `JonesFile_FilePrintf`, the level-18 bound, the HUD's spin angles and credits);
+  the COG thing functions that pushed no result, two results or read a null thing, mode and joint bounds, the light
+  range; restored sound handles and their collisions; the player state the next level inherited, IMP damage above
+  40 fps, the whip's climb-down lock, dead things on lava; 128 sounds and 4,096 visible sectors.
+- `stdUtil.h` gains `STD_STRCPY` and `STD_STRNCPY` (bounded, terminated copies into arrays) for the subtitle fixes.
+- `sithThing_ScaleCombatDamage` read an explosion's damage type through an unset pointer; it is now the weapon's, or
+  none, in both builds (decision 18).
+- Not applied: OpenJones3D's quality-of-life changes (far looping sounds, AI movement, jump-rollback fall speed and the
+  rest), which change how the game plays. Open: widescreen and HUD scaling, the 2D line fixes for the overlay map, the
+  far sound on restore.

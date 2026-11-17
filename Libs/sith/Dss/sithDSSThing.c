@@ -1919,7 +1919,16 @@ int J3DAPI sithDSSThing_Attachment(const SithThing* pThing, DPID idTo, unsigned 
             pObjAttached = pThing->attach.attachedToStructure.pThingAttached;
             if ( pObjAttached && pObjAttached->renderData.data.pModel3 )
             {
+#ifdef J3D_FIXES
+                // Fix (OpenJones3D 45c8065): the face is numbered in the model's first mesh, but it may be another
+                // mesh's; such an index is out of range, and restoring it read past the face table (a crash on load).
+                // It is written as -1, which the restore below takes as no face.
+                const rdModel3Mesh* pMesh = pObjAttached->renderData.data.pModel3->aGeos[0].aMeshes;
+                const ptrdiff_t faceIdx = pThing->attach.pFace - pMesh->aFaces;
+                SITHDSS_PUSHINT16(faceIdx >= 0 && faceIdx < (ptrdiff_t)pMesh->numFaces ? (int16_t)faceIdx : -1);
+#else
                 SITHDSS_PUSHINT16(pThing->attach.pFace - pThing->attach.attachedToStructure.pThingAttached->renderData.data.pModel3->aGeos[0].aMeshes->aFaces);
+#endif
             }
             else
             {
@@ -1999,9 +2008,23 @@ int J3DAPI sithDSSThing_ProcessAttachment(const SithMessage* pMsg)
         if ( (attachflags & SITH_ATTACH_THINGFACE) != 0 )
         {
             idx = SITHDSS_POPUINT16();
-            pFace = &pThingAttached->renderData.data.pModel3->aGeos[0].aMeshes->aFaces[idx];
-            rdVector_Copy3(&pThing->attach.attachedFaceFirstVert, &pThingAttached->renderData.data.pModel3->aGeos[0].aMeshes->apVertices[*pFace->aVertices]);
-            pThing->attach.pFace = pFace;
+#ifdef J3D_FIXES
+            // Fix (OpenJones3D 45c8065): an index out of range (-1 above) leaves the thing attached to the thing only
+            if ( !pThingAttached->renderData.data.pModel3 || idx >= pThingAttached->renderData.data.pModel3->aGeos[0].aMeshes->numFaces )
+            {
+                pThing->attach.flags &= ~SITH_ATTACH_THINGFACE;
+                if ( pThing->attach.flags == 0 )
+                {
+                    pThing->attach.flags |= SITH_ATTACH_THING;
+                }
+            }
+            else
+#endif
+            {
+                pFace = &pThingAttached->renderData.data.pModel3->aGeos[0].aMeshes->aFaces[idx];
+                rdVector_Copy3(&pThing->attach.attachedFaceFirstVert, &pThingAttached->renderData.data.pModel3->aGeos[0].aMeshes->apVertices[*pFace->aVertices]);
+                pThing->attach.pFace = pFace;
+            }
         }
         else
         {

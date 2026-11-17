@@ -1041,6 +1041,7 @@ float J3DAPI sithThing_ScaleCombatDamage(const SithThing* pThing, SithThing* pHi
     float damage;
     const SithWeaponInfo* pWeaponInfo;
     SithThing* pShooter;
+    SithDamageType damageType = 0; // Port: see below
 
     if ( !pThing )
     {
@@ -1054,6 +1055,7 @@ float J3DAPI sithThing_ScaleCombatDamage(const SithThing* pThing, SithThing* pHi
         case SITH_THING_WEAPON:
             pWeaponInfo = &pThing->thingInfo.weaponInfo;
             damage      = pWeaponInfo->damage;
+            damageType  = pWeaponInfo->damageType;
             break;
 
         case SITH_THING_EXPLOSION:
@@ -1102,9 +1104,10 @@ float J3DAPI sithThing_ScaleCombatDamage(const SithThing* pThing, SithThing* pHi
             switch ( pShooter->type )
             {
                 case SITH_THING_ACTOR:
-                    // Retail bug: pWeaponInfo is uninitialized when pThing is an explosion
-                    if ( pWeaponInfo->damageType != SITH_DAMAGE_DROWN
-                        && pWeaponInfo->damageType != SITH_DAMAGE_CRUSH
+                    // Retail bug: pWeaponInfo is uninitialized when pThing is an explosion. Port (decision 18): the
+                    // weapon's damage type, and none for an explosion, as OpenJones3D (v0.1) does
+                    if ( damageType != SITH_DAMAGE_DROWN
+                        && damageType != SITH_DAMAGE_CRUSH
                         && (pShooter->thingInfo.actorInfo.flags & SITH_AF_FULLDAMAGE) == 0 )
                     {
                         scaleFactor = 0.5f;
@@ -2097,10 +2100,16 @@ void J3DAPI sithThing_AttachThingToSurface(SithThing* pThing, SithSurface* pSurf
     }
 
 attach:
-    pThing->attach.flags = SITH_ATTACH_SURFACE;
-    rdVector_Copy3(&pThing->attach.attachedFaceFirstVert, &sithWorld_pCurrentWorld->aVertices[*pSurface->face.aVertices]);
-    pThing->attach.pFace = &pSurface->face;
-    pThing->attach.attachedToStructure.pSurfaceAttached = pSurface;
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D 18d828d): a dead thing is not attached to lava, so it sinks into it as into cold water
+    if ( (pThing->flags & (SITH_TF_DYING | SITH_TF_DESTROYED)) == 0 || (pSurface->flags & SITH_SURFACE_LAVA) == 0 )
+#endif
+    {
+        pThing->attach.flags = SITH_ATTACH_SURFACE;
+        rdVector_Copy3(&pThing->attach.attachedFaceFirstVert, &sithWorld_pCurrentWorld->aVertices[*pSurface->face.aVertices]);
+        pThing->attach.pFace = &pSurface->face;
+        pThing->attach.attachedToStructure.pSurfaceAttached = pSurface;
+    }
 
     pThing->moveInfo.physics.flags &= ~SITH_PF_ALIGNED;
 

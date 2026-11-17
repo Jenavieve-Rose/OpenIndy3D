@@ -1052,11 +1052,17 @@ has no developer tools.
       launcher's Options (P6.31). Done: `VSync` (default on) and `Frame Limit` (none, 30, 60 or 120), on the Display
       tab. Measured: a 30 limit holds 33.33 ms frames. Vsync off matters only full screen; in a window macOS composites
       at the display's rate (8.33 ms here with it off).
-- [ ] **P8.8** (M) Triage OpenJones3D's `CHANGELOG.md` (~80 entries) into crash fixes, raised limits and quality of
-      life, each with its upstream commit.
+- [x] **P8.8** (M) Triage OpenJones3D's `CHANGELOG.md` (~80 entries) into crash fixes, raised limits and quality of
+      life, each with its upstream commit. Done: `docs/UPSTREAM-FIXES.md`, against upstream's history (`a675b39`):
+      each entry applied, already right in the decomp, already fixed by the port, not applicable (code the port
+      replaces), not applied (quality of life, behaviour changes) or open, with its commit.
 - [ ] **P8.9** (L) Apply the series behind a build option that defaults on, in groups, each retested: crash and
       memory fixes; COG stack and sound-handle fixes; raised limits (128 sounds, mesh and sector limits); widescreen
-      and HUD scaling.
+      and HUD scaling. Three of four groups done: `J3D_FIXES` (default on) holds 40-odd fixes in 22 files, each marked
+      `Fix (OpenJones3D <commit>)`; 128 sounds and 4,096 visible sectors (the mesh limits are not reached by retail
+      data). Restored sound handles now equal the saved ones (the `saveload` tests check it). Every test passes with
+      the fixes, and with `J3D_FIXES=OFF` in a null tree. Open: widescreen and HUD scaling, which need the projection
+      and HUD changes together and a pass over every level; the game ships pillarboxed 4:3 meanwhile (P2.20).
 - [ ] **P8.10** (S) Keyboard and controller glyphs in the control dialogs.
 - [ ] **P8.11** (S) Crash handling: write the engine log beside the crash report and tell the player where it is.
 - [ ] **P8.12** (S) README and in-app notices: a retail copy is required, AGPL source offer, credits.

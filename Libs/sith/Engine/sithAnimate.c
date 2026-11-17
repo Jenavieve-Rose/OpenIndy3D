@@ -275,6 +275,12 @@ static void J3DAPI sithAnimate_BuildScrollFaceRotate(rdMatrix34* pOrient, const 
         rdVector_Copy3(&nextVert, &pWorld->aVertices[pFace->aVertices[vertNum]]);
         rdVector_Copy2(&nextTexVert, &pWorld->aTexVerticies[pFace->aTexVertices[vertNum]]);
         /* Retail does not recalculate dvert here. */
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D 70cf7bf): without it a face whose first two vertices coincide looped forever
+        dvert.x = vert.x - nextVert.x;
+        dvert.y = vert.y - nextVert.y;
+        dvert.z = vert.z - nextVert.z;
+#endif
     }
 
     dtexVert.x = nextTexVert.x - texVert.x;
@@ -640,6 +646,18 @@ SithAnimationSlot* J3DAPI sithAnimate_StartSpriteSizeAnim(SithThing* pSprite, co
     pAnim->curVector.z = start->z;  // alpha
     pAnim->curVector.w = 0.0f;
 
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D f5dc718): aet_sprpulse.cog sets a sprite's size at once with a time of 0. The division gave an
+    // infinity, or NaN where a value did not change, and a NaN animation never ends, holding its slot for good.
+    if ( timeDelta == 0.0f )
+    {
+        timeDelta = 1.0f;
+        pAnim->curVector.x = end->x;
+        pAnim->curVector.y = end->y;
+        pAnim->curVector.z = end->z;
+    }
+#endif
+
     size = pAnim->endVector.x - pAnim->curVector.x;
     pAnim->deltaVector.x = size / timeDelta;
     size = pAnim->endVector.y - pAnim->curVector.y;
@@ -777,6 +795,13 @@ SithAnimationSlot* J3DAPI sithAnimate_StartThingMove(SithThing* pThing, const rd
     {
         return NULL;
     }
+
+#ifdef J3D_FIXES
+    if ( timeDelta == 0.0f )
+    {
+        timeDelta = 1.0f; // Fix (OpenJones3D f5dc718): as for the sprite size, a move over no time never ended
+    }
+#endif
 
     pAnim->pThing         = pThing;
     pAnim->thingSignature = pThing->signature;
@@ -1941,8 +1966,13 @@ void J3DAPI sithAnimate_UpdatePushItemAnim(SithAnimationSlot* pAnim, float secDe
     {
         // Animation completed
 
-        pAnim->pItemThing->collide.type = pAnim->msecPerFrame;
-        sithAnimate_FindAndEnterFloorSurface(pAnim->pItemThing, pAnim->pSurface);// pSurface is item thing start surface
+#ifdef J3D_FIXES
+        if ( pAnim->pItemThing ) // Fix (OpenJones3D 70cf7bf): the item may be gone
+#endif
+        {
+            pAnim->pItemThing->collide.type = pAnim->msecPerFrame;
+            sithAnimate_FindAndEnterFloorSurface(pAnim->pItemThing, pAnim->pSurface);
+        } // pSurface is item thing start surface
 
         sithAnimate_Stop(pAnim);
     }
@@ -2033,8 +2063,13 @@ void J3DAPI sithAnimate_UpdatePullItemAnim(SithAnimationSlot* pAnim, float secDe
     {
         // Animation completed
 
-        pAnim->pItemThing->collide.type = pAnim->msecPerFrame;
-        sithAnimate_FindAndEnterFloorSurface(pAnim->pItemThing, pAnim->pSurface); // pSurface is item thing start surface
+#ifdef J3D_FIXES
+        if ( pAnim->pItemThing ) // Fix (OpenJones3D 70cf7bf): the item may be gone
+#endif
+        {
+            pAnim->pItemThing->collide.type = pAnim->msecPerFrame;
+            sithAnimate_FindAndEnterFloorSurface(pAnim->pItemThing, pAnim->pSurface);
+        } // pSurface is item thing start surface
 
         sithAnimate_Stop(pAnim);
     }

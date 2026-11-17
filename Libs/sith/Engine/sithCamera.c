@@ -462,6 +462,14 @@ void J3DAPI sithCamera_SetExtCameraLookOffset(const rdVector3* pOffset)
 
 void J3DAPI sithCamera_RestoreExtCamera(void)
 {
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D fea0e59): sithWhip_Reset calls this after JonesMain has closed the cameras, so quitting while
+    // aiming the whip read through a null camera
+    if ( !sithCamera_pCurCamera )
+    {
+        return;
+    }
+#endif
     if ( sithCamera_pCurCamera->type != SITHCAMERA_EXTERNAL )
     {
         return;

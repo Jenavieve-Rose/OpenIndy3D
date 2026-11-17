@@ -67,6 +67,10 @@ endif()
 option(J3D_WERROR_SHORTEN "Treat -Wshorten-64-to-32 as an error (on since the Phase 1 audit closed, PORT-PLAN.md P1.29)" ON)
 option(J3D_DEBUG_ASSERTS "Compile the engine's debug-only J3D_ASSERT checks" OFF)
 option(J3D_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer (PORT-PLAN.md P1.21)" OFF)
+# OpenJones3D's fixes to retail bugs (PORT-PLAN.md P8.9, docs/UPSTREAM-FIXES.md): crashes, memory errors, COG and
+# sound-handle bugs and raised limits, each marked "Fix (OpenJones3D <commit>)" under #ifdef J3D_FIXES. OFF builds
+# retail's behaviour, for comparisons with the Windows build.
+option(J3D_FIXES "Apply OpenJones3D's fixes to retail bugs (PORT-PLAN.md P8.9)" ON)
 
 set(J3D_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 set(J3D_GENERATED ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -92,6 +96,9 @@ target_compile_definitions(j3d_common INTERFACE
 )
 if(NOT J3D_DEBUG_ASSERTS)
     target_compile_definitions(j3d_common INTERFACE NDEBUG)
+endif()
+if(J3D_FIXES)
+    target_compile_definitions(j3d_common INTERFACE J3D_FIXES=1)
 endif()
 target_compile_options(j3d_common INTERFACE
     # Semantics the 1999 code relies on (PORT-PLAN.md 7.1): type-punned access, signed wrap-around, and no fused

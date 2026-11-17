@@ -1518,6 +1518,9 @@ void J3DAPI sithCogFunctionThing_GetThingAlpha(SithCog* pCog)
 #line 906
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Invalid thing ref in SetThingAlpha()!\n", pCog->aName, 0, 0, 0);
         sithCogExec_PushFlex(pCog, -1.0f);
+#ifdef J3D_FIXES
+        return; // Fix (OpenJones3D e9d4167): went on to read the null thing
+#endif
     }
 
     alpha = pThing->alpha;
@@ -2857,6 +2860,11 @@ void J3DAPI sithCogFunctionThing_ThingLight(SithCog* pCog)
         pThing->light.color.red   = color.red;
         pThing->light.color.green = color.green;
         pThing->light.color.blue  = color.blue;
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D e9d4167): the colour's alpha is the light's range, as the animated path below sets it;
+        // left as it was, the light flickered with the camera close to it
+        pThing->light.color.alpha = range;
+#endif
         pThing->light.minRadius   = range;
         pThing->light.maxRadius   = 1.1f * range;
         if ( color.red > 0.0f || color.green > 0.0f || color.blue > 0.0f )
@@ -3880,6 +3888,15 @@ void J3DAPI sithCogFunctionThing_IsModePlaying(SithCog* pCog)
         return;
     }
 
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D e9d4167): a thing with no puppet, or a mode number from the script past the table
+    if ( !pThing->pPuppetClass || !pThing->pPuppetState || !pThing->renderData.pPuppet
+         || subMode < 0 || subMode >= SITH_PUPPET_NUMSUBMODES )
+    {
+        sithCogExec_PushInt(pCog, -1);
+        return;
+    }
+#endif
     keyframe = pThing->pPuppetClass->aModes[pThing->pPuppetState->majorMode][subMode].pKeyframe;
     if ( !keyframe )
     {
@@ -3925,6 +3942,15 @@ void J3DAPI sithCogFunctionThing_PauseMode(SithCog* pCog)
         return;
     }
 
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D e9d4167): a thing with no puppet, or a mode number from the script past the table
+    if ( !pThing->pPuppetClass || !pThing->pPuppetState || !pThing->renderData.pPuppet
+         || subMode < 0 || subMode >= SITH_PUPPET_NUMSUBMODES )
+    {
+        sithCogExec_PushInt(pCog, -1);
+        return;
+    }
+#endif
     keyframe = pThing->pPuppetClass->aModes[pThing->pPuppetState->majorMode][subMode].pKeyframe;
     if ( !keyframe )
     {
@@ -3971,6 +3997,15 @@ void J3DAPI sithCogFunctionThing_ResumeMode(SithCog* pCog)
         return;
     }
 
+#ifdef J3D_FIXES
+    // Fix (OpenJones3D e9d4167): a thing with no puppet, or a mode number from the script past the table
+    if ( !pThing->pPuppetClass || !pThing->pPuppetState || !pThing->renderData.pPuppet
+         || subMode < 0 || subMode >= SITH_PUPPET_NUMSUBMODES )
+    {
+        sithCogExec_PushInt(pCog, -1);
+        return;
+    }
+#endif
     keyframe = pThing->pPuppetClass->aModes[pThing->pPuppetState->majorMode][subMode].pKeyframe;
     if ( !keyframe )
     {
@@ -4292,6 +4327,9 @@ void J3DAPI sithCogFunctionThing_SetThingMesh(SithCog* pCog)
     {
 #line 4720
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Bad thing in SetThingMesh.\n", pCog->aName, 0, 0, 0);
+#ifdef J3D_FIXES
+        sithCogExec_PushInt(pCog, -1); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -4299,6 +4337,9 @@ void J3DAPI sithCogFunctionThing_SetThingMesh(SithCog* pCog)
     {
 #line 4726
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Bad model in SetThingMesh.\n", pCog->aName, 0, 0, 0);
+#ifdef J3D_FIXES
+        sithCogExec_PushInt(pCog, -1); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -4607,7 +4648,9 @@ void J3DAPI sithCogFunctionThing_FirstThingInSector(SithCog* pCog)
     {
 #line 5175
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Cannot get first thing in sector.  Invalid sector.\n", pCog->aName, 0, 0, 0);
-        sithCogExec_PushInt(pCog, -1);
+#ifndef J3D_FIXES
+        sithCogExec_PushInt(pCog, -1); // Fix (OpenJones3D e9d4167): pushed here and again below, two results for one call
+#endif
     }
     else
     {
@@ -5374,6 +5417,9 @@ void J3DAPI sithCogFunctionThing_IsThingCrouching(SithCog* pCog)
     if ( !pThing || pThing->moveType != SITH_MT_PHYSICS )
     {
         sithCogExec_PushInt(pCog, -1);
+#ifdef J3D_FIXES
+        return; // Fix (OpenJones3D e9d4167): went on to read the null thing and pushed a second result
+#endif
     }
 
     if ( (pThing->moveInfo.physics.flags & SITH_PF_CROUCHING) != 0 )
@@ -5463,6 +5509,9 @@ void J3DAPI sithCogFunctionThing_GetThingRespawn(SithCog* pCog)
     {
 #line 6570
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Illegal thing, in GetThingRespawn.\n", pCog->aName, 0, 0, 0);
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, -1.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
     }
     else
     {
@@ -5972,6 +6021,9 @@ void J3DAPI sithCogFunctionThing_GetThingMass(SithCog* pCog)
     SithThing* pThing = sithCogExec_PopThing(pCog);
     if ( !pThing )
     {
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, 0.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -6157,6 +6209,9 @@ void J3DAPI sithCogFunctionThing_GetThingMaxVel(SithCog* pCog)
     SithThing* pThing = sithCogExec_PopThing(pCog);
     if ( !pThing )
     {
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, 0.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -6201,6 +6256,9 @@ void J3DAPI sithCogFunctionThing_GetThingMaxAngVel(SithCog* pCog)
     SithThing* pThing = sithCogExec_PopThing(pCog);
     if ( !pThing )
     {
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, 0.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -6260,7 +6318,12 @@ void J3DAPI sithCogFunctionThing_SetJointAngle(SithCog* pCog)
         int maxNode;
 
         maxNode = (int)(pThing->renderData.data.pModel3->numHNodes - 1); // Port: narrowing cast
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D e9d4167): a joint number from the script past the table read a stray node number
+        nodeNum = jointNum >= 0 && jointNum < (int)STD_ARRAYLEN(pThing->pPuppetClass->aJoints) ? pThing->pPuppetClass->aJoints[jointNum] : -1;
+#else
         nodeNum = pThing->pPuppetClass->aJoints[jointNum];
+#endif
         if ( J3DINRANGE(nodeNum, 0, maxNode) )
         {
             pThing->renderData.apTweakedAngles[nodeNum].pitch = angle;
@@ -6277,6 +6340,9 @@ void J3DAPI sithCogFunctionThing_GetJointAngle(SithCog* pCog)
     {
 #line 7857
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Bad thing in GetJointAngle.\n", pCog->aName, 0, 0, 0);
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, -1.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -6288,7 +6354,12 @@ void J3DAPI sithCogFunctionThing_GetJointAngle(SithCog* pCog)
         int maxNode;
 
         maxNode = (int)(pThing->renderData.data.pModel3->numHNodes - 1); // Port: narrowing cast
+#ifdef J3D_FIXES
+        // Fix (OpenJones3D e9d4167): a joint number from the script past the table read a stray node number
+        nodeNum = jointNum >= 0 && jointNum < (int)STD_ARRAYLEN(pThing->pPuppetClass->aJoints) ? pThing->pPuppetClass->aJoints[jointNum] : -1;
+#else
         nodeNum = pThing->pPuppetClass->aJoints[jointNum];
+#endif
         if ( J3DINRANGE(nodeNum, 0, maxNode) )
         {
             angle = pThing->renderData.apTweakedAngles[nodeNum].pitch;
@@ -6306,6 +6377,9 @@ void J3DAPI sithCogFunctionThing_SetMaxHeadPitch(SithCog* pCog)
     {
 #line 7900
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Bad thing in SetMaxHeadPitch.\n", pCog->aName, 0, 0, 0);
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, -1.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -6321,6 +6395,9 @@ void J3DAPI sithCogFunctionThing_SetMinHeadPitch(SithCog* pCog)
     {
 #line 7931
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Bad thing in SetMinHeadPitch.\n", pCog->aName, 0, 0, 0);
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, -1.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 
@@ -6382,6 +6459,9 @@ void J3DAPI sithCogFunctionThing_SetMaxHeadYaw(SithCog* pCog)
     {
 #line 8026
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: Bad thing in SetMaxHeadYaw.\n", pCog->aName, 0, 0, 0);
+#ifdef J3D_FIXES
+        sithCogExec_PushFlex(pCog, -1.0f); // Fix (OpenJones3D e9d4167): no result was pushed, unbalancing the COG stack
+#endif
         return;
     }
 

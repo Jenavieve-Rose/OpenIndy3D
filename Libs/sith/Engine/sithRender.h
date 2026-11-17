@@ -7,8 +7,12 @@
 #include <std/types.h>
 
 J3D_EXTERN_C_START
+#ifdef J3D_FIXES
+#define SITHRENDER_MAX_VISIBLE_SECTORS     4096 // Fix (OpenJones3D b448041): was 128; past it, sectors in view were not drawn
+#else
 #define SITHRENDER_MAX_VISIBLE_SECTORS     128
-#define SITHRENDER_MAX_SECTORS_WITH_THINGS SITHRENDER_MAX_VISIBLE_SECTORS * 2
+#endif
+#define SITHRENDER_MAX_SECTORS_WITH_THINGS (SITHRENDER_MAX_VISIBLE_SECTORS * 2)
 
 extern float sithRender_fogDensity;
 

@@ -12,6 +12,33 @@ J3D_EXTERN_C_START
 */
 #define STD_ARRAYLEN(x) (sizeof(x) / sizeof((x)[0]))
 
+#ifdef J3D_PORT
+/**
+ * @brief Port: bounded copies into a char array, always terminated, for OpenJones3D's fixes (PORT-PLAN.md P8.9).
+ * STD_STRCPY copies src, STD_STRNCPY at most num characters of it; either is cut to fit dest, which must be an array.
+ */
+#define STD_ISCHARARRAY(dest) (!__builtin_types_compatible_p(__typeof__(dest), __typeof__(&(dest)[0])))
+#define STD_STRCPY(dest, src)                                                                                          \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        _Static_assert(STD_ISCHARARRAY(dest), "STD_STRCPY needs an array to copy into");                             \
+        stdUtil_StringCopyBounded((dest), sizeof(dest), (src), (size_t)-1);                                            \
+    } while ( 0 )
+#define STD_STRNCPY(dest, src, num)                                                                                    \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        _Static_assert(STD_ISCHARARRAY(dest), "STD_STRNCPY needs an array to copy into");                            \
+        stdUtil_StringCopyBounded((dest), sizeof(dest), (src), (size_t)(num));                                         \
+    } while ( 0 )
+
+static inline void stdUtil_StringCopyBounded(char* pDst, size_t size, const char* pSrc, size_t num)
+{
+    size_t len = strnlen(pSrc, num < size - 1 ? num : size - 1);
+    memcpy(pDst, pSrc, len);
+    pDst[len] = '\0';
+}
+#endif
+
 /**
  * @brief Converts wide string to string.
  *

@@ -8,7 +8,11 @@
 J3D_EXTERN_C_START
 
 // Max number of simultaneous playing sounds
+#ifdef J3D_FIXES
+#define SITHSOUND_MAXCHANNELS 128 // Fix (OpenJones3D d8fdedc): sounds playing at once; 32 dropped new sounds in busy scenes
+#else
 #define SITHSOUND_MAXCHANNELS 32
+#endif
 
 int J3DAPI sithSound_Initialize(tHostServices* pHS);
 void J3DAPI sithSound_Uninitialize(void);

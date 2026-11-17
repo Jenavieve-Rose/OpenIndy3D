@@ -623,7 +623,11 @@ void J3DAPI sithCogExec_PushStack(SithCog* pCog, SithCogSymbolValue* pValue)
 #line 965
     SITH_ASSERTREL(pValue != NULL);
 
+#ifdef J3D_FIXES
+    if ( pCog->stackSize >= SITHCOGEXEC_STACKSIZE ) // Fix (OpenJones3D e9d4167): was ==; the stack never exceeds its size
+#else
     if ( pCog->stackSize == SITHCOGEXEC_STACKSIZE )
+#endif
     {
 #line 969
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Stack overflow in script %s.  Bottom element discarded.\n", pCog->pScript->aName, 0, 0, 0);
@@ -704,7 +708,11 @@ void J3DAPI sithCogExec_PushCallstack(SithCog* pCog)
 #line 1160
     SITH_ASSERTREL(pCog);
 
+#ifdef J3D_FIXES
+    if ( pCog->callDepth >= SITHCOGEXEC_CALLSTACKSIZE ) // Fix (OpenJones3D e9d4167): was ==
+#else
     if ( pCog->callDepth == SITHCOGEXEC_CALLSTACKSIZE )
+#endif
     {
 #line 1164
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Cog %s: tried to exceed max execution depth.\n", pCog->aName, 0, 0, 0);

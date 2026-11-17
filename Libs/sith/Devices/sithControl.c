@@ -265,7 +265,11 @@ void J3DAPI sithControl_UnbindFunction(SithControlFunction fctnID)
 {
 #line 458
     SITH_ASSERTREL(STD_INRANGE(fctnID, 0, SITHCONTROL_MAXFUNCTIONS-1));
+#ifdef J3D_FIXES
+    memset(aControlBindings[fctnID].aBindings, 0, sizeof(aControlBindings[fctnID].aBindings)); // Fix (OpenJones3D, v0.3): the whole array
+#else
     memset(aControlBindings[fctnID].aBindings, 0, STDCONTROL_MAXBINDINGS); // Retail bug: clears only 8 bytes, not the whole array
+#endif
     aControlBindings[fctnID].numBindings = 0;
 }
 
@@ -309,7 +313,11 @@ found:
 
 void J3DAPI sithControl_RegisterControlCallback(SithControlCallback pfCallback)
 {
+#ifdef J3D_FIXES
+    if ( numControlCallbacks >= (int)STD_ARRAYLEN(apControlCallbacks) ) // Fix (OpenJones3D, v0.3): was >, one past the table
+#else
     if ( numControlCallbacks > (int)STD_ARRAYLEN(apControlCallbacks) ) // Retail bug: off-by-one bound check
+#endif
     {
 #line 558
         stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, "Tried to register too many control callbacks.\n", 0, 0, 0, 0);
