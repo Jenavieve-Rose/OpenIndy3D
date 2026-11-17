@@ -846,14 +846,18 @@ void J3DAPI SoundDriver_SetListenerPosition(const rdVector3* pPos, const rdVecto
         SoundDriver_curListenerPos.z = pPos->z;
     }
 
-    // The 3D listener (applied at ListenerCommitDeferred, as DirectSound's deferred settings were). Sound_Update negates
-    // the front and top vectors unless "Reverse sound" is set; negating both keeps DirectSound's right vector but turns
-    // the listener round, so the port undoes it and places the listener as the camera is (decision 19).
+    // The 3D listener (applied at ListenerCommitDeferred, as DirectSound's deferred settings were). sithSoundMixer_Update
+    // passes the camera's up vector and its NEGATED look vector, and Sound_Update then negates both unless "Reverse sound"
+    // is set. So the driver gets (front, top) = (lvec, -uvec) normally and (-lvec, uvec) reversed: retail's DirectSound
+    // listener faced the camera's way with top flipped, which in its left-handed frame put the camera's right on the
+    // right ear. The port's frame is right-handed, so it places the listener exactly as the camera is, (lvec, uvec), in
+    // both cases; "Reverse sound" is the device's mirror instead (decision 19).
     if ( pFrontOrient && pTopOrient )
     {
-        float sign = SoundDriver_bReverse ? 1.0f : -1.0f;
-        rdVector_Set3(&SoundDriver_listenerFront, sign * pFrontOrient->x, sign * pFrontOrient->y, sign * pFrontOrient->z);
-        rdVector_Set3(&SoundDriver_listenerUp, sign * pTopOrient->x, sign * pTopOrient->y, sign * pTopOrient->z);
+        float frontSign = SoundDriver_bReverse ? -1.0f : 1.0f;
+        float upSign    = -frontSign;
+        rdVector_Set3(&SoundDriver_listenerFront, frontSign * pFrontOrient->x, frontSign * pFrontOrient->y, frontSign * pFrontOrient->z);
+        rdVector_Set3(&SoundDriver_listenerUp, upSign * pTopOrient->x, upSign * pTopOrient->y, upSign * pTopOrient->z);
     }
 
     SoundDriver_bListenerVelGiven = pVelocity != NULL;

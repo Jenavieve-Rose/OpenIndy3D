@@ -423,8 +423,9 @@ static void sound_MeasureSlot(int slot, double* pStep, double* pGain, double kno
 static void sound_Test3D(void)
 {
     const rdVector3 origin = { 0.0f, 0.0f, 0.0f };
-    // Sound_Update passes the camera's front and top negated (Reverse sound off): the camera looks along +y, z up.
-    const rdVector3 front = { 0.0f, -1.0f, 0.0f };
+    // The camera looks along +y, z up. sithSoundMixer_Update passes -lvec as the front, and Sound_Update (Reverse sound
+    // off) negates front and top, so the driver gets the look vector and the negated up vector.
+    const rdVector3 front = { 0.0f, 1.0f, 0.0f };
     const rdVector3 top = { 0.0f, 0.0f, -1.0f };
     const double plainStep = (double)SOUND_RATE / 48000.0;
     tSoundChannelFlag flags;

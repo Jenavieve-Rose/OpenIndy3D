@@ -192,7 +192,7 @@ Decisions made while doing phases 0 and 1:
     sound is placed by the game's own camera-relative mix. With it on, mono positioned sounds are 3D voices, as
     DirectSound 3D buffers were: the driver applies DirectSound 3D's distance model and doppler (from each sound's
     velocity and the camera's, which the port derives since the game passes none) and AVAudioEnvironmentNode places
-    them around the camera with HRTF, oriented so left and right are the camera's (retail's listener was not). The
+    them around the camera with HRTF, oriented as the camera is (retail's listener had its top flipped to suit DirectSound's left-handed frame). The
     driver reports 3D hardware in every build. Everything the sound module can observe of a voice is computed from the
     engine clock, never from the device, so headless, recorded and replayed runs keep byte-identical saves and the
     null build runs the same driver silently (docs/PORTING.md, "The sound driver" and "3D sound").

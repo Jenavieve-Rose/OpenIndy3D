@@ -1110,8 +1110,9 @@ game for a channel's volume and pan (`sithSoundMixer_CalcCameraRelativeSoundMix`
 port's driver is the second path: `SoundDriver_Has3DHW` and `SoundDriver_Use3DCaps` are 0, so the options dialog greys
 its 3D check box as on a retail machine without 3D hardware, and every sound is placed by the game's own mix. Reasons:
 that mix is complete and is what the game's designers tuned; there is no 3D sound hardware on a Mac to emulate; and
-the 3D path's listener is set up oddly in retail (`Sound_Update` negates both the front and the top vector, which
-leaves DirectSound's right vector, top × front, unchanged; with the game's axes that vector is -x, the camera's left).
+the 3D path's listener is set up oddly in retail (`sithSoundMixer_Update` passes the negated look vector and
+`Sound_Update` negates both front and top again, so DirectSound got the look vector with top flipped: right for its
+left-handed frame, but not a plain copy of the camera).
 Not emulating it is decision 19 in PORT-PLAN.md. The listener, 3D buffer and global functions keep their values
 and do nothing else; `Update3DSound` is retail's software half.
 
@@ -1280,7 +1281,7 @@ Two deliberate differences from retail's 3D path, marked `// Port:`:
 
 | Where | What retail did | Now |
 | --- | --- | --- |
-| The listener | `Sound_Update` negates the camera's front and top vectors unless "Reverse sound" is set. Negating both leaves DirectSound's right vector (top × front) as it was, which with the game's axes is the camera's left; and the listener faces backward. | The driver undoes the negation (`SoundDriver_SetReverseSound`, a new call from `Sound_SetReverseSound`, tells it which) and the device maps the game's axes to AVAudioEngine's by a rotation, so the camera's right is the right ear and its front is the front. "Reverse sound" mirrors the scene left to right, its evident purpose. |
+| The listener | `sithSoundMixer_Update` passes the camera's up vector and its negated look vector, and `Sound_Update` negates both unless "Reverse sound" is set. So DirectSound got (front, top) = (look, -up): facing the camera's way, with top flipped, which in DirectSound's left-handed frame puts the camera's right on the right ear (top × front = look × up = +x). | The driver turns what it gets back into (look, up) in both cases (`SoundDriver_SetReverseSound`, a new call from `Sound_SetReverseSound`, tells it which) and the device maps the game's axes to AVAudioEngine's right-handed ones by a rotation, so the camera's right is the right ear and its front is the front. "Reverse sound" mirrors the scene left to right, its evident purpose. (An earlier version missed `sithSoundMixer_Update`'s negation and placed the listener facing backward.) |
 | `CreateAndPlay` | With 3D sound, required every buffer to be in hardware and set `SOUND_CHANNEL_HWMIXING` on all, which stops `Update3DSound` setting their volume: a stereo positioned sound, which hardware could not place, played at full volume at any distance until the far check stopped it | Only a 3D voice is marked; a stereo positioned sound gets the game's mix, as without 3D sound. |
 
 **Rendering choice.** Measured with `tests/audio3d.c` on the development Mac: Apple's automatic rendering with the
