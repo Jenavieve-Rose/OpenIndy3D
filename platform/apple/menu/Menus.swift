@@ -15,6 +15,21 @@ private struct ChoiceMenu: View {
     let column: Bool
     let disabledMask: UInt32
     let answer: (Int) -> Void
+    /// The button Return presses: the default one at first, moved with the arrow keys or a controller's pad
+    @State private var highlighted: Int?
+
+    private var current: Int { highlighted ?? defaultIndex }
+
+    private func isEnabled(_ index: Int) -> Bool { disabledMask & (1 << UInt32(index)) == 0 }
+
+    private func move(_ step: Int) {
+        guard !buttons.isEmpty else { return }
+        var index = current
+        for _ in buttons.indices {
+            index = (index + step + buttons.count) % buttons.count
+            if isEnabled(index) { highlighted = index; return }
+        }
+    }
 
     var body: some View {
         MenuCard(title: title, width: column ? 380 : 440) {
@@ -38,15 +53,19 @@ private struct ChoiceMenu: View {
             }
             .padding(20)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .menuMove)) { note in
+            guard let move = note.userInfo?["move"] as? MenuMove else { return }
+            move == .up || move == .left ? self.move(-1) : self.move(1)
+        }
     }
 
     @ViewBuilder
     private var buttonViews: some View {
         ForEach(Array(buttons.enumerated()), id: \.offset) { index, label in
             let button = Button(label) { answer(index) }
-                .buttonStyle(MenuButtonStyle(prominent: index == defaultIndex, large: column))
-                .disabled(disabledMask & (1 << UInt32(index)) != 0)
-            if index == defaultIndex {
+                .buttonStyle(MenuButtonStyle(prominent: index == current, large: column))
+                .disabled(!isEnabled(index))
+            if index == current {
                 // Escape answers with the cancel button even when that is also the default one
                 button.keyboardShortcut(.defaultAction)
             } else if index == cancelIndex {
@@ -55,7 +74,7 @@ private struct ChoiceMenu: View {
                 button
             }
         }
-        if cancelIndex == defaultIndex && cancelIndex >= 0 {
+        if cancelIndex == current && cancelIndex >= 0 {
             Button("") { answer(cancelIndex) }
                 .keyboardShortcut(.cancelAction)
                 .opacity(0)

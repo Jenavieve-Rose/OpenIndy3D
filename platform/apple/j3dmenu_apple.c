@@ -77,8 +77,92 @@ int J3DMenu_IsAvailable(void)
     return menu_GameNSWindow(&pWindow) != NULL;
 }
 
+// The controller in the menus (PORT-PLAN.md P6.41): the south button (A on an Xbox pad, cross on a PlayStation one)
+// accepts, the east button cancels, the pad and the left stick move. A move repeats while held, as a key does. The
+// gamepads are the ones the game opened (stdControl_sdl.c); their state is refreshed without pumping window events,
+// which the menu's modal session is taking.
+static int menu_padPrevCode = 0;
+static int menu_bPadPrime = 1; // the first reading of a menu only records what is held (the button that opened it)
+
+static int32_t menu_PadPoll(void)
+{
+    static Uint64 nextRepeat = 0;
+    const Uint64 now = SDL_GetTicks();
+    SDL_JoystickID* aIds;
+    int numPads = 0;
+    int code = 0;
+    int i;
+
+    SDL_UpdateGamepads();
+    aIds = SDL_GetGamepads(&numPads);
+    for ( i = 0; aIds && i < numPads && !code; ++i )
+    {
+        SDL_Gamepad* pPad = SDL_GetGamepadFromID(aIds[i]);
+        Sint16 x;
+        Sint16 y;
+        if ( !pPad )
+        {
+            continue;
+        }
+        x = SDL_GetGamepadAxis(pPad, SDL_GAMEPAD_AXIS_LEFTX);
+        y = SDL_GetGamepadAxis(pPad, SDL_GAMEPAD_AXIS_LEFTY);
+        if ( SDL_GetGamepadButton(pPad, SDL_GAMEPAD_BUTTON_SOUTH) )
+        {
+            code = 5;
+        }
+        else if ( SDL_GetGamepadButton(pPad, SDL_GAMEPAD_BUTTON_EAST) )
+        {
+            code = 6;
+        }
+        else if ( SDL_GetGamepadButton(pPad, SDL_GAMEPAD_BUTTON_DPAD_UP) || y < -16000 )
+        {
+            code = 1;
+        }
+        else if ( SDL_GetGamepadButton(pPad, SDL_GAMEPAD_BUTTON_DPAD_DOWN) || y > 16000 )
+        {
+            code = 2;
+        }
+        else if ( SDL_GetGamepadButton(pPad, SDL_GAMEPAD_BUTTON_DPAD_LEFT) || x < -16000 )
+        {
+            code = 3;
+        }
+        else if ( SDL_GetGamepadButton(pPad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT) || x > 16000 )
+        {
+            code = 4;
+        }
+    }
+    SDL_free(aIds);
+
+    if ( menu_bPadPrime )
+    {
+        menu_bPadPrime = 0;
+        menu_padPrevCode = code;
+        nextRepeat = now + 400;
+        return 0;
+    }
+    if ( code != menu_padPrevCode )
+    {
+        menu_padPrevCode = code;
+        nextRepeat = now + 400;
+        return code;
+    }
+    if ( code >= 1 && code <= 4 && now >= nextRepeat )
+    {
+        nextRepeat = now + 120;
+        return code;
+    }
+    return 0; // held accept and cancel do not repeat: one press answers one menu
+}
+
 static int menu_Begin(MenuSession* pSession)
 {
+    static int bPadPollSet = 0;
+    if ( !bPadPollSet )
+    {
+        J3DMenuUI_SetPadPoll(menu_PadPoll);
+        bPadPollSet = 1;
+    }
+    menu_bPadPrime = 1;
     SDL_Window* pWindow = NULL;
     pSession->pNSWindow = menu_GameNSWindow(&pWindow);
     if ( !pSession->pNSWindow )
@@ -1007,6 +1091,8 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
     }
     (void)pWindow;
 
+    J3DMenuUI_SetPadPoll(menu_PadPoll);
+    menu_bPadPrime = 1;
     pPicture = menu_LoadLaunchPicture(&pictureSize);
     memset(&ui, 0, sizeof(ui));
     ui.pTitle = "Indiana Jones and the Infernal Machine";

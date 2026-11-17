@@ -1544,6 +1544,20 @@ of each (string-table text, checks, what OK applies) is in `platform/apple/j3dme
   returned; `J3D_MENU_AUTOCANCEL=<seconds>` closes each unanswered; `J3D_MENU_SHOT=<prefix>` writes each as a PNG
   first. The game's frame is not in the PNG (Metal drew it).
 
+### Keyboard, controller and size (P6.36, P6.40, P6.41)
+
+- **Controller.** While a menu or the launcher is up, `menu_PadPoll` (`j3dmenu_apple.c`) reads SDL's gamepads about
+  thirty times a second (`SDL_UpdateGamepads`, which takes no window events from the modal session) and the menu host
+  turns what it finds into key events: south button Return, east button Escape, pad and left stick the arrows, with
+  a key's repeat for held moves. Every menu thereby answers a controller exactly as it answers the keyboard. The first
+  reading of each menu only records what is held, so the button that opened it does not answer it. The buttons are
+  SDL's positions, not the game's key set: a key set binds actions, and menus have none.
+- **Arrows** move the highlighted button of the launcher and of every choice menu (messages, questions, exit, game
+  over); Return presses the highlighted one, so a controller can reach every button.
+- **Size.** Menus are laid out for 960 by 720 points and scaled with the game window up to 2, but never below 13/15
+  (15-point body text at 13 points). Over a smaller window the menu's own window is larger than the game's, centred
+  on it and kept on the screen.
+
 ### The controls (P6.20, P6.21)
 
 - **The state.** Retail kept the control options' and the edit dialog's state in their list boxes and list views

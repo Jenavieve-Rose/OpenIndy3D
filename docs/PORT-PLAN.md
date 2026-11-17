@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 34 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 37 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **131 of 162** | |
+| **All** | | **134 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -805,8 +805,11 @@ The launcher writes the same settings the Steam launcher wrote to the registry, 
       Until this lands, sets are edited in the game's own dialog (P6.20, P6.21). Open: sets are created and edited in the game's own menus (P6.20, P6.21), as this step allowed.
 - [x] **P6.35** (S) Help: open the manual PDF from the player's data folder when it is there (the Steam release
       ships one), otherwise the port's README. Done 2026-11-16 for the launcher: `manual.pdf` in the data folder (Steam and GOG ship it), greyed without one.
-- [ ] **P6.36** (S) Keyboard and accessibility: Return and Escape, Tab through every control, arrow keys on the
-      sliders and choices, VoiceOver names for the custom-drawn switch, slider and choice bar.
+- [x] **P6.36** (S) Keyboard and accessibility: Return and Escape, Tab through every control, arrow keys on the
+      sliders and choices, VoiceOver names for the custom-drawn switch, slider and choice bar. Done 2026-11-16: Return and Escape answer every window and menu; the arrow keys move the highlighted
+      button in the launcher and every choice menu; the custom switch, slider and choice bar carry the standard
+      controls as their accessibility representation (VoiceOver names and adjustments); Tab moves through the
+      controls with macOS's keyboard navigation on.
 - [x] **P6.37** (S) Tests: settings written by the launcher's bridge are read back by the `boot` test; the
       launcher's `--snapshot` renders of each screen are kept as layout references, at 1× and 2×. Done 2026-11-16: `launcher` (tests/launcher.sh) starts a new game and resumes it through the launcher's
       choices and checks the settings file and the restore; Options opens and closes. Snapshots: `J3D_MENU_SHOT`.
@@ -824,12 +827,17 @@ Replanned by decision 21: the restyle of `j3dgui`'s drawing this part first held
 - [x] **P6.39** (S) One palette: the launcher and the menus build from the same Swift style files, so the two cannot
       drift. Done 2026-11-16: the launcher, Options and the in-game menus are built from the same `MenuStyle.swift` and
       `MenuControls.swift`, in one Swift library.
-- [ ] **P6.40** (S) The original art in the menus: the IQ picture with the game's own figures (done for statistics
+- [x] **P6.40** (S) The original art in the menus: the IQ picture with the game's own figures (done for statistics
       and level completed, on a parchment panel because the figures are black); decide for the dialog icons
       (`Indy3D.rc` names 43, P6.10). Read every menu at the smallest window the game allows and at 2×; no text
-      clipped, no body text below 13 points at 1×.
-- [ ] **P6.41** (M) Controller navigation in the menus: move focus with the stick or pad, accept and cancel on the
-      buttons the game's key set uses for them. Left out of P6.6.
+      clipped, no body text below 13 points at 1×. Done 2026-11-16: the game's art is used where it carries content (the launch picture, the IQ picture with the
+      game's figures, the store's item icons, drawn without smoothing); the 43 dialog icons were decoration beside
+      the Win32 dialogs' text and are not drawn in the menus. Menus never scale below 13/15, so body text stays at
+      13 points or more: over a window smaller than that needs (the smallest is 640 by 480) the menu reaches past it.
+- [x] **P6.41** (M) Controller navigation in the menus: move focus with the stick or pad, accept and cancel on the
+      buttons the game's key set uses for them. Left out of P6.6. Done 2026-11-16: the controller's south button (A, cross) is Return, the east button (B, circle) Escape,
+      the pad and left stick the arrow keys, in every menu and in the launcher; a move repeats while held, and the
+      button that opened a menu is not taken as its answer. Read from SDL's gamepads, not the key set.
 
 #### 6D. In-game dialogs, in order of how early the game needs them
 

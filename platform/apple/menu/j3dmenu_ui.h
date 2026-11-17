@@ -208,6 +208,10 @@ int32_t J3DMenuUI_AskName(void* pGameWindow, const char* pTitle, const char* pPr
 int32_t J3DMenuUI_Capture(void* pGameWindow, const char* pTitle, const char* pPrompt, const char* pAction,
                           const char* pCancelLabel, int32_t (*pfInput)(int32_t hidUsage));
 
+// How the menus read the controller: pfPoll returns 1 to 4 for a move (up, down, left, right), 5 for accept, 6 for
+// cancel, 0 for nothing new. Set once; the menus call it about thirty times a second while they are up.
+void J3DMenuUI_SetPadPoll(int32_t (*pfPoll)(void));
+
 // The store, until pfAction returns nonzero.
 void J3DMenuUI_Store(void* pGameWindow, const J3DMenuStoreUI* pUI, J3DMenuStoreAction pfAction);
 

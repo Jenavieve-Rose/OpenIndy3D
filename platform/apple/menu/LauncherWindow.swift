@@ -65,8 +65,12 @@ private func runWindow<Content: View>(title: String, parent: NSWindow?, closeVal
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
     let unattended = menuUnattendedTimer(for: window)
+    let pad = menuPadTimer(for: window)
+    let arrows = menuArrowMonitor(for: window)
     NSApp.runModal(for: window)
     unattended?.invalidate()
+    pad.invalidate()
+    NSEvent.removeMonitor(arrows)
     window.delegate = nil
     window.orderOut(nil)
     return answer.value
@@ -202,6 +206,21 @@ private struct LauncherView: View {
     let answer: (Int) -> Void
 
     private static let symbols = ["play.fill", "arrow.uturn.forward", "questionmark.circle", "slider.horizontal.3", "xmark"]
+    /// The button Return presses: Resume Play when there is a save to resume, else Start New Game (the original's
+    /// default), moved with the arrow keys or a controller's pad
+    @State private var highlighted: Int?
+
+    private var current: Int { highlighted ?? (resumeDetail != nil ? 1 : 0) }
+
+    private func isEnabled(_ index: Int) -> Bool { !(index == 1 && resumeDetail == nil) && !(index == 2 && !hasHelp) }
+
+    private func move(_ step: Int) {
+        var index = current
+        for _ in 0..<5 {
+            index = (index + step + 5) % 5
+            if isEnabled(index) { highlighted = index; return }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -228,12 +247,15 @@ private struct LauncherView: View {
         }
         .frame(width: 480)
         .background(Palette.background)
+        .onReceive(NotificationCenter.default.publisher(for: .menuMove)) { note in
+            guard let move = note.userInfo?["move"] as? MenuMove else { return }
+            move == .up || move == .left ? self.move(-1) : self.move(1)
+        }
     }
 
     @ViewBuilder
     private func button(_ index: Int) -> some View {
-        // Resume Play is the default when there is a save to resume, else Start New Game (the original's order)
-        let primary = resumeDetail != nil ? 1 : 0
+        let primary = current
         let base = Button {
             switch index {
             case 0: answer(Int(J3DMENU_LAUNCH_NEWGAME))
@@ -258,7 +280,7 @@ private struct LauncherView: View {
             }
         }
         .buttonStyle(MenuButtonStyle(prominent: index == primary, large: true))
-        .disabled((index == 1 && resumeDetail == nil) || (index == 2 && !hasHelp))
+        .disabled(!isEnabled(index))
         if index == primary {
             base.keyboardShortcut(.defaultAction)
         } else if index == 4 {
