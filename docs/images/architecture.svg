@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="1000" height="620" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d140c"/>
+      <stop offset="1" stop-color="#0f0b07"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f7c948"/>
+      <stop offset="1" stop-color="#e8762b"/>
+    </linearGradient>
+    <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#2a1f15"/>
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#3a2c1e" stroke-width="3"/>
+    </pattern>
+  </defs>
+
+  <rect width="1000" height="620" rx="18" fill="url(#bg)"/>
+  <text x="40" y="52" font-size="24" font-weight="700" fill="url(#gold)">How OpenIndy3D is put together</text>
+  <text x="40" y="78" font-size="14" fill="#b8a48a">The 1999 engine runs unchanged in spirit; everything that touched Windows is replaced underneath it.</text>
+
+  <!-- Game data -->
+  <rect x="40" y="100" width="920" height="56" rx="10" fill="url(#hatch)" stroke="#6b5640" stroke-dasharray="6 5"/>
+  <text x="60" y="124" font-size="15" font-weight="700" fill="#f1e4cf">Your retail copy (version 1.2)</text>
+  <text x="60" y="144" font-size="13" fill="#b8a48a">JONES3D.GOB · CD1.GOB · CD2.GOB · the 1.2 Cog scripts — levels, models, textures, sound, music, movies. Never shipped, never written to.</text>
+
+  <!-- Game shell -->
+  <rect x="40" y="172" width="920" height="60" rx="10" fill="#3b2a18" stroke="#c98a3a"/>
+  <text x="60" y="198" font-size="15" font-weight="700" fill="#f7d58a">Jones3D — the game</text>
+  <text x="60" y="219" font-size="13" fill="#d9c4a3">main loop, HUD, inventory, cutscenes, the game's own dialogs' logic</text>
+  <text x="940" y="207" font-size="12" fill="#c98a3a" text-anchor="end">decompiled C · 25k lines</text>
+
+  <!-- Engine -->
+  <g font-size="13">
+    <rect x="40" y="248" width="920" height="118" rx="10" fill="#33240f" stroke="#c98a3a"/>
+    <text x="60" y="272" font-size="15" font-weight="700" fill="#f7d58a">The Sith engine, from infernal-machine-decomp</text>
+    <text x="940" y="272" font-size="12" fill="#c98a3a" text-anchor="end">decompiled C · 165k lines</text>
+    <g>
+      <rect x="60" y="286" width="250" height="64" rx="8" fill="#4a3216"/>
+      <text x="76" y="310" font-weight="700" fill="#f1e4cf">sith</text>
+      <text x="76" y="330" fill="#d9c4a3">world, physics, AI, Cog VM</text>
+      <rect x="322" y="286" width="150" height="64" rx="8" fill="#4a3216"/>
+      <text x="338" y="310" font-weight="700" fill="#f1e4cf">rdroid</text>
+      <text x="338" y="330" fill="#d9c4a3">3D front end</text>
+      <rect x="484" y="286" width="130" height="64" rx="8" fill="#4a3216"/>
+      <text x="500" y="310" font-weight="700" fill="#f1e4cf">std</text>
+      <text x="500" y="330" fill="#d9c4a3">files, memory</text>
+      <rect x="626" y="286" width="130" height="64" rx="8" fill="#4a3216"/>
+      <text x="642" y="310" font-weight="700" fill="#f1e4cf">sound</text>
+      <text x="642" y="330" fill="#d9c4a3">voices, music</text>
+      <rect x="768" y="286" width="172" height="64" rx="8" fill="#4a3216"/>
+      <text x="784" y="310" font-weight="700" fill="#f1e4cf">smush / INSANE</text>
+      <text x="784" y="330" fill="#d9c4a3">Blocky16 movies</text>
+    </g>
+  </g>
+
+  <!-- Seam -->
+  <line x1="40" y1="392" x2="960" y2="392" stroke="#e8a03a" stroke-width="2" stroke-dasharray="10 6"/>
+  <rect x="330" y="378" width="340" height="28" rx="14" fill="#0f0b07" stroke="url(#gold)"/>
+  <text x="500" y="397" font-size="13" font-weight="700" fill="#f7c948" text-anchor="middle">the platform seam — Win32 &amp; DirectX end here</text>
+
+  <!-- Platform -->
+  <rect x="40" y="420" width="450" height="112" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+  <text x="60" y="446" font-size="15" font-weight="700" fill="#9fe3ec">platform/common</text>
+  <text x="470" y="446" font-size="12" fill="#3fa7b5" text-anchor="end">portable C · 19k lines</text>
+  <text x="60" y="470" font-size="13" fill="#cfe9ec">settings.ini in place of the registry · virtual clock</text>
+  <text x="60" y="490" font-size="13" fill="#cfe9ec">sound mixer · INSANE timer and audio sink</text>
+  <text x="60" y="510" font-size="13" fill="#cfe9ec">Win32 dialog emulation · data locator · crash log</text>
+
+  <rect x="510" y="420" width="450" height="112" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+  <text x="530" y="446" font-size="15" font-weight="700" fill="#9fe3ec">platform/apple</text>
+  <text x="940" y="446" font-size="12" fill="#3fa7b5" text-anchor="end">C · Objective-C · Swift · 13k lines</text>
+  <text x="530" y="470" font-size="13" fill="#cfe9ec">Metal rasterizer and presenter · SDL3 window and input</text>
+  <text x="530" y="490" font-size="13" fill="#cfe9ec">AVAudioEngine output, HRTF 3D sound, head tracking</text>
+  <text x="530" y="510" font-size="13" fill="#cfe9ec">SwiftUI launcher, options and in-game menus</text>
+
+  <!-- macOS -->
+  <rect x="40" y="548" width="920" height="48" rx="10" fill="#1b1b1f" stroke="#55555c"/>
+  <text x="60" y="577" font-size="15" font-weight="700" fill="#e8e8ec">macOS 13+ on Apple silicon</text>
+  <text x="940" y="577" font-size="13" fill="#a1a1aa" text-anchor="end">Metal · AVFoundation · SwiftUI · AppKit · SDL3 (static)</text>
+</svg>

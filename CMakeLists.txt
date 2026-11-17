@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 # Port of the Jones3D engine (infernal-machine-decomp, upstream commit 319a6fc2) to arm64 macOS.
 # See docs/PORT-PLAN.md for the phases and docs/PORTING.md for every deviation from the decomp.
-project(OpenIndy3D VERSION 0.8.0 LANGUAGES C)
+project(OpenIndy3D VERSION 1.0.0 LANGUAGES C)
 
 # Which platform backends the game binary uses (PORT-PLAN.md P2.1):
 #   apple  SDL3 window and input, Metal renderer; Objective-C, SDL3 and the Apple frameworks are required.
@@ -325,12 +325,9 @@ set_target_properties(jones3d PROPERTIES
 # In an apple build the game is the app (PORT-PLAN.md P8.2): <build>/OpenIndy3D.app, with jones3d beside it as a link
 # to its executable, for the tools and for runs from a terminal. The null build's jones3d stays a plain program.
 if(J3D_PLATFORM STREQUAL "apple")
-    # The icon is made from a square picture the builder supplies (tools/make_icns.sh); the repository holds none.
-    # The default is the picture in the folder beside the repository, if there is one.
-    set(J3D_ICON_DEFAULT "${J3D_ROOT}/../ICNS Art/indiana_jones_and_the_infernal_machine-square.jpg")
-    if(NOT EXISTS "${J3D_ICON_DEFAULT}")
-        set(J3D_ICON_DEFAULT "")
-    endif()
+    # The icon is made from a square picture (tools/make_icns.sh). The default is the box art kept in the repository,
+    # platform/apple/bundle/; J3D_ICON_SOURCE names another picture, or is empty for no icon.
+    set(J3D_ICON_DEFAULT "${J3D_ROOT}/platform/apple/bundle/indiana_jones_and_the_infernal_machine-square.jpg")
     set(J3D_ICON_SOURCE "${J3D_ICON_DEFAULT}" CACHE FILEPATH "Square picture (1024 by 1024 or more) the app icon is made from; empty for none")
     if(J3D_ICON_SOURCE)
         set(J3D_ICNS ${CMAKE_CURRENT_BINARY_DIR}/${J3D_PRODUCT_NAME}.icns)

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" width="1000" height="470" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d140c"/>
+      <stop offset="1" stop-color="#101418"/>
+    </linearGradient>
+    <linearGradient id="arrow" gradientUnits="userSpaceOnUse" x1="380" y1="0" x2="610" y2="0">
+      <stop offset="0" stop-color="#e8762b"/>
+      <stop offset="1" stop-color="#3fa7b5"/>
+    </linearGradient>
+    <marker id="head" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fa7b5"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="470" rx="18" fill="url(#bg2)"/>
+  <text x="60" y="56" font-size="13" font-weight="700" letter-spacing="2" fill="#e8762b">WINDOWS, 1999</text>
+  <text x="940" y="56" font-size="13" font-weight="700" letter-spacing="2" fill="#3fa7b5" text-anchor="end">MACOS, TODAY</text>
+
+  <g font-size="15">
+    <!-- row template: y = 80 + i*62 -->
+    <g transform="translate(0,80)">
+      <rect x="40" width="330" height="46" rx="10" fill="#3b2a18" stroke="#c98a3a"/>
+      <text x="60" y="29" fill="#f7d58a" font-weight="700">Direct3D 6 rasterizer</text>
+      <line x1="380" y1="23" x2="610" y2="23" stroke="url(#arrow)" stroke-width="3" marker-end="url(#head)"/>
+      <rect x="630" width="330" height="46" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+      <text x="650" y="29" fill="#9fe3ec" font-weight="700">Metal renderer</text>
+    </g>
+    <g transform="translate(0,142)">
+      <rect x="40" width="330" height="46" rx="10" fill="#3b2a18" stroke="#c98a3a"/>
+      <text x="60" y="29" fill="#f7d58a" font-weight="700">DirectDraw surfaces</text>
+      <line x1="380" y1="23" x2="610" y2="23" stroke="url(#arrow)" stroke-width="3" marker-end="url(#head)"/>
+      <rect x="630" width="330" height="46" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+      <text x="650" y="29" fill="#9fe3ec" font-weight="700">Back buffer presented by Metal</text>
+    </g>
+    <g transform="translate(0,204)">
+      <rect x="40" width="330" height="46" rx="10" fill="#3b2a18" stroke="#c98a3a"/>
+      <text x="60" y="29" fill="#f7d58a" font-weight="700">DirectInput</text>
+      <line x1="380" y1="23" x2="610" y2="23" stroke="url(#arrow)" stroke-width="3" marker-end="url(#head)"/>
+      <rect x="630" width="330" height="46" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+      <text x="650" y="29" fill="#9fe3ec" font-weight="700">SDL3 keyboard, mouse, gamepads</text>
+    </g>
+    <g transform="translate(0,266)">
+      <rect x="40" width="330" height="46" rx="10" fill="#3b2a18" stroke="#c98a3a"/>
+      <text x="60" y="29" fill="#f7d58a" font-weight="700">DirectSound 3D</text>
+      <line x1="380" y1="23" x2="610" y2="23" stroke="url(#arrow)" stroke-width="3" marker-end="url(#head)"/>
+      <rect x="630" width="330" height="46" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+      <text x="650" y="29" fill="#9fe3ec" font-weight="700">AVAudioEngine, HRTF, doppler</text>
+    </g>
+    <g transform="translate(0,328)">
+      <rect x="40" width="330" height="46" rx="10" fill="#3b2a18" stroke="#c98a3a"/>
+      <text x="60" y="29" fill="#f7d58a" font-weight="700">Win32 dialogs &amp; launcher</text>
+      <line x1="380" y1="23" x2="610" y2="23" stroke="url(#arrow)" stroke-width="3" marker-end="url(#head)"/>
+      <rect x="630" width="330" height="46" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+      <text x="650" y="29" fill="#9fe3ec" font-weight="700">SwiftUI launcher and menus</text>
+    </g>
+    <g transform="translate(0,390)">
+      <rect x="40" width="330" height="46" rx="10" fill="#3b2a18" stroke="#c98a3a"/>
+      <text x="60" y="29" fill="#f7d58a" font-weight="700">Registry, x86 asm, 32-bit ABI</text>
+      <line x1="380" y1="23" x2="610" y2="23" stroke="url(#arrow)" stroke-width="3" marker-end="url(#head)"/>
+      <rect x="630" width="330" height="46" rx="10" fill="#14262b" stroke="#3fa7b5"/>
+      <text x="650" y="29" fill="#9fe3ec" font-weight="700">settings.ini, C, arm64-clean layouts</text>
+    </g>
+  </g>
+</svg>
