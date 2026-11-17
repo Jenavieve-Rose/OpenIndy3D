@@ -1035,13 +1035,23 @@ has no developer tools.
       Done: SDL3 3.4.20 is built from its pinned release as a static library (`FetchContent`, hash-checked), for
       macOS 13; Homebrew's needs the macOS it was built on. The app links only system libraries.
       `J3D_SYSTEM_SDL3=ON` takes an installed SDL3 for development.
-- [ ] **P8.4** (M) First-run data locator: look in the Steam, GOG and DREAMM install locations, otherwise an open
+- [x] **P8.4** (M) First-run data locator: look in the Steam, GOG and DREAMM install locations, otherwise an open
       panel; store the result as `Data Root`. The launcher (6B) shows the result and asks when nothing is found.
-- [ ] **P8.5** (S) Validate the chosen folder: GOB names and sizes, and the `INDY3D.EXE` hash against
+      Done: `platform/common/host_data.c` searches Steam's libraries, DREAMM's `lec-infernal` editions, the usual Mac
+      folders and CrossOver and Whisky bottles, before the launcher; with nothing found an alert and an open panel ask
+      (`J3DApple_AskForData`), and holding Option at launch asks again. The launcher's status line names the folder
+      and version. Tested: the Steam copy is found here; `launcher`'s `nodata` case answers the question.
+- [x] **P8.5** (S) Validate the chosen folder: GOB names and sizes, and the `INDY3D.EXE` hash against
       `docs/VERSIONS.md`. Decide and state which data versions are supported (only 1.2 is tested so far).
-- [ ] **P8.6** (S) Command line: `--level`, `--windowed` (`--data` exists).
-- [ ] **P8.7** (S) Display preferences: window or fullscreen, vsync, frame limiter. Their controls are in the
-      launcher's Options (P6.31).
+      Done: the three GOBs are required in `Resource` (GOG's `CD1.GOB` is its own size); the demo is refused. Supported
+      and tested: English 1.2, as Steam, GOG, DREAMM and the LucasArts update have it. 1.0, 1.1, another language or
+      an unknown executable are accepted with a warning. `datacheck` test.
+- [x] **P8.6** (S) Command line: `--level`, `--windowed` (`--data` exists). Done: `--level <1-17>` starts a new
+      game there without the launcher; `--windowed`, `--fullscreen` and `--help`.
+- [x] **P8.7** (S) Display preferences: window or fullscreen, vsync, frame limiter. Their controls are in the
+      launcher's Options (P6.31). Done: `VSync` (default on) and `Frame Limit` (none, 30, 60 or 120), on the Display
+      tab. Measured: a 30 limit holds 33.33 ms frames. Vsync off matters only full screen; in a window macOS composites
+      at the display's rate (8.33 ms here with it off).
 - [ ] **P8.8** (M) Triage OpenJones3D's `CHANGELOG.md` (~80 entries) into crash fixes, raised limits and quality of
       life, each with its upstream commit.
 - [ ] **P8.9** (L) Apply the series behind a build option that defaults on, in groups, each retested: crash and

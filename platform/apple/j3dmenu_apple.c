@@ -26,9 +26,11 @@
 #include <sith/Main/sithMain.h>
 #include <std/General/stdFnames.h>
 #include <std/Win95/stdWin95.h>
+#include <w32util/wuRegistry.h>
 
 #include <platform/common/host_keys.h>
 #include <platform/common/host_path.h>
+#include <platform/common/host_product.h>
 #include <platform/common/j3dgui/j3dgui.h>
 #include <platform/common/host_record.h>
 #include <platform/common/stdDisplay_common.h>
@@ -663,7 +665,7 @@ typedef struct MenuPage
     J3DMenuItem aItems[8];
     int numItems;
     char aaText[24][128];
-    const char* apNames[3][8];  // the name lists of choice items
+    const char* apNames[4][8];  // the name lists of choice items
     int numText;
 } MenuPage;
 
@@ -767,8 +769,13 @@ static void menu_ReadSound(const MenuPage* pPage, J3DMenuSound* pSettings)
     pSettings->b3DSound = pPage->aItems[1].value;
 }
 
+// The launcher's frame limits (P8.7), frames a second; 0 is none
+#define MENU_NUM_FRAME_LIMITS 4
+static const int menu_aFrameLimits[MENU_NUM_FRAME_LIMITS] = { 0, 30, 60, 120 };
+static const char* const menu_apFrameLimitNames[MENU_NUM_FRAME_LIMITS] = { "None", "30", "60", "120" };
+
 // Display (templates 114 and 148 as one page). Items: 0 resolution, 1 performance, 2 mip mapping, 3 fog, 4 fog density
-// (greyed while fog is off), and in the launcher 5 fullscreen or a window.
+// (greyed while fog is off), and in the launcher 5 fullscreen or a window, 6 vsync and 7 the frame limit.
 static int menu_displayDefaultResolution;
 
 static int32_t menu_DisplayChanged(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex)
@@ -784,6 +791,11 @@ static int32_t menu_DisplayChanged(J3DMenuItem* pItems, int32_t numItems, int32_
         if ( numItems > 5 )
         {
             pItems[5].value = 0; // fullscreen, retail's default
+        }
+        if ( numItems > 7 )
+        {
+            pItems[6].value = 1; // vsync
+            pItems[7].value = 0; // no frame limit
         }
     }
     pItems[4].bDisabled = !pItems[3].value;
@@ -840,7 +852,27 @@ static void menu_BuildDisplay(MenuPage* pPage, const J3DMenuDisplay* pSettings, 
         aItems[5].value = pSettings->bWindowMode != 0;
         aItems[5].apNames = pPage->apNames[2];
         aItems[5].numNames = 2;
-        pPage->numItems = 6;
+        // P8.7: vsync and the frame limiter, port settings read when the game opens its display
+        aItems[6].kind = J3DMENU_ITEM_TOGGLE;
+        aItems[6].pLabel = "Wait for the display (vsync)";
+        aItems[6].value = wuRegistry_GetInt("VSync", 1) != 0;
+        aItems[7].kind = J3DMENU_ITEM_CHOICE;
+        aItems[7].pLabel = "Frame limit";
+        aItems[7].value = 0;
+        for ( int i = 1; i < MENU_NUM_FRAME_LIMITS; i++ )
+        {
+            if ( menu_aFrameLimits[i] == wuRegistry_GetInt("Frame Limit", 0) )
+            {
+                aItems[7].value = i;
+            }
+        }
+        for ( int i = 0; i < MENU_NUM_FRAME_LIMITS; i++ )
+        {
+            pPage->apNames[3][i] = menu_apFrameLimitNames[i];
+        }
+        aItems[7].apNames = pPage->apNames[3];
+        aItems[7].numNames = MENU_NUM_FRAME_LIMITS;
+        pPage->numItems = 8;
     }
     menu_displayDefaultResolution = pSettings->defaultResolution;
 }
@@ -855,6 +887,12 @@ static void menu_ReadDisplay(const MenuPage* pPage, J3DMenuDisplay* pSettings)
     if ( pPage->numItems > 5 )
     {
         pSettings->bWindowMode = pPage->aItems[5].value;
+    }
+    if ( pPage->numItems > 7 )
+    {
+        // Port settings, not the game's display settings: written here, as Options writes on OK
+        wuRegistry_SaveInt("VSync", pPage->aItems[6].value != 0);
+        wuRegistry_SaveInt("Frame Limit", menu_aFrameLimits[pPage->aItems[7].value]);
     }
 }
 
@@ -1173,9 +1211,17 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
     ui.apLabels[3] = "Options";
     ui.apLabels[4] = "Quit";
     ui.pResumeDetail = pLaunch->pResumeDetail;
-    snprintf(aStatus, sizeof(aStatus), "Game data: %s", J3DHost_GetDataRoot());
+    // Where the game data is and which release it is (P8.4, P8.5); holding Option at launch chooses another folder
+    if ( J3DHost_GetDataVersion()[0] )
+    {
+        snprintf(aStatus, sizeof(aStatus), "Game data: %s, version %s", J3DHost_GetDataRoot(), J3DHost_GetDataVersion());
+    }
+    else
+    {
+        snprintf(aStatus, sizeof(aStatus), "Game data: %s", J3DHost_GetDataRoot());
+    }
     ui.pStatus = aStatus;
-    ui.pVersion = "Mac port";
+    ui.pVersion = J3D_PRODUCT_NAME " " J3D_PRODUCT_VERSION;
     ui.pfOptions = menu_LauncherOptions;
     ui.pHelpPath = menu_FindHelp(aHelp, sizeof(aHelp)) ? aHelp : NULL;
 

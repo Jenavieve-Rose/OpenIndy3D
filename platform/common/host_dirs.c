@@ -197,21 +197,27 @@ static void hostdirs_MigrateOldUserDir(void)
     }
 }
 
-void J3DHost_PrepareUserDirs(void)
+int J3DHost_PrepareUserDirs(J3DHostAskData pfAskData, int bChooseData)
 {
     hostdirs_MigrateOldUserDir();
     wuRegistry_Startup(NULL, NULL); // no-op once started; JonesMain_Startup's own call then finds it started
 
+    // The game data before anything that reads it (P8.4)
+    if ( J3DHost_EnsureData(pfAskData, bChooseData) )
+    {
+        return 1;
+    }
+
     char aInstallPath[1024];
     if ( wuRegistry_GetStr("Install Path", aInstallPath, sizeof(aInstallPath), NULL) || !aInstallPath[0] )
     {
-        return;
+        return 0;
     }
 
     if ( J3DHost_MakeDirs(aInstallPath) )
     {
         fprintf(stderr, J3D_PRODUCT_NAME ": could not create %s; saves will fail\n", aInstallPath);
-        return;
+        return 0;
     }
 
     // The retail keysets live in the install folder, which for the port is the data root ("User Path").
@@ -220,4 +226,5 @@ void J3DHost_PrepareUserDirs(void)
     {
         hostdirs_SeedKeysets(aDataRoot, aInstallPath);
     }
+    return 0;
 }

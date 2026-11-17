@@ -48,12 +48,14 @@
 #include <platform/common/stdDisplay_common.h>
 
 // A windowed run with no presenter (it failed to open) holds each frame to this period, so the game does not spin and
-// its scripts see frames of a plausible length (host_clock.h). With a presenter, vsync paces the frames.
+// its scripts see frames of a plausible length (host_clock.h). With a presenter, vsync paces the frames, or the frame
+// limiter ("Frame Limit", P8.7).
 #define STDDISPLAY_FRAME_NSEC (SDL_NS_PER_SECOND / 60)
 
 static int    stdDisplay_bStartup = 0;
 static int    stdDisplay_bKeepAspect = 1; // the "Pillarbox" setting (P2.20)
 static Uint64 stdDisplay_lastFrameNsec = 0;
+static Uint64 stdDisplay_frameLimitNsec = 0; // the "Frame Limit" setting as a frame period, 0 for none (P8.7)
 
 // The classic 4:3 sizes offered whether or not the display lists them, so the retail defaults (640x480) and the sizes
 // the retail settings dialog showed are always there. Only those that fit the desktop are added.
@@ -358,7 +360,14 @@ int J3DAPI stdDisplay_SetMode(size_t modeNum, int bFullscreen, size_t numBackBuf
     // The presenter, once per open display. Retail created its primary surface here; its failure failed the mode.
     if ( !J3DMetal_IsPresenterOpen() && stdDisplay_CanPresent() )
     {
-        if ( J3DMetal_OpenPresenter(stdDisplay_GetSDLWindow(), !J3DDisplay_IsHeadless()) )
+        // P8.7: "VSync" (default on) and "Frame Limit" (frames a second, 0 for none), the launcher's Options
+        stdDisplay_frameLimitNsec = 0;
+        const int frameLimit = wuRegistry_GetInt("Frame Limit", 0);
+        if ( frameLimit > 0 )
+        {
+            stdDisplay_frameLimitNsec = SDL_NS_PER_SECOND / (Uint64)(frameLimit < 10 ? 10 : frameLimit);
+        }
+        if ( J3DMetal_OpenPresenter(stdDisplay_GetSDLWindow(), !J3DDisplay_IsHeadless() && wuRegistry_GetInt("VSync", 1) != 0) )
         {
             stdPrintf(std_pHS->pErrorPrint, J3D_FILE, __LINE__, "Error creating the Metal presenter.\n", 0, 0, 0, 0);
             stdDisplay_ClearMode();
@@ -391,14 +400,19 @@ int J3DAPI stdDisplay_Update(void)
         return 0;
     }
 
+    // With a presenter, vsync paces the frames, and the frame limiter when one is set; without one, a 60 Hz period
+    Uint64 periodNsec = STDDISPLAY_FRAME_NSEC;
     if ( J3DMetal_IsPresenterOpen() )
     {
-        return 0; // vsync paced the frame
+        if ( !stdDisplay_frameLimitNsec )
+        {
+            return 0;
+        }
+        periodNsec = stdDisplay_frameLimitNsec;
     }
 
-    // No presenter: hold the frame to a 60 Hz period instead.
     const Uint64 nowNsec = SDL_GetTicksNS();
-    const Uint64 dueNsec = stdDisplay_lastFrameNsec + STDDISPLAY_FRAME_NSEC;
+    const Uint64 dueNsec = stdDisplay_lastFrameNsec + periodNsec;
     if ( stdDisplay_lastFrameNsec && nowNsec < dueNsec )
     {
         SDL_DelayPrecise(dueNsec - nowNsec);

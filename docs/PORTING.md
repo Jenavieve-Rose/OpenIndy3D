@@ -1835,3 +1835,37 @@ base M1 (P7.9), opening the manual from the HUD's Help by hand.
   every apple build had, so an app linked with it could not start on macOS 13. The app now links only system
   libraries and the Swift runtime in `/usr/lib/swift`. `J3D_SYSTEM_SDL3=ON` uses an installed SDL3 for a quicker first
   configure; such a build is not for distribution.
+
+### The game data (P8.4, P8.5)
+
+- `platform/common/host_data.c` checks a folder (`J3DHost_CheckData`), finds one (`J3DHost_FindData`) and makes sure
+  `Data Root` names one before the game starts (`J3DHost_EnsureData`, from `J3DHost_PrepareUserDirs`, before the
+  keysets are seeded from it). `--data` is taken as given. A usable stored folder is kept; otherwise the search runs
+  and a folder found is stored; otherwise, in a run someone is at, `J3DApple_AskForData` (`host_apple.m`) shows an
+  alert and an open panel until a usable folder is chosen or the player quits. Holding Option as the app starts asks
+  again. Runs nobody is at (headless, `--frames`, replays, input scripts) never ask; without data they fail as before.
+- The search: Steam's default library and those in `libraryfolders.vdf`; DREAMM's
+  `~/Library/Application Support/Aaron Giles/DREAMM/install/lec-infernal/*` (an edition per folder; its demo is
+  refused); `/Applications`, `~/Applications`, `~/Games`, `~/GOG Games`; and the Steam, GOG and LucasArts install
+  folders inside CrossOver and Whisky bottles. A tested release wins over a merely usable one.
+- The check: `RESOURCE` (any case) with `CD1.GOB`, `CD2.GOB` and `JONES3D.GOB`, else a reason is given. The CD
+  release left the two CD GOBs on the discs, so a CD install needs them copied beside `JONES3D.GOB`. Sizes seen:
+  `CD1.GOB` 353,488,544 (CD, Steam, DREAMM) or 353,666,116 (GOG), `CD2.GOB` 438,468,652, `JONES3D.GOB` 49,305,685.
+  `RESOURCE/INDY3D.EXE`'s SHA-256 names the version from `docs/VERSIONS.md`. Supported and tested: English 1.2 (the
+  1.2 update, Steam, GOG, DREAMM's `pc-1.2-en-up`). Accepted with a warning: 1.0 and 1.1 (no 1.2 level fixes), other
+  sizes (another language) and an unknown executable.
+- The launcher's status line reads "Game data: <folder>, version 1.2 (Steam)", and its version is the app's.
+- Tests: `datacheck` (made-up folders: no `RESOURCE`, the demo, a missing GOB, known and unknown sizes, unknown
+  executable; with the test data, that it is a tested release) and `launcher`'s `nodata` case (an empty home folder,
+  the question answered Quit by `J3D_MENU_AUTOCANCEL`, exit 0).
+
+### Command line and display preferences (P8.6, P8.7)
+
+- `--level <n>` sets `J3D_REG_Start_Mode=0`, so the launcher is skipped, and passes `n` on to the engine, which reads a
+  level number from its command line in that mode. `--windowed` and `--fullscreen` set `J3D_REG_InWindow` for the run.
+  `--help` lists the player's options.
+- `VSync` (default 1) and `Frame Limit` (frames a second, 0 for none) are port settings read when the display opens
+  (`stdDisplay_sdl.c`): vsync is the Metal layer's `displaySyncEnabled`, and the limiter holds each present to its
+  period as the no-presenter path holds 60 Hz. Their controls are items 6 and 7 of the launcher's Display tab, saved
+  on OK. In a window macOS composites at the display's rate, so vsync off changes nothing there (measured: 8.33 ms
+  frames at 120 Hz either way); a 30 limit measured 33.33 ms.

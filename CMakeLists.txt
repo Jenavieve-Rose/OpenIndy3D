@@ -88,6 +88,7 @@ target_include_directories(j3d_common INTERFACE
 target_compile_definitions(j3d_common INTERFACE
     NONMATCHING_MATH        # C bodies for stdMath's x87 helpers (PORT-PLAN.md 7.1)
     J3D_PORT=1
+    J3D_PRODUCT_VERSION="${PROJECT_VERSION}"   # the app's version (host_product.h)
 )
 if(NOT J3D_DEBUG_ASSERTS)
     target_compile_definitions(j3d_common INTERFACE NDEBUG)
@@ -398,6 +399,10 @@ add_test(NAME display COMMAND display)
 set_tests_properties(display PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
 j3d_executable(keys platform_null ${J3D_ROOT}/tests/keys.c)
 add_test(NAME keys COMMAND keys)
+
+# datacheck: the game data check (P8.5); with the test data, that it is a tested release
+j3d_executable(datacheck platform_null ${J3D_ROOT}/tests/datacheck.c)
+add_test(NAME datacheck COMMAND datacheck ${J3D_TEST_DATA})
 set_tests_properties(keys PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
 j3d_executable(sounddriver platform_null ${J3D_ROOT}/tests/sounddriver.c)
 add_test(NAME sounddriver COMMAND sounddriver)

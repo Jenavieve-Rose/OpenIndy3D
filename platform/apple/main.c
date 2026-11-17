@@ -7,6 +7,10 @@
  *
  * Port options are taken out of argv before the rest is joined, so the engine's own parser never sees them:
  *   --data <dir>   game data root, the folder that holds RESOURCE/ (sets J3D_DATA; see wuRegistry_file.c)
+ *   --level <n>    start a new game at level n, 1 to 17, without the launcher (P8.6): sets J3D_REG_Start_Mode=0 and
+ *                  hands n to the engine, which reads a level number from its command line in that mode
+ *   --windowed, --fullscreen   play in a window or full screen this time (sets J3D_REG_InWindow; P8.6)
+ *   --help         lists these options
  *   --headless     run on the virtual clock with no window (apple build: SDL's dummy driver) (sets J3D_HEADLESS; see
  *                  stdDisplay_headless.c and stdDisplay_sdl.c)
  *   --frames <n>   quit after n passes of the game loop (sets J3D_FRAMES; see wkernel_null.c and wkernel_sdl.c)
@@ -47,6 +51,39 @@ int main(int argc, char** argv)
 
     for ( int i = 1; i < argc; i++ )
     {
+        if ( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
+        {
+            printf("usage: %s [options]\n"
+                   "  --data <folder>   the game's folder, the one that holds Resource\n"
+                   "  --level <n>       start a new game at level n (1 to 17), without the launcher\n"
+                   "  --windowed        play in a window\n"
+                   "  --fullscreen      play full screen\n"
+                   "Holding Option as the app starts asks for the game's folder again.\n", argv[0]);
+            free(pCmdLine);
+            return EXIT_SUCCESS;
+        }
+
+        if ( strcmp(argv[i], "--level") == 0 )
+        {
+            char* pEnd = NULL;
+            const long level = i + 1 < argc ? strtol(argv[i + 1], &pEnd, 10) : 0;
+            if ( !pEnd || *pEnd || level < 1 || level > 17 )
+            {
+                fprintf(stderr, "%s: --level needs a level number from 1 to 17\n", argv[0]);
+                free(pCmdLine);
+                return EXIT_FAILURE;
+            }
+            setenv("J3D_REG_Start_Mode", "0", 1);
+            ++i;
+            // The level number is the engine's own argument; it goes on to WinMain below
+        }
+
+        if ( strcmp(argv[i], "--windowed") == 0 || strcmp(argv[i], "--fullscreen") == 0 )
+        {
+            setenv("J3D_REG_InWindow", strcmp(argv[i], "--windowed") == 0 ? "1" : "0", 1);
+            continue;
+        }
+
         if ( strcmp(argv[i], "--data") == 0 )
         {
             if ( i + 1 >= argc )
@@ -114,8 +151,22 @@ int main(int argc, char** argv)
     J3DApple_LogHostInfo();
 #endif
 
-    // Saves, screenshots and keysets go to a folder of the user's, never the game data (host_dirs.h).
-    J3DHost_PrepareUserDirs();
+    // Saves, screenshots and keysets go to a folder of the user's, never the game data (host_dirs.h). The game data is
+    // found, or asked for in a run someone is at (P8.4); holding Option as the app starts asks again.
+    J3DHostAskData pfAskData = NULL;
+    int bChooseData = 0;
+#if J3D_PLATFORM_APPLE
+    if ( !getenv("J3D_HEADLESS") && !getenv("J3D_FRAMES") && !getenv("J3D_REPLAY") && !getenv("J3D_INPUT_SCRIPT") )
+    {
+        pfAskData = J3DApple_AskForData;
+        bChooseData = J3DApple_IsOptionHeld();
+    }
+#endif
+    if ( J3DHost_PrepareUserDirs(pfAskData, bChooseData) )
+    {
+        free(pCmdLine);
+        return EXIT_SUCCESS; // the player quit rather than choose the game's folder
+    }
 
     // Input recording, replay and scripts (PORT-PLAN.md P3.10); this also picks the clock for them.
     if ( J3DRecord_Startup() )

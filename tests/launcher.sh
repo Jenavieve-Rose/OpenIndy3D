@@ -8,6 +8,7 @@
 #             menu (the game window is not shown yet when the game asks for the save)
 #   options   the Options window opens, its Controls tab's button opens the game's control options over it, all close
 #             (J3D_MENU_AUTOCANCEL) and the launcher then quits, exit status 0
+#   nodata    with no game data to find, the game asks for its folder (P8.4); answered Quit, it ends, exit status 0
 #
 #   tests/launcher.sh <jones3d> <data-root> <out-dir>
 #
@@ -48,9 +49,14 @@ grep -q 'RESTORE: returning SUCCESS' "$out/resume.log" || { echo "FAIL resume: t
 
 run options J3D_MENU_TEST_OPTIONS=1 J3D_MENU_TEST_PRESS=3:3 J3D_MENU_AUTOCANCEL=1 "$game" --data "$data" || { echo "FAIL options: exit status"; status=1; }
 
+# nodata: with nothing to find (an empty home folder) and no --data, the game asks for its folder; Quit ends it, status 0
+mkdir -p "$out/home"
+run nodata HOME="$out/home" J3D_SETTINGS="$out/nodata.ini" J3D_MENU_AUTOCANCEL=1 "$game" || { echo "FAIL nodata: exit status"; status=1; }
+grep -q '^Game data: none chosen' "$out/nodata.log" || { echo "FAIL nodata: the data folder was not asked for"; status=1; }
+
 if grep -q ASSERT "$out"/*.log; then
     echo "FAIL: assertion (see $out)"
     status=1
 fi
-[ $status -eq 0 ] && echo "launcher: new game, resume and options pass"
+[ $status -eq 0 ] && echo "launcher: new game, resume, options and the data question pass"
 exit $status
