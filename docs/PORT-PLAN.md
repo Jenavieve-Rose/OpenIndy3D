@@ -1085,6 +1085,13 @@ has no developer tools.
 - [ ] **P8.14** (S) Clean-machine test on macOS 13 (the deployment target) and on the current release. By hand,
       after P8.13: the binary's minimum is 13.0 and it links only system libraries; a Mac on 13 is needed to run it.
 
+Phase 8 is on `main` (at `5ee28b6`), merged by fast-forward on 2026-11-17: seven commits from the branch
+`phase8-polish`: the name, bundle and static SDL3 (`d0dc5e6`), the data locator, command line and display preferences
+(`596c013`), OpenJones3D's fixes (`6423ed5`), glyphs and the crash log (`7df66e8`), notices and packaging
+(`07377b3`), the audit (`2f0872e`) and widescreen (`5ee28b6`). At `5ee28b6` everything builds and every test passes
+in the apple (37 tests), null (31), sanitizer (37) and debug-asserts (37) trees (`tools/check.sh --asserts`), and in a
+null tree with `J3D_FIXES=OFF` (31); the commits before it were not each rebuilt. Not pushed.
+
 ## Complete Phase 8 Code Audit
 
 Done 2026-11-17; details in `docs/PORTING.md`, "Phase 8 code audit".
