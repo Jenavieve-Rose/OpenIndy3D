@@ -96,9 +96,11 @@ private var menuShotCount = 0
 func menuUnattendedTimer(for overlay: NSWindow) -> Timer? {
     let environment = ProcessInfo.processInfo.environment
     guard let text = environment["J3D_MENU_AUTOCANCEL"], let seconds = Double(text), seconds > 0 else { return nil }
-    let timer = Timer(timeInterval: seconds, repeats: false) { _ in
+    // Repeating: while a menu opened over this one is in front, this one waits for it to close
+    let timer = Timer(timeInterval: seconds, repeats: true) { timer in
         MainActor.assumeIsolated {
             guard NSApp.modalWindow === overlay else { return }
+            timer.invalidate()
             if let prefix = environment["J3D_MENU_SHOT"], let view = overlay.contentView,
                let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
                 view.cacheDisplay(in: view.bounds, to: rep)

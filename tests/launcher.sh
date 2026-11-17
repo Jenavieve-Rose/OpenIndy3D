@@ -6,7 +6,8 @@
 #             becomes "Last Save Game"
 #   resume    Resume Play with that settings file: "Start Mode" 1 is saved and the last save is restored, with no load
 #             menu (the game window is not shown yet when the game asks for the save)
-#   options   the Options window opens and closes (J3D_MENU_AUTOCANCEL) and the launcher then quits, exit status 0
+#   options   the Options window opens, its Controls tab's button opens the game's control options over it, all close
+#             (J3D_MENU_AUTOCANCEL) and the launcher then quits, exit status 0
 #
 #   tests/launcher.sh <jones3d> <data-root> <out-dir>
 #
@@ -45,7 +46,7 @@ run resume J3D_MENU_TEST_LAUNCH=resume "$game" --data "$data" --frames 100 || { 
 grep -q '^Start Mode=i:1$' "$out/settings.ini" || { echo "FAIL resume: Start Mode 1 not saved"; status=1; }
 grep -q 'RESTORE: returning SUCCESS' "$out/resume.log" || { echo "FAIL resume: the save was not restored"; status=1; }
 
-run options J3D_MENU_TEST_OPTIONS=1 J3D_MENU_AUTOCANCEL=1 "$game" --data "$data" || { echo "FAIL options: exit status"; status=1; }
+run options J3D_MENU_TEST_OPTIONS=1 J3D_MENU_TEST_PRESS=3:3 J3D_MENU_AUTOCANCEL=1 "$game" --data "$data" || { echo "FAIL options: exit status"; status=1; }
 
 if grep -q ASSERT "$out"/*.log; then
     echo "FAIL: assertion (see $out)"

@@ -5411,7 +5411,7 @@ void J3DAPI jonesConfig_FreeControlConfigEntry(JonesControlsConfig* pConfig)
 }
 
 #ifdef J3D_PORT
-static int jonesConfig_ShowControlOptionsMenu(int* pResult);
+static int jonesConfig_ShowControlOptionsMenu(int* pResult, int bInGame);
 #endif
 
 int J3DAPI jonesConfig_ShowControlOptions(HWND hWnd)
@@ -5422,7 +5422,7 @@ int J3DAPI jonesConfig_ShowControlOptions(HWND hWnd)
 
 #ifdef J3D_PORT
     // Port: the platform's own menus, when it has them (decision 21)
-    if ( jonesConfig_ShowControlOptionsMenu(&curresult) )
+    if ( jonesConfig_ShowControlOptionsMenu(&curresult, 1) )
     {
         return curresult;
     }
@@ -10911,6 +10911,47 @@ void J3DAPI jonesConfig_InsertCD_HandleWM_COMMAND(HWND hWnd, int nResult, LPARAM
 }
 
 #ifdef J3D_PORT
+// Port: the launcher's Controls tab: the sets as jonesConfig_InitControlOptionsDialog lists them, the chosen one by its
+// saved name, the switches as saved. The names are kept here: the control options free and reload the sets.
+static char jonesConfig_aaLauncherSets[J3DMENU_CTRL_MAXSETS][128];
+static const char* jonesConfig_apLauncherSets[J3DMENU_CTRL_MAXSETS];
+
+static void jonesConfig_FillLauncherControls(J3DMenuControls* pControls)
+{
+    char aSelectedName[128];
+    int i;
+    pControls->numSchemes = 0;
+    pControls->scheme     = 0;
+    if ( jonesConfig_InitKeySetsPath() && jonesConfig_ControlOptions_InitControlsConfig() )
+    {
+        const JonesControlsConfig* pConfig = &jonesConfig_controlOptions_curControlConfig;
+        memset(aSelectedName, 0, sizeof(aSelectedName));
+        wuRegistry_GetStr("Configuration", aSelectedName, STD_ARRAYLEN(aSelectedName), "");
+        for ( i = 0; i < pConfig->numSchemes && i < J3DMENU_CTRL_MAXSETS; ++i )
+        {
+            snprintf(jonesConfig_aaLauncherSets[i], sizeof(jonesConfig_aaLauncherSets[i]), "%s", pConfig->aSchemes[i].aName);
+            jonesConfig_apLauncherSets[i] = jonesConfig_aaLauncherSets[i];
+            if ( streq(aSelectedName, pConfig->aSchemes[i].aName) )
+            {
+                pControls->scheme = i;
+            }
+        }
+        pControls->numSchemes = i;
+    }
+    pControls->apSchemes          = jonesConfig_apLauncherSets;
+    pControls->bMouse             = wuRegistry_GetIntEx("Mouse Control", 0);
+    pControls->bJoystick          = wuRegistry_GetIntEx("Joystick Control", 0);
+    pControls->bJoystickAvailable = 1; // the controllers are opened later, with the game's input
+}
+
+// The Controls tab's button: the game's own control options, over the Options window, then the tab filled again
+static void jonesConfig_LauncherEditSets(J3DMenuControls* pControls)
+{
+    int result = 2;
+    jonesConfig_ShowControlOptionsMenu(&result, 0);
+    jonesConfig_FillLauncherControls(pControls);
+}
+
 // Port: the launcher's Options window (PORT-PLAN.md P6.31 to P6.33): the display, game play, sound and control settings
 // as tabs, applied on OK by the same functions as the in-game menus, so the two leave settings.ini alike. It runs
 // before the game window is shown and before jonesConfig_Startup, so it sets up the key sets' folder itself.
@@ -10920,10 +10961,7 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
     J3DMenuGamePlay gamePlay;
     J3DMenuSound sound;
     J3DMenuControls controls;
-    const char** apSchemes = NULL;
-    char aSelectedName[128];
     int result = 2;
-    int i;
 
     if ( !jonesConfig_GetDisplayMenu(pDisplayEnv, pDisplaySettings, &display) )
     {
@@ -10933,28 +10971,8 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
     jonesConfig_GetGamePlayMenu(&gamePlay);
     jonesConfig_GetSoundMenu(pSoundSettings, &sound);
 
-    // The control sets as jonesConfig_InitControlOptionsDialog lists them, the chosen one by its saved name
-    memset(&controls, 0, sizeof(controls));
-    if ( jonesConfig_InitKeySetsPath() && jonesConfig_ControlOptions_InitControlsConfig() )
-    {
-        const JonesControlsConfig* pConfig = &jonesConfig_controlOptions_curControlConfig;
-        apSchemes = calloc((size_t)(pConfig->numSchemes > 0 ? pConfig->numSchemes : 1), sizeof(*apSchemes));
-        memset(aSelectedName, 0, sizeof(aSelectedName));
-        wuRegistry_GetStr("Configuration", aSelectedName, STD_ARRAYLEN(aSelectedName), "");
-        for ( i = 0; apSchemes && i < pConfig->numSchemes; ++i )
-        {
-            apSchemes[i] = pConfig->aSchemes[i].aName;
-            if ( streq(aSelectedName, pConfig->aSchemes[i].aName) )
-            {
-                controls.scheme = i;
-            }
-        }
-        controls.apSchemes  = apSchemes;
-        controls.numSchemes = apSchemes ? pConfig->numSchemes : 0;
-    }
-    controls.bMouse             = wuRegistry_GetIntEx("Mouse Control", 0);
-    controls.bJoystick          = wuRegistry_GetIntEx("Joystick Control", 0);
-    controls.bJoystickAvailable = 1; // the controllers are opened later, with the game's input
+    jonesConfig_FillLauncherControls(&controls);
+    controls.pfEditSets = jonesConfig_LauncherEditSets;
 
     if ( J3DMenu_ShowOptions(&display.menu, &gamePlay, &sound, &controls, &result) && result == 1 )
     {
@@ -10971,7 +10989,6 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
         wuRegistry_SaveIntEx("Joystick Control", controls.bJoystick);
     }
 
-    free(apSchemes);
     jonesConfig_FreeDisplayMenu(&display);
     return result;
 }
@@ -10989,6 +11006,8 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
  *   jonesConfig_ShowAssignKeyDialog, jonesConfig_AssignControlKey_ReadKey, _ReadJoyAxisKey (the key's checks, the
  *   controller's polling) and jonesConfig_ReassignKeyDlg_HandleWM_COMMAND.
  */
+
+static int jonesConfig_bMenuControlsInGame = 1; // 0: opened from the launcher (jonesConfig_ShowControlOptionsMenu)
 
 // Which list a control id was shown in: 1 the controller's, 0 the keyboard's (and the mouse's)
 static int jonesConfig_IsControllerId(size_t id)
@@ -11092,9 +11111,9 @@ static int jonesConfig_MenuCaptureInput(int dik)
         // The controllers, read through stdControl as the dialog's timer did. Keys come from the menu (dik >= 0).
         int bControlsActive;
         int bFound = 0;
-        if ( pData->listID != 1006 )
+        if ( pData->listID != 1006 || !jonesConfig_bMenuControlsInGame )
         {
-            return 0;
+            return 0; // keys come from the menu; before the game, stdControl is not open to read the pads
         }
 
         bControlsActive = stdControl_ControlsActive();
@@ -11401,7 +11420,8 @@ static int jonesConfig_MenuEditScheme(JonesControlsScheme* pScheme, int bReadOnl
     return result == 1;
 }
 
-// The control options' state (111)
+// The control options' state (111). Opened from the launcher, before the game has started its input, the sets are only
+// saved: the game binds the chosen one when it starts.
 static JonesControlsConfig jonesConfig_menuControlConfig;
 
 static void jonesConfig_FillControlOptionsMenu(J3DMenuControlOptions* pOptions)
@@ -11603,7 +11623,11 @@ static int jonesConfig_ControlOptionsMenuAction(J3DMenuControlOptions* pOptions,
 
             wuRegistry_SaveIntEx("Mouse Control", pOptions->bMouse);
             wuRegistry_SaveIntEx("Joystick Control", pOptions->bJoystick);
-            if ( pOptions->bJoystick )
+            if ( !jonesConfig_bMenuControlsInGame )
+            {
+                // before the game: nothing is bound yet
+            }
+            else if ( pOptions->bJoystick )
             {
                 JonesControlsScheme* pActiveScheme = jonesConfig_LoadActiveControlScheme();
                 if ( pActiveScheme )
@@ -11629,7 +11653,7 @@ static int jonesConfig_ControlOptionsMenuAction(J3DMenuControlOptions* pOptions,
 }
 
 // jonesConfig_ShowControlOptions with the menus. Returns 0 when there is no menu in this run.
-static int jonesConfig_ShowControlOptionsMenu(int* pResult)
+static int jonesConfig_ShowControlOptionsMenu(int* pResult, int bInGame)
 {
     J3DMenuControlOptions* pOptions;
     char aSelected[128];
@@ -11641,6 +11665,7 @@ static int jonesConfig_ShowControlOptionsMenu(int* pResult)
     }
 
     *pResult = 2;
+    jonesConfig_bMenuControlsInGame = bInGame;
     if ( !jonesConfig_ControlOptions_InitControlsConfig() )
     {
         return 1;
@@ -11674,7 +11699,7 @@ static int jonesConfig_ShowControlOptionsMenu(int* pResult)
     }
 
     pOptions->bMouse             = wuRegistry_GetIntEx("Mouse Control", 0);
-    pOptions->bJoystickAvailable = stdControl_GetNumJoysticks() > 0;
+    pOptions->bJoystickAvailable = !bInGame || stdControl_GetNumJoysticks() > 0; // before the game the pads are not opened yet
     pOptions->bJoystick          = pOptions->bJoystickAvailable && wuRegistry_GetIntEx("Joystick Control", 0);
     pOptions->pfAction           = jonesConfig_ControlOptionsMenuAction;
     jonesConfig_FillControlOptionsMenu(pOptions);
@@ -11686,11 +11711,17 @@ static int jonesConfig_ShowControlOptionsMenu(int* pResult)
         JonesControlsConfig* pConfig = &jonesConfig_menuControlConfig;
         *pResult = 1;
         wuRegistry_SaveStr("Configuration", pConfig->aSchemes[pConfig->selectedShemeIdx].aName);
-        jonesConfig_BindControls(&pConfig->aSchemes[pConfig->selectedShemeIdx]);
+        if ( bInGame )
+        {
+            jonesConfig_BindControls(&pConfig->aSchemes[pConfig->selectedShemeIdx]);
+        }
         jonesConfig_FreeControlConfigEntry(pConfig);
         jonesConfig_FreeControlConfigEntry(&jonesConfig_controlOptions_curControlConfig);
         jonesConfig_controlOptions_curControlConfig.numSchemes = 0;
-        jonesConfig_EnableMouseControl(wuRegistry_GetIntEx("Mouse Control", 0));
+        if ( bInGame )
+        {
+            jonesConfig_EnableMouseControl(wuRegistry_GetIntEx("Mouse Control", 0));
+        }
     }
     else
     {

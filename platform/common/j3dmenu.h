@@ -120,6 +120,9 @@ typedef struct J3DMenuControls
     int bMouse;
     int bJoystick;
     int bJoystickAvailable;
+    // The launcher's Options: opens the game's control options (J3DMenu_ShowControlOptions), which save what they
+    // change, and fills this in again from what they saved. NULL: no such button.
+    void (*pfEditSets)(struct J3DMenuControls* pControls);
 } J3DMenuControls;
 
 // The launcher's Options window (PORT-PLAN.md P6.31 to P6.33): the display, game play, sound and control settings as

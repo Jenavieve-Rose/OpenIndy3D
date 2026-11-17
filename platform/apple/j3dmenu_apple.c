@@ -55,10 +55,17 @@ typedef struct MenuSession
 
 // The game window's NSWindow when a menu can be laid over it in this run: not headless, not in a replay (which holds
 // no answers), not before the window is on screen, and not when J3D_MENUS=classic asks for the Win32 dialogs.
+static int menu_bLauncherUp; // the launcher is up: menus are laid over its window in front, not the hidden game window
+
 static void* menu_GameNSWindow(SDL_Window** ppWindow)
 {
     const char* pMode = getenv("J3D_MENUS");
     SDL_Window* pWindow = (SDL_Window*)stdWin95_GetWindow();
+    if ( menu_bLauncherUp )
+    {
+        *ppWindow = NULL;
+        return J3DMenuUI_FrontWindow();
+    }
     if ( J3DDisplay_IsHeadless() || J3DRecord_IsReplaying() || !pWindow || (pMode && strcmp(pMode, "classic") == 0) )
     {
         return NULL;
@@ -170,6 +177,10 @@ static int menu_Begin(MenuSession* pSession)
         return 0;
     }
     pSession->pWindow = pWindow;
+    if ( !pWindow )
+    {
+        return 1; // over the launcher: the game's window and its mouse are not in use yet
+    }
     pSession->bRelativeMouse = SDL_GetWindowRelativeMouseMode(pWindow);
     pSession->bCursorVisible = SDL_CursorVisible();
     SDL_SetWindowRelativeMouseMode(pWindow, false);
@@ -181,6 +192,10 @@ static void menu_End(MenuSession* pSession)
 {
     float dx;
     float dy;
+    if ( !pSession->pWindow )
+    {
+        return;
+    }
     SDL_SetWindowRelativeMouseMode(pSession->pWindow, pSession->bRelativeMouse);
     if ( !pSession->bCursorVisible )
     {
@@ -858,6 +873,32 @@ static void menu_BuildControls(MenuPage* pPage, const J3DMenuControls* pControls
     aItems[2].value = pControls->bJoystickAvailable && pControls->bJoystick;
     aItems[2].bDisabled = !pControls->bJoystickAvailable;
     pPage->numItems = 3;
+    if ( pControls->pfEditSets )
+    {
+        // The game's control options (sets viewed, created, edited, deleted), opened over this window
+        aItems[3].kind = J3DMENU_ITEM_BUTTON;
+        aItems[3].pGroup = "";
+        aItems[3].pLabel = menu_PageText(pPage, "JONES_STR_CTRL_OPTS", "Control Options");
+        pPage->numItems = 4;
+    }
+}
+
+static J3DMenuControls* menu_pControls;
+
+static int32_t menu_ControlsChanged(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex)
+{
+    (void)numItems;
+    if ( changedIndex != 3 || !menu_pControls || !menu_pControls->pfEditSets )
+    {
+        return 0;
+    }
+    menu_pControls->pfEditSets(menu_pControls); // saves what it changes, and fills the struct in again
+    pItems[0].value = menu_pControls->scheme;
+    pItems[0].apNames = menu_pControls->apSchemes;
+    pItems[0].numNames = menu_pControls->numSchemes;
+    pItems[1].value = menu_pControls->bMouse != 0;
+    pItems[2].value = menu_pControls->bJoystickAvailable && menu_pControls->bJoystick;
+    return 1;
 }
 
 static void menu_ReadControls(const MenuPage* pPage, J3DMenuControls* pControls)
@@ -987,9 +1028,10 @@ int J3DMenu_ShowOptions(J3DMenuDisplay* pDisplay, J3DMenuGamePlay* pGamePlay, J3
     aFormPages[0] = (J3DMenuFormPage){ aaTitles[0], aPages[0].aItems, aPages[0].numItems, menu_DisplayChanged };
     aFormPages[1] = (J3DMenuFormPage){ aaTitles[1], aPages[1].aItems, aPages[1].numItems, NULL };
     aFormPages[2] = (J3DMenuFormPage){ aaTitles[2], aPages[2].aItems, aPages[2].numItems, menu_SoundChanged };
-    aFormPages[3] = (J3DMenuFormPage){ aaTitles[3], aPages[3].aItems, aPages[3].numItems, NULL };
+    aFormPages[3] = (J3DMenuFormPage){ aaTitles[3], aPages[3].aItems, aPages[3].numItems, pControls->pfEditSets ? menu_ControlsChanged : NULL };
 
     menu_pSound = pSound;
+    menu_pControls = pControls;
     result = J3DMenuUI_OptionsWindow(menu_pLauncherWindow, aWindowTitle, aFormPages, 4, aaButtons[0], aaButtons[1], aaButtons[2]);
     menu_pSound = NULL;
     if ( result == 1 )
@@ -1112,6 +1154,7 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
     ui.pHelpPath = menu_FindHelp(aHelp, sizeof(aHelp)) ? aHelp : NULL;
 
     menu_pLaunch = pLaunch;
+    menu_bLauncherUp = 1;
     if ( getenv("J3D_MENU_TEST_OPTIONS") )
     {
         menu_LauncherOptions(NULL); // for tests: the Options window first, which J3D_MENU_AUTOCANCEL closes and _SHOT keeps
@@ -1126,6 +1169,7 @@ int J3DMenu_RunLauncher(const J3DMenuLaunch* pLaunch, int* pChoice)
         *pChoice = J3DMenuUI_Launcher(&ui);
     }
     menu_pLaunch = NULL;
+    menu_bLauncherUp = 0;
     menu_bQuitAtLaunch = *pChoice == J3DMENU_LAUNCH_QUIT;
     free(pPicture);
     // The keys that answered the launcher are not the game's

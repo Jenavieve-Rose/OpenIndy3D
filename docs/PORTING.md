@@ -1598,6 +1598,11 @@ of each (string-table text, checks, what OK applies) is in `platform/apple/j3dme
   or a window (`InWindow`, which only the developer dialog offered). Controls has the control set (as the control
   options dialog lists them; the launcher sets up the key sets' folder itself, as `jonesConfig_Startup` has not run)
   and the mouse and gamepad switches.
+- **Control sets in the launcher.** The Controls tab's Control Options button opens the in-game control options
+  (P6.20, P6.21) over the Options window: menus are laid over the window in front of the modal session
+  (`J3DMenuUI_FrontWindow`) while the launcher is up. Before the game has started its input, the sets are saved but
+  not bound (the game binds the chosen one when it starts), and the wait for a control takes keys only: `stdControl`
+  opens the pads with the game.
 - **Help** opens `manual.pdf` from the data folder.
 - **Tests.** `J3D_MENU_TEST_LAUNCH=newgame|resume` answers the launcher without showing it, `J3D_MENU_TEST_OPTIONS`
   opens Options first; with `J3D_MENU_AUTOCANCEL` and `J3D_MENU_SHOT` both windows are captured. The `launcher` test

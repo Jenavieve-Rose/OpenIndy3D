@@ -21,10 +21,10 @@ confused with section numbers.
 | 3 | Keyboard, mouse and gamepad input | 10 of 10 | Code audit done; exit test is a playthrough by hand |
 | 4 | Audio | 11 of 11 | Code audit done; listened to by hand (both sound paths); first three levels and save/load by ear open |
 | 5 | Movies (INSANE) | 12 of 12 | Code audit done; watched and listened to by hand open |
-| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 37 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
+| 6 | Launcher and Options (SwiftUI), in-game menus (SwiftUI): save and load, store, controls | 39 of 41 | Replanned 2026-11-14 (decision 20) and 2026-11-16 (decision 21); on `phase6-dialogs` |
 | 7 | Full-game verification, shim removal | 0 of 10 | Not started |
 | 8 | Signed `.app`, data locator, fixes and polish | 0 of 14 | Not started |
-| **All** | | **134 of 162** | |
+| **All** | | **136 of 162** | |
 
 Step counts are not effort: the open steps in phases 2 and 6 are much larger than the closed ones in phases 0 and 1.
 Open steps carry a size, **S** (hours), **M** (a day or two) or **L** (several days), for one engineer.
@@ -794,15 +794,18 @@ The launcher writes the same settings the Steam launcher wrote to the registry, 
       full set against `jonesConfig.c`; the Steam launcher shows Freshman to Senior), Show Map Hints, Map Rotation,
       Default to Run, Show Text; volume and 3D Sound. Done 2026-11-16: difficulty with the string table's six names (JONES_STR_HARD0 to 5; the game allows all six,
       `jonesInventory_GetMaxDifficultyLevel` returns 5), the four switches, volume and 3D sound.
-- [ ] **P6.33** (M) Options, Controls: the control sets in the user's and the retail `KeySets` folders, the chosen
+- [x] **P6.33** (M) Options, Controls: the control sets in the user's and the retail `KeySets` folders, the chosen
       one stored as `Configuration`; view a set as one table of action, keys and controller buttons (the original's
       two lists merged); delete a user set; Enable Mouse and Enable Gamepad/Joystick. Partly done 2026-11-16: the launcher's Controls tab chooses the set and switches the mouse and controller.
       Viewing and deleting sets is in the game's control options (P6.20), which the launcher does not open: its menus
-      are laid over the game window.
-- [ ] **P6.34** (L) Create and edit a control set in the launcher, written in the retail `.kfg` format: capture a
+      are laid over the game window. Completed 2026-11-16: the Controls tab's Control Options button opens the game's own control-set menus
+      (P6.20) over the Options window: view, create, edit and delete sets, with the same rules and files.
+- [x] **P6.34** (L) Create and edit a control set in the launcher, written in the retail `.kfg` format: capture a
       key or a controller button for an action, refuse or reassign one already taken. The launcher has no SDL, so a
       captured controller button must be numbered as `stdControl_sdl.c` numbers it; a test holds the two together.
-      Until this lands, sets are edited in the game's own dialog (P6.20, P6.21). Open: sets are created and edited in the game's own menus (P6.20, P6.21), as this step allowed.
+      Until this lands, sets are edited in the game's own dialog (P6.20, P6.21). Open: sets are created and edited in the game's own menus (P6.20, P6.21), as this step allowed. Done 2026-11-16 through the same menus as in the game (one implementation, so the two cannot differ).
+      Keys can be captured in the launcher; controller buttons only in the game, since `stdControl` opens the pads
+      when the game starts.
 - [x] **P6.35** (S) Help: open the manual PDF from the player's data folder when it is there (the Steam release
       ships one), otherwise the port's README. Done 2026-11-16 for the launcher: `manual.pdf` in the data folder (Steam and GOG ship it), greyed without one.
 - [x] **P6.36** (S) Keyboard and accessibility: Return and Escape, Tab through every control, arrow keys on the

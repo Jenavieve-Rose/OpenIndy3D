@@ -49,6 +49,7 @@ typedef struct J3DMenuSavePicker
 #define J3DMENU_ITEM_SLIDER 2   // a slider from 0 to maxValue with apNames as captions under it
 #define J3DMENU_ITEM_CHOICE 3   // one of apNames, side by side (value: the index)
 #define J3DMENU_ITEM_LIST   4   // one of apNames, from a pop-up list, for more names than fit side by side
+#define J3DMENU_ITEM_BUTTON 5   // a button labelled pLabel: pressing it calls pfChanged with its index
 
 typedef struct J3DMenuItem
 {
@@ -187,6 +188,9 @@ void J3DMenuUI_Stats(void* pGameWindow, const J3DMenuStats* pStats);
 // OK with every page's items holding the values chosen, else 0.
 int32_t J3DMenuUI_OptionsWindow(void* pParentWindow, const char* pTitle, J3DMenuFormPage* pPages, int32_t numPages,
                                 const char* pOkLabel, const char* pCancelLabel, const char* pDefaultsLabel);
+
+// The window in front of the modal session (the launcher's Options, while it is up), as an NSWindow*, or NULL.
+void* J3DMenuUI_FrontWindow(void);
 
 // The launcher, until the player chooses: J3DMENU_LAUNCH_*.
 int32_t J3DMenuUI_Launcher(const J3DMenuLauncherUI* pUI);

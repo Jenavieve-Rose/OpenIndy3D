@@ -127,6 +127,19 @@ private struct OptionsView: View {
         }
         .frame(width: 560)
         .background(Palette.background)
+        .onAppear {
+            // For tests: J3D_MENU_TEST_PRESS=<tab>:<item> presses a button item, as a click would
+            guard let press = ProcessInfo.processInfo.environment["J3D_MENU_TEST_PRESS"] else { return }
+            let parts = press.split(separator: ":").compactMap { Int($0) }
+            guard parts.count == 2, parts[0] < models.count else { return }
+            DispatchQueue.main.async {
+                tab = parts[0]
+                let timer = Timer(timeInterval: 0.3, repeats: false) { _ in
+                    MainActor.assumeIsolated { models[parts[0]].notify(parts[1]) }
+                }
+                RunLoop.main.add(timer, forMode: .modalPanel)
+            }
+        }
     }
 }
 
@@ -325,4 +338,11 @@ public func J3DMenuUI_Launcher(_ uiPointer: UnsafePointer<J3DMenuLauncherUI>?) -
         }
         return Int32(result)
     }
+}
+
+@_cdecl("J3DMenuUI_FrontWindow")
+public func J3DMenuUI_FrontWindow() -> UnsafeMutableRawPointer? {
+    let window = MainActor.assumeIsolated { NSApp.modalWindow.map { Int(bitPattern: Unmanaged.passUnretained($0).toOpaque()) } }
+    // Passed through as a plain address: a pointer is not Sendable across the isolation boundary
+    return window.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
 }

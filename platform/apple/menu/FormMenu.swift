@@ -126,6 +126,9 @@ struct FormItemsView: View {
                            range: 0...Double(max(item.maxValue, 1)), onEnd: { model.notify(index) })
                 captions(item.names)
             }
+        case J3DMENU_ITEM_BUTTON:
+            Button(item.label) { model.notify(index) }
+                .buttonStyle(MenuButtonStyle(fullWidth: true))
         case J3DMENU_ITEM_LIST:
             HStack(spacing: 12) {
                 if !item.label.isEmpty {
