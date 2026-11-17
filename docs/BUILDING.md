@@ -78,7 +78,7 @@ Regenerate the project with the first command after adding or removing source fi
 | `J3D_WERROR_SHORTEN` | `ON` | Makes `-Wshorten-64-to-32` an error, in every file since P6.24. |
 | `J3D_FIXES` | `ON` | OpenJones3D's fixes to retail bugs (`docs/UPSTREAM-FIXES.md`, P8.9). `OFF` builds retail's behaviour. |
 | `J3D_SYSTEM_SDL3` | `OFF` | Link an installed SDL3 instead of building the pinned release; not for distribution. |
-| `J3D_ICON_SOURCE` | `../ICNS Art/…square.jpg` if present | The square picture the app icon is made from; empty for no icon. |
+| `J3D_ICON_SOURCE` | `platform/apple/bundle/…square.jpg` | The square picture the app icon is made from (the box art, in the repository); empty for no icon. |
 | `J3D_BUNDLE_ID` | `io.github.jenavieve-rose.OpenIndy3D` | The app's bundle identifier. |
 | `J3D_SANITIZE` | `OFF` | Builds everything, tests included, with AddressSanitizer and UndefinedBehaviorSanitizer. Use a separate build directory (below). |
 | `CMAKE_BUILD_TYPE` | none | `Debug` or `RelWithDebInfo` as usual, for the Ninja generator. |
