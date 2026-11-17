@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 # Port of the Jones3D engine (infernal-machine-decomp, upstream commit 319a6fc2) to arm64 macOS.
 # See docs/PORT-PLAN.md for the phases and docs/PORTING.md for every deviation from the decomp.
-project(J3DPort VERSION 0.1.0 LANGUAGES C)
+project(OpenIndy3D VERSION 0.8.0 LANGUAGES C)
 
 # Which platform backends the game binary uses (PORT-PLAN.md P2.1):
 #   apple  SDL3 window and input, Metal renderer; Objective-C, SDL3 and the Apple frameworks are required.
@@ -15,7 +15,6 @@ if(NOT J3D_PLATFORM MATCHES "^(apple|null)$")
 endif()
 if(J3D_PLATFORM STREQUAL "apple")
     enable_language(OBJC)
-    find_package(SDL3 3.2 REQUIRED CONFIG COMPONENTS SDL3-shared)
 endif()
 
 set(CMAKE_C_STANDARD 11)
@@ -28,7 +27,36 @@ endif()
 if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET 13.0 CACHE STRING "" FORCE)
 endif()
+# The product (PORT-PLAN.md P8.1): the app's name is J3D_PRODUCT_NAME in platform/common/host_product.h.
+set(J3D_PRODUCT_NAME OpenIndy3D)
+set(J3D_BUNDLE_ID "io.github.jenavieve-rose.OpenIndy3D" CACHE STRING "The app's bundle identifier (PORT-PLAN.md P8.1)")
+
 if(J3D_PLATFORM STREQUAL "apple")
+    # SDL3 (PORT-PLAN.md P8.3). By default a pinned release is built here as a static library for the deployment
+    # target, so the app loads nothing from outside its bundle and runs on macOS 13; Homebrew's builds require the
+    # macOS they were built on. J3D_SYSTEM_SDL3=ON uses an installed SDL3 instead (find_package), for a quicker first
+    # configure; such a build is not for distribution.
+    option(J3D_SYSTEM_SDL3 "Link an installed SDL3 instead of building the pinned release (not for distribution)" OFF)
+    if(J3D_SYSTEM_SDL3)
+        find_package(SDL3 3.2 REQUIRED CONFIG COMPONENTS SDL3-shared)
+    else()
+        include(FetchContent)
+        set(J3D_SDL3_URL "https://github.com/libsdl-org/SDL/releases/download/release-3.4.20/SDL3-3.4.20.tar.gz"
+            CACHE STRING "The SDL3 source release to build (a URL or a local tarball)")
+        FetchContent_Declare(SDL3
+            URL ${J3D_SDL3_URL}
+            URL_HASH SHA256=f3bb06f55bed9557227a700af2ea62e49497ebdf58037732a731a5fb3ef8581f
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            EXCLUDE_FROM_ALL)
+        set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+        set(SDL_STATIC ON CACHE BOOL "" FORCE)
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+        set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+        set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(SDL3)
+    endif()
+
     # The menus are SwiftUI (PORT-PLAN.md Phase 6, decision 20). Enabled here so Swift takes the deployment target.
     set(CMAKE_Swift_LANGUAGE_VERSION 5)
     enable_language(Swift)
@@ -285,6 +313,46 @@ set_target_properties(jones3d PROPERTIES
     XCODE_GENERATE_SCHEME ON
     XCODE_SCHEME_WORKING_DIRECTORY ${J3D_ROOT}
 )
+
+# In an apple build the game is the app (PORT-PLAN.md P8.2): <build>/OpenIndy3D.app, with jones3d beside it as a link
+# to its executable, for the tools and for runs from a terminal. The null build's jones3d stays a plain program.
+if(J3D_PLATFORM STREQUAL "apple")
+    # The icon is made from a square picture the builder supplies (tools/make_icns.sh); the repository holds none.
+    # The default is the picture in the folder beside the repository, if there is one.
+    set(J3D_ICON_DEFAULT "${J3D_ROOT}/../ICNS Art/indiana_jones_and_the_infernal_machine-square.jpg")
+    if(NOT EXISTS "${J3D_ICON_DEFAULT}")
+        set(J3D_ICON_DEFAULT "")
+    endif()
+    set(J3D_ICON_SOURCE "${J3D_ICON_DEFAULT}" CACHE FILEPATH "Square picture (1024 by 1024 or more) the app icon is made from; empty for none")
+    if(J3D_ICON_SOURCE)
+        set(J3D_ICNS ${CMAKE_CURRENT_BINARY_DIR}/${J3D_PRODUCT_NAME}.icns)
+        add_custom_command(OUTPUT ${J3D_ICNS}
+            COMMAND sh ${J3D_ROOT}/tools/make_icns.sh ${J3D_ICON_SOURCE} ${J3D_ICNS}
+            DEPENDS ${J3D_ICON_SOURCE} ${J3D_ROOT}/tools/make_icns.sh
+            COMMENT "Making the app icon")
+        set_source_files_properties(${J3D_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+        target_sources(jones3d PRIVATE ${J3D_ICNS})
+        set(J3D_ICON_FILE ${J3D_PRODUCT_NAME}.icns)
+    else()
+        set(J3D_ICON_FILE "")
+    endif()
+
+    set_target_properties(jones3d PROPERTIES
+        OUTPUT_NAME ${J3D_PRODUCT_NAME}
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST ${J3D_ROOT}/platform/apple/bundle/Info.plist.in
+        MACOSX_BUNDLE_BUNDLE_NAME ${J3D_PRODUCT_NAME}
+        MACOSX_BUNDLE_GUI_IDENTIFIER ${J3D_BUNDLE_ID}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_ICON_FILE "${J3D_ICON_FILE}"
+        MACOSX_BUNDLE_COPYRIGHT "Free software under the GNU AGPL v3. A retail copy of the game is required."
+    )
+    add_custom_command(TARGET jones3d POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${J3D_PRODUCT_NAME}.app/Contents/MacOS/${J3D_PRODUCT_NAME}
+                ${CMAKE_CURRENT_BINARY_DIR}/jones3d
+        VERBATIM)
+endif()
 
 # The headless game binary for the boot test: jones3d itself in a null build, a null-backend twin in an apple build.
 if(J3D_PLATFORM STREQUAL "null")

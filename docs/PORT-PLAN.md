@@ -1022,11 +1022,19 @@ read-through, and every level compared with `main` before the phase.
 Exit test: a notarized `.app` that a player with a retail copy can install and finish the game with, on a machine that
 has no developer tools.
 
-- [ ] **P8.1** (S) Choose the product name and bundle identifier, avoiding LucasArts and Disney marks (the working
-      name is J3DPort). (Port name will be OpenIndy3D).
-- [ ] **P8.2** (M) `.app` bundle target: `Info.plist`, an original icon, high-resolution capable, games category, Game
-      Mode eligibility. Icon located in the ICNS Art folder.
-- [ ] **P8.3** (M) Ship dependencies inside the bundle (SDL3 static or embedded); nothing loaded from Homebrew paths.
+- [x] **P8.1** (S) Choose the product name and bundle identifier, avoiding LucasArts and Disney marks (the working
+      name is J3DPort). (Port name will be OpenIndy3D). Done: OpenIndy3D, `io.github.jenavieve-rose.OpenIndy3D`
+      (`J3D_BUNDLE_ID`); `platform/common/host_product.h`. The folders under `~/Library` take the name, and a
+      `J3DPort` folder from an earlier build is moved across on the first run.
+- [x] **P8.2** (M) `.app` bundle target: `Info.plist`, an original icon, high-resolution capable, games category, Game
+      Mode eligibility. Icon located in the ICNS Art folder. Done: an apple build makes `OpenIndy3D.app`
+      (`platform/apple/bundle/Info.plist.in`), with `jones3d` beside it as a link to its executable. The icon is made
+      at build time (`tools/make_icns.sh`) from `J3D_ICON_SOURCE`, by default the picture in `ICNS Art/`; that picture
+      is the retail box art, so it is not committed and a distributed build needs an original one (see P8.13).
+- [x] **P8.3** (M) Ship dependencies inside the bundle (SDL3 static or embedded); nothing loaded from Homebrew paths.
+      Done: SDL3 3.4.20 is built from its pinned release as a static library (`FetchContent`, hash-checked), for
+      macOS 13; Homebrew's needs the macOS it was built on. The app links only system libraries.
+      `J3D_SYSTEM_SDL3=ON` takes an installed SDL3 for development.
 - [ ] **P8.4** (M) First-run data locator: look in the Steam, GOG and DREAMM install locations, otherwise an open
       panel; store the result as `Data Root`. The launcher (6B) shows the result and asks when nothing is found.
 - [ ] **P8.5** (S) Validate the chosen folder: GOB names and sizes, and the `INDY3D.EXE` hash against

@@ -123,7 +123,7 @@ int main(void)
         return PRESENT_SKIP;
     }
 
-    SDL_Window* pWindow = SDL_CreateWindow("J3DPort present test", BB_WIDTH, BB_HEIGHT, SDL_WINDOW_METAL);
+    SDL_Window* pWindow = SDL_CreateWindow("OpenIndy3D present test", BB_WIDTH, BB_HEIGHT, SDL_WINDOW_METAL);
     if ( !pWindow )
     {
         printf("present: skipped, no window (%s)\n", SDL_GetError());

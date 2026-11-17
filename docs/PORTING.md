@@ -1812,3 +1812,26 @@ The new `determinism` test starts every level twice and requires the same log an
 Not done: the playthrough of every level and the A/B against the Windows build in DREAMM (P7.4, P7.5), frame times on a
 base M1 (P7.9), opening the manual from the HUD's Help by hand.
 
+
+## Phase 8: the Mac product
+
+### Name and bundle (P8.1 to P8.3)
+
+- The product is **OpenIndy3D** (`platform/common/host_product.h`; CMake's `J3D_PRODUCT_NAME`), bundle identifier
+  `io.github.jenavieve-rose.OpenIndy3D` (`J3D_BUNDLE_ID`). The settings, saves and logs move to
+  `~/Library/Application Support/OpenIndy3D/` and `~/Library/Logs/OpenIndy3D/`. `J3DHost_PrepareUserDirs` moves an
+  `Application Support/J3DPort/` of an earlier build to the new name when there is none yet, unless the settings or
+  the install path are overridden (the tests and tools override them).
+- An apple build makes `OpenIndy3D.app` from `platform/apple/bundle/Info.plist.in`: high-resolution capable, the
+  action-games category with `LSSupportsGameMode`, the extended gamepad profile, and `LSMinimumSystemVersion` from
+  the deployment target. `jones3d` beside it is a link to its executable, so the tools and terminal runs are as
+  before; the tests take the executable through `$<TARGET_FILE:jones3d>`.
+- The icon is made at build time by `tools/make_icns.sh` (sips, iconutil) from `J3D_ICON_SOURCE`, by default
+  `../ICNS Art/indiana_jones_and_the_infernal_machine-square.jpg` when that file is there. It is the retail box art,
+  a LucasArts and Disney work, so the repository does not hold it and a build for distribution should be given an
+  original picture instead. Without one the app has no icon.
+- SDL3 is built from the pinned 3.4.20 release (`FetchContent`, SHA-256 checked) as a static library for the
+  deployment target. Homebrew's SDL3 needs the macOS it was built on (27.2 here), the cause of the linker warning
+  every apple build had, so an app linked with it could not start on macOS 13. The app now links only system
+  libraries and the Swift runtime in `/usr/lib/swift`. `J3D_SYSTEM_SDL3=ON` uses an installed SDL3 for a quicker first
+  configure; such a build is not for distribution.

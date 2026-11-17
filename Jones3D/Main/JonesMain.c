@@ -1149,7 +1149,7 @@ int J3DAPI JonesMain_Startup(const char* lpCmdLine)
         case JONES_OUTPUTMODE_LOGFILE:
         {
 #ifdef J3D_PORT
-            // Port: in the log folder (~/Library/Logs/J3DPort/, host_dirs.h), not the current directory
+            // Port: in the log folder (~/Library/Logs/OpenIndy3D/, host_dirs.h), not the current directory
             {
                 char aLogPath[1024];
                 snprintf(aLogPath, sizeof(aLogPath), "%s%s", J3DHost_GetLogDir(), "JonesLog.txt");
@@ -3065,7 +3065,7 @@ void J3DAPI JonesMain_LogErrorToFile(const char* pErrorText)
 
     memset(curFilePath, 0, sizeof(curFilePath));
 #ifdef J3D_PORT
-    // Port: in the log folder (~/Library/Logs/J3DPort/, host_dirs.h). Retail wrote it into the install folder.
+    // Port: in the log folder (~/Library/Logs/OpenIndy3D/, host_dirs.h). Retail wrote it into the install folder.
     (void)pathLen; (void)aInstallPath;
     snprintf(curFilePath, sizeof(curFilePath), "%s%s", J3DHost_GetLogDir(), pFilename ? pFilename : "JonesError.txt");
 #else

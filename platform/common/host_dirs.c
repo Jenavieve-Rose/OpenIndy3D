@@ -14,8 +14,10 @@
 
 #include <platform/common/host_dirs.h>
 #include <platform/common/host_path.h>
+#include <platform/common/host_product.h>
 
-#define HOSTDIRS_APPNAME "J3DPort"
+#define HOSTDIRS_APPNAME J3D_PRODUCT_NAME
+#define HOSTDIRS_OLDNAME "J3DPort"   // the working name, before PORT-PLAN.md P8.1
 #define HOSTDIRS_KEYSETS "KeySets" // SITHSTRING_KEYSETS in misc\sithstrings.uni
 
 static const char* hostdirs_GetHome(void)
@@ -165,14 +167,39 @@ static void hostdirs_SeedKeysets(const char* pFromRoot, const char* pToRoot)
         snprintf(aDst, sizeof(aDst), "%s/%s", aTo, pEntry->d_name);
         if ( hostdirs_CopyFile(aSrc, aDst) )
         {
-            fprintf(stderr, "J3DPort: could not copy keyset %s to %s\n", aSrc, aDst);
+            fprintf(stderr, J3D_PRODUCT_NAME ": could not copy keyset %s to %s\n", aSrc, aDst);
         }
     }
     closedir(pDir);
 }
 
+// The folder of a build from before the product name (P8.1) becomes the new one, so its settings and saves carry over.
+// Only when neither the settings file nor the install path is overridden, as the tests and tools override them.
+static void hostdirs_MigrateOldUserDir(void)
+{
+    if ( getenv("J3D_SETTINGS") || getenv("J3D_REG_Install_Path") )
+    {
+        return;
+    }
+
+    char aOld[1024], aNew[1024];
+    snprintf(aOld, sizeof(aOld), "%s/Library/Application Support/" HOSTDIRS_OLDNAME, hostdirs_GetHome());
+    snprintf(aNew, sizeof(aNew), "%s/Library/Application Support/" HOSTDIRS_APPNAME, hostdirs_GetHome());
+
+    struct stat st;
+    if ( stat(aNew, &st) == 0 || stat(aOld, &st) != 0 || !S_ISDIR(st.st_mode) )
+    {
+        return;
+    }
+    if ( rename(aOld, aNew) != 0 )
+    {
+        fprintf(stderr, J3D_PRODUCT_NAME ": could not move %s to %s: %s\n", aOld, aNew, strerror(errno));
+    }
+}
+
 void J3DHost_PrepareUserDirs(void)
 {
+    hostdirs_MigrateOldUserDir();
     wuRegistry_Startup(NULL, NULL); // no-op once started; JonesMain_Startup's own call then finds it started
 
     char aInstallPath[1024];
@@ -183,7 +210,7 @@ void J3DHost_PrepareUserDirs(void)
 
     if ( J3DHost_MakeDirs(aInstallPath) )
     {
-        fprintf(stderr, "J3DPort: could not create %s; saves will fail\n", aInstallPath);
+        fprintf(stderr, J3D_PRODUCT_NAME ": could not create %s; saves will fail\n", aInstallPath);
         return;
     }
 

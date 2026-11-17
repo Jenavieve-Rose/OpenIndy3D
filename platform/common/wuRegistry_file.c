@@ -3,7 +3,7 @@
  *
  * The retail game kept its settings under HKLM\Software\LucasArts Entertainment Company LLC\Indiana Jones and the
  * Infernal Machine\v1.0. The port keeps the same value names in a text file, by default
- *     ~/Library/Application Support/J3DPort/settings.ini
+ *     ~/Library/Application Support/OpenIndy3D/settings.ini
  * (J3D_SETTINGS overrides the path). One value per line, "<name>=<type>:<value>" with type i (int), f (float) or s
  * (string); lines starting with ';' or '#' are comments. Every Save* rewrites the file, as RegSetValueEx wrote through.
  *
@@ -19,7 +19,7 @@
  * (the install root). The defaults end in '/', as the engine concatenates onto them.
  *
  * "Install Path" is the one the engine writes under (SaveGames/, ScreenShots/, KeySets/). Retail kept it in the game
- * folder; the port defaults it to ~/Library/Application Support/J3DPort/ (host_dirs.h), so nothing is written into the
+ * folder; the port defaults it to ~/Library/Application Support/OpenIndy3D/ (host_dirs.h), so nothing is written into the
  * player's game data.
  *
  * Until the dialogs existed (Phase 6), "Start Mode", "Debug Mode" and "Verbosity" defaulted to 0, 1 and 2 (start the
@@ -36,8 +36,9 @@
 #include <w32util/wuRegistry.h>
 
 #include <platform/common/host_dirs.h>
+#include <platform/common/host_product.h>
 
-#define WUREG_APPNAME   "J3DPort"
+#define WUREG_APPNAME   J3D_PRODUCT_NAME
 #define WUREG_MAXLINE   1024
 
 typedef enum
