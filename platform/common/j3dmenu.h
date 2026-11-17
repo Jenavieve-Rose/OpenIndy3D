@@ -47,6 +47,7 @@ typedef struct J3DMenuGamePlay
     int bMapRotation;
     int bDefaultRun;
     int bShowText;
+    int outfit; // Port: Indy's outfit, the "Indy Outfit" setting: 0 as the game chooses, 1 jacket, 2 no jacket
 } J3DMenuGamePlay;
 int J3DMenu_ShowGamePlayOptions(J3DMenuGamePlay* pOptions, int* pResult);
 

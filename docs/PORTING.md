@@ -2009,3 +2009,36 @@ window, rebinding a control froze the game, and in game a name typed into a menu
 Checked: clicks injected in the process through the launcher, Options, Control Options, a set and a rebind to a saved
 key set; the Exit menu's Exit Game closing the game; the launcher, dialogs, gamedialogs and input tests; and by hand in
 game (rebinding, Save and Exit, Exit, typing a set's name).
+
+### Indy's outfit (after 1.0)
+
+A player option: Indy with his jacket, without it, or as the level has him (the default). Retail has no such choice.
+
+- How retail chooses: every level holds both of Indy's walking models, `gen_in.3do` (jacket) and `gen_in_shirt.3do`
+  (shirt), each behind a player template (`walkplayer`, `shirtplayer`, both `indy.pup`) and, in most levels, a
+  cutscene actor template (`indy_actor`, `indy_sh_actor`, `indy_actor.pup`); the level's player things and its cogs'
+  `template` symbols pick one. Levels `02_riv`, `03_shs` and `10_sea` hold only the jacket model. `17_pru` also has
+  both raft models (`gen_ir.3do`, `gen_ir_shirt.3do`, behind `raftplayer` and `shirtraftplayer`). Each pair has the same
+  hierarchy (26 and 29 joints, same names) and the same meshes by name, so the puppet, the hands' weapons, the holster
+  mesh swaps and the whip work with either model. No retail cog moves Indy between the two models of a pair
+  (`actor_indy.cog` swaps him to `aet_gy.3do` and back, the only `SetThingModel` on him). Vehicles (`gen_ij`, `gen_im`,
+  `gen_ir` in `02_riv`) and one-shot cutscene props (`gen_in_chute`, `gen_in_rope`, `gen_in_boat`, `gen_in_ladder`,
+  `gen_in_shirt_tram`, `gen_invo`) have no counterpart and are left alone.
+- `sithModel_Load` (`sithModel.c`): with an outfit chosen, a name of the other model of a pair is answered with the
+  chosen one when the loaded worlds hold it. That covers templates and things in the `.cnd`, cogs' model symbols, a
+  cog's `LoadModel` and a restored mesh swap. It is off while a world's models section is read
+  (`sithModel_bReadingModelsList`), so the model list and model indices, which saves hold, are the same whatever the
+  setting.
+- `sithOpenNormal` (`sithMain.c`) latches the `Indy Outfit` setting (`sithModel_SetOutfit`) before the level loads, so a
+  change in the menus takes effect at the next level start or loaded game, never mid-level.
+- `sithGamesave_RestoreFile` (`sithGamesave.c`) calls `sithModel_ApplyOutfit` once the save's things are in place: a
+  thing drawn with one model of a pair whose template has the other takes its template's model. A save so follows the
+  outfit chosen when it is loaded, and one made with an outfit comes back as the level has Indy under the game's
+  choice. A retail save never has such a thing (above), so with the default nothing changes; `saveload`, `determinism`
+  and the per-level `saveload-*` tests pass unchanged.
+- The setting is in the Game Play page of the in-game options and the launcher's Options (`menu_BuildGamePlay`,
+  `J3DMenuGamePlay.outfit`, `jonesConfig_GetGamePlayMenu` and `_ApplyGamePlayMenu`), and `--outfit` sets
+  `J3D_REG_Indy_Outfit` for one run (`platform/apple/main.c`). Not in the classic Win32 dialog (template 112).
+
+Checked: the `outfit-*` tests (start and three restores in levels 1, 3 and 17), screenshots of level 1 with each
+outfit (the jacket drawn, holster and whip in place), and the full `tools/check.sh`.

@@ -740,7 +740,17 @@ static void menu_BuildGamePlay(MenuPage* pPage, const J3DMenuGamePlay* pOptions)
     aItems[4].kind = J3DMENU_ITEM_TOGGLE;
     aItems[4].pLabel = menu_PageText(pPage, "JONES_STR_TEXT", "Show Text");
     aItems[4].value = pOptions->bShowText != 0;
-    pPage->numItems = 5;
+    // Port: Indy's outfit, the "Indy Outfit" setting (docs/PORTING.md): taken when the next level starts or a game is
+    // loaded. Port strings: the game's string table has none for it.
+    pPage->apNames[1][0] = "As the Game Chooses";
+    pPage->apNames[1][1] = "Jacket";
+    pPage->apNames[1][2] = "No Jacket";
+    aItems[5].kind = J3DMENU_ITEM_CHOICE;
+    aItems[5].pGroup = "Indy's Outfit (from the next level or loaded game)";
+    aItems[5].value = pOptions->outfit < 0 || pOptions->outfit > 2 ? 0 : pOptions->outfit;
+    aItems[5].apNames = pPage->apNames[1];
+    aItems[5].numNames = 3;
+    pPage->numItems = 6;
 }
 
 static void menu_ReadGamePlay(const MenuPage* pPage, J3DMenuGamePlay* pOptions)
@@ -750,6 +760,7 @@ static void menu_ReadGamePlay(const MenuPage* pPage, J3DMenuGamePlay* pOptions)
     pOptions->bMapRotation = pPage->aItems[2].value;
     pOptions->bDefaultRun = pPage->aItems[3].value;
     pOptions->bShowText = pPage->aItems[4].value;
+    pOptions->outfit = pPage->aItems[5].value;
 }
 
 // Sound (template 113): the volume, heard when the slider is let go, and 3D sound. The dialog's reverse-stereo box is

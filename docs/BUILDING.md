@@ -199,6 +199,21 @@ for these folders and for the data root (PORT-PLAN.md P1.30). PORT-PLAN.md track
 A headless run is deterministic: two runs with the same data and settings print the same log and write
 byte-identical saves.
 
+### Indy's outfit
+
+Each level decides whether Indy wears his jacket. **Indy's Outfit** in Game Play Options (in game, or the launcher's
+Options) overrides that: *As the Game Chooses* (the default, as retail), *Jacket* or *No Jacket*. The choice is the
+`Indy Outfit=i:<0|1|2>` setting and takes effect at the next level start or loaded game; a saved game follows the
+outfit chosen when it is loaded. Levels 3, 4 and 11 (`02_riv`, `03_shs`, `10_sea`, where retail always has the jacket)
+hold no jacketless model, so there *No Jacket* keeps the jacket. Vehicles (the raft in level 3,
+the mine car, the jeep) and the few one-shot cutscene models of Indy are left as they are, except the Peru raft, which
+comes in both. For one run:
+
+```sh
+build/jones3d --data /path/to/data-root --outfit jacket        # or nojacket, or game
+J3D_REG_Indy_Outfit=2 build/jones3d --data /path/to/data-root  # the same as --outfit nojacket
+```
+
 ### Settings and environment variables
 
 Settings are stored in `~/Library/Application Support/OpenIndy3D/settings.ini`, one `<name>=<type>:<value>` per line, using
@@ -219,6 +234,7 @@ the value names the retail game kept in the registry. The format is described at
 | `J3D_NO_AUDIO` | `1` opens no audio output device (sound runs silently). |
 | `J3D_AUDIO_DUMP` | `<file.wav>` writes the audio mix to a WAV file and silences the speakers. |
 | `J3D_REG_Sound_3D` | `1` turns 3D sound on for the run (it is the `Sound 3D` setting). |
+| `J3D_REG_Indy_Outfit` | `0`, `1` or `2`: Indy's outfit for the run, as the game chooses, jacket, no jacket (the `Indy Outfit` setting; `--outfit` sets it). |
 | `J3D_INSANE_LOG` | `1` prints the movie player's (INSANE's) messages to stderr, including which movie it plays. |
 | `J3D_INSANE_MEMLOG` | `1` prints every allocation of the movie player's debug allocator to stdout. |
 | `VSync`, `Frame Limit` (settings) | Vsync on or off (default on) and a frame limit in frames a second (default 0, none), from the launcher's Options (P8.7). |
@@ -251,6 +267,7 @@ ctest --test-dir build-xcode -C Debug             # Xcode tree
 | `boot-sdl` | Apple builds only: the same run through `jones3d`, so the SDL event loop delivers the frames and the closing `WM_CLOSE` (SDL's `dummy` video driver, no window). Its autosave goes to `build/boot-sdl/SaveGames/`. | under 1 s |
 | `keys` | No game data needed. The DIK tables (HID usage to DirectInput key, key names), `GetKeyNameTextA` and `SearchPathA`. | under 1 s |
 | `sounddriver` | No game data needed. The sound driver on the virtual clock: one-shots, loops, stop and resume, frequency changes; retail's volume and pan tables; the mix's gains, 8- and 16-bit input, the background mute, rendered without a device; with 3D sound on, retail's channel flags, the inverse distance law, doppler from the source's and the camera's velocity, and head-relative voices; the game's WVSM codec, and the ADPCM block decoder (retail's assembly, translated) bit for bit against an independent decoder. | under 1 s |
+| `outfit-01_cyn`, `outfit-03_riv`, `outfit-17_pru` | Indy's outfit (`tests/outfit.c`): starts the level with an outfit (jacket in level 1, none in level 3, which keeps the jacket, and in level 17), checks the local player's and Indy's templates' models, then restores a save of it with each outfit (jacket, none, the game's choice) and checks again, running 300 frames after each. Saves go to `build/outfit-out/`. | about 2 s each |
 | `saveload-3d` | `saveload` with 3D sound on, so 3D voices' channel state goes through the save and restore. | under 1 s |
 | `audio3d` | Apple builds only, no game data needed; skipped with no audio output device. A tone in a 3D voice at known positions around the listener, captured through `J3D_AUDIO_DUMP` (nothing is heard): right of the camera is louder on the right, left on the left, ahead and behind balanced, a turned listener and "Reverse sound" swap sides as they should. | about 3 s |
 | `insaneasm` | No game data needed. The C translations of the movie player's assembler helpers: each pixel converter against a register-level model of its assembler for every 16-bit input and every RGB triple; the copies, fills, table lookups and rectangle blit. | under 1 s |
