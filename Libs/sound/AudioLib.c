@@ -384,7 +384,7 @@ size_t J3DAPI AudioLib_WriteWaveFileHeader(uint8_t* pOutData, int type, uint32_t
 
             memcpy(pOut, "RIFF", 4);
             pOut += 4;
-            AUDIOLIB_WRITE32(pOut, soundDataSize + extraDataSize + 36, AUDIOLIB_NOSWAP32);
+            AUDIOLIB_WRITE32(pOut, (uint32_t)(soundDataSize + extraDataSize + 36), AUDIOLIB_NOSWAP32); // Port: narrowing cast; a RIFF size is 32-bit
             memcpy(pOut, "WAVEfmt ", 8);
             pOut += 8;
             AUDIOLIB_WRITE32(pOut, 16, AUDIOLIB_NOSWAP32);
@@ -399,7 +399,7 @@ size_t J3DAPI AudioLib_WriteWaveFileHeader(uint8_t* pOutData, int type, uint32_t
                 extraDataSize -= 8;
                 memcpy(pOut, "sync", 4);
                 pOut += 4;
-                AUDIOLIB_WRITE32(pOut, extraDataSize, AUDIOLIB_NOSWAP32);
+                AUDIOLIB_WRITE32(pOut, (uint32_t)extraDataSize, AUDIOLIB_NOSWAP32); // Port: narrowing cast; a RIFF size is 32-bit
                 memcpy(pOut, pSyncData, extraDataSize);
                 pOut += extraDataSize;
             }
@@ -586,7 +586,7 @@ int J3DAPI AudioLib_CompressWave(uint8_t* pOutBuffer, const uint8_t* pWaveData)
     AudioLib_ResetCompressor(&state);
     compressedSize = AudioLib_Compress(&state, pOutBuffer, pData, sndDataSize, numChannels);
     AudioLib_Store32((pStart + 20), (uint32_t)(AUDIOLIB_SWAP32(compressedSize)));
-    return pOutBuffer + compressedSize - pStart;
+    return (int)(pOutBuffer + compressedSize - pStart); // Port: narrowing cast; the size of one sound
 }
 
 int J3DAPI AudioLib_GetUncompressedSize(const uint8_t* pData)
@@ -1026,7 +1026,10 @@ int J3DAPI AudioLib_GenerateLipSynchBlock(uint8_t* pOutData, const uint8_t* pSnd
 
         pPrev = pSndData;
         pCur = pSndData + 2;
-        for ( j = 2; j < frameSize; j += 2, pCur += 2, pPrev += 2 )
+        // Port: and the sample must be inside the data. A frame is 2 * sampleRate / 60 bytes, odd at 22,050 Hz (735),
+        // so its last sample takes a byte of the next frame, which is past the data for the last frame (ASan, Palawan
+        // Lagoon, PORT-PLAN.md P7.2). Only that read is dropped; every other frame reads what retail read.
+        for ( j = 2; j < frameSize && i + j + 1 < sndDataSize; j += 2, pCur += 2, pPrev += 2 )
         {
             curSample = (int16_t)AudioLib_Load16(pCur);
             lastSample = (int16_t)AudioLib_Load16(pPrev);

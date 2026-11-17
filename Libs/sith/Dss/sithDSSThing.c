@@ -1693,7 +1693,26 @@ int J3DAPI sithDSSThing_ProcessFullDescription(const SithMessage* pMsg)
                 break;
         }
 
+#ifdef J3D_PORT
+        {
+            // Port: sithThing_Initialize applies the difficulty to an actor again (sithActor_SetDifficulty), which
+            // rescales the saved health by the template's maximum health. When that maximum is above 1000 it is clamped,
+            // but the health is scaled by the unclamped value, so every save and restore raised such an actor's health
+            // (Volodnikov in Nub's Tomb: 133, then 176.89, then 235...). When the rescale leaves the maximum where it was
+            // saved (the same difficulty), the saved health is kept; when the maximum changes (the save is loaded at
+            // another difficulty) retail's rescale stands. (PORT-PLAN.md P7.2, docs/PORTING.md)
+            const int bActor = pThing->type == SITH_THING_ACTOR;
+            const float savedHealth = pThing->thingInfo.actorInfo.health;
+            const float savedMaxHealth = pThing->thingInfo.actorInfo.maxHealth;
+            sithThing_Initialize(sithWorld_pCurrentWorld, pThing, 0);
+            if ( bActor && pThing->thingInfo.actorInfo.maxHealth == savedMaxHealth )
+            {
+                pThing->thingInfo.actorInfo.health = savedHealth;
+            }
+        }
+#else
         sithThing_Initialize(sithWorld_pCurrentWorld, pThing, 0);
+#endif
 
         if ( pThing->pSwapList )
         {

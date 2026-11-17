@@ -844,12 +844,30 @@ int J3DAPI Sound_Restore(tFileHandle fh)
                         {
                             pChannel->thingId = thingId;
                             pChannel->flags |= SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND;
+#ifdef J3D_PORT
+                            // Port: the saved pitch was read and dropped, so a pitched loop (the jeep in reverse, a mine
+                            // car's motor) came back at 1.0 until its cog set it again (PORT-PLAN.md P7.2).
+                            if ( pitch != pChannel->pitch )
+                            {
+                                Sound_SetPitch(pChannel->handle, pitch);
+                            }
+#endif
                         }
                     }
                     else if ( (chflags & SOUND_CHANNEL_3DSOUND) != 0 )
                     {
                         chflags |= SOUND_CHANNEL_LOOP | SOUND_CHANNEL_PLAYING;
+#ifdef J3D_PORT
+                        // Port: as above, the saved pitch is applied
+                        tSoundChannelHandle hChannel = Sound_PlayPos(hSnd, volume, priority, chflags, posX, posY, posZ, guid, minRadius, maxRadius, envflags);
+                        tSoundChannel* pChannel = Sound_GetChannel(hChannel);
+                        if ( pChannel && pitch != pChannel->pitch )
+                        {
+                            Sound_SetPitch(hChannel, pitch);
+                        }
+#else
                         Sound_PlayPos(hSnd, volume, priority, chflags, posX, posY, posZ, guid, minRadius, maxRadius, envflags);
+#endif
                     }
                 }
 
@@ -2949,7 +2967,7 @@ void J3DAPI Sound_SoundDump(void)
     char aThing[32];
 
     numInfos = Sound_GetAllInstanceInfo(aInfos, STD_ARRAYLEN(aInfos));
-    sprintf(aLine, "Sound Dump of %d sounds\n", numInfos, 0, 0, 0);
+    sprintf(aLine, "Sound Dump of %zu sounds\n", numInfos); // Port: %zu, and the unused arguments dropped (P7.3)
     Sound_pHS->pStatusPrint(aLine);
     for ( i = 0; i < numInfos; ++i )
     {

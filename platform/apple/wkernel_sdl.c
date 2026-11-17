@@ -41,7 +41,7 @@
  * quicksave message uses. Timers on other windows belong to the dialogs of Phase 6 and are refused.
  *
  * J3D_FRAMES=<n> (jones3d --frames <n>) ends the run after n passes of the game loop by delivering WM_CLOSE, and
- * wkernel_Run then returns 0, as the null backend does. J3D_HEADLESS selects SDL's "dummy" video driver unless
+ * wkernel_Run then returns 0, as the null backend does. Such a run stays active when its window loses focus. J3D_HEADLESS selects SDL's "dummy" video driver unless
  * SDL_VIDEO_DRIVER names one, so a headless run opens no window but runs this same event loop.
  */
 #include <stdint.h>
@@ -552,7 +552,12 @@ static void wkernel_TranslateEvent(const SDL_Event* pEvent)
             break;
 
         case SDL_EVENT_WINDOW_FOCUS_LOST:
-            wkernel_SetActive(0);
+            // A counted run (J3D_FRAMES) is a test or a tool's: nobody is there to click it back, and the game waits
+            // for messages while it is inactive, so the run would never reach its last frame (PORT-PLAN.md P7.1).
+            if ( !getenv("J3D_FRAMES") )
+            {
+                wkernel_SetActive(0);
+            }
             break;
 
         case SDL_EVENT_WINDOW_MINIMIZED:

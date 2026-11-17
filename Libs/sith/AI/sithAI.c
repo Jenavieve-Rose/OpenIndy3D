@@ -868,7 +868,7 @@ int J3DAPI sithAI_AIStatus(const SithConsoleCommand* pFunc, const char* pArg)
     sithConsole_PrintString("Current instincts:\n");
     for ( i = 0; i < pLocal->numInstincts; ++i )
     {
-        sprintf(std_genBuffer, "Instinct %d: Params: %f/%f/%f/%f, nextUpdate=%d, mask=0x%x, mode=0x%x.\n", i, pLocal->aInstinctStates[i].aParams[0], pLocal->aInstinctStates[i].aParams[1], pLocal->aInstinctStates[i].aParams[2], pLocal->aInstinctStates[i].aParams[3], pLocal->aInstinctStates[i].msecNextUpdate, pLocal->pClass->aInstincts[i].triggerEvents, pLocal->pClass->aInstincts[i].updateModes);
+        sprintf(std_genBuffer, "Instinct %zu: Params: %f/%f/%f/%f, nextUpdate=%d, mask=0x%x, mode=0x%x.\n", (size_t)i, /* Port: %zu (P7.3) */ pLocal->aInstinctStates[i].aParams[0], pLocal->aInstinctStates[i].aParams[1], pLocal->aInstinctStates[i].aParams[2], pLocal->aInstinctStates[i].aParams[3], pLocal->aInstinctStates[i].msecNextUpdate, pLocal->pClass->aInstincts[i].triggerEvents, pLocal->pClass->aInstincts[i].updateModes);
         sithConsole_PrintString(std_genBuffer);
     }
 

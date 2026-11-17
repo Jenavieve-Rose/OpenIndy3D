@@ -566,6 +566,15 @@ int J3DAPI sithGamesave_RestoreFile(const char* pFilename, int bNotify)
     sithFX_ClearChalkMarks();
     sithThing_RemoveWorldThings(sithWorld_pCurrentWorld);
 
+#ifdef J3D_PORT
+    // Port: the saved game time is set before the sections are replayed, not only at the end. Timed events are saved
+    // as a delay from the game time of the save (sithDSS_SyncTaskEvents) and recreated as a delay from the current
+    // one (sithDSS_ProcessSyncTaskEvents), but the level load above advances game time from the load screen's progress
+    // callback (JonesDisplay_UpdateLoadProgress), so in retail every restored event, a cog's Sleep or timer among
+    // them, fired late or early by however long the level took to load. (PORT-PLAN.md P7.2, docs/PORTING.md)
+    sithTime_SetGameTime(hdr.msecGameTime);
+#endif
+
     // Parse & restore gamesave file sections
     hresult = sithGamesave_ReadBlockTypeLength(&sithMulti_message.type, &sithMulti_message.length);
     while ( !hresult )

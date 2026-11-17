@@ -536,12 +536,13 @@ int J3DAPI sithCommand_Players(const SithConsoleCommand* pFunc, const char* pArg
     size_t i;
     char aName[64];
 
-    sprintf(std_genBuffer, "Maxplayers = %d", sithPlayer_numPlayers);
+    sprintf(std_genBuffer, "Maxplayers = %zu", (size_t)sithPlayer_numPlayers); // Port: %zu, the count is a size_t (P7.3)
     sithConsole_PrintString(std_genBuffer);
     for ( i = 0; i < sithPlayer_numPlayers; ++i )
     {
         STD_TOSTR(aName, sithPlayer_aPlayers[i].awName);
-        sprintf(std_genBuffer, "Player %d:  Name: %s  Flags: %x  ID: %x", i, aName, sithPlayer_aPlayers[i].flags, sithPlayer_aPlayers[i].playerNetId);
+        sprintf(std_genBuffer, "Player %zu:  Name: %s  Flags: %x  ID: %x", (size_t)i, aName, // Port: %zu (P7.3)
+            sithPlayer_aPlayers[i].flags, sithPlayer_aPlayers[i].playerNetId);
         sithConsole_PrintString(std_genBuffer);
     }
 
@@ -565,7 +566,7 @@ int J3DAPI sithCommand_Ping(const SithConsoleCommand* pFunc, const char* pArg)
         playerNum = sithPlayer_GetPlayerNumByName(awName);
         if ( playerNum < 0 )
         {
-            sprintf(std_genBuffer, "Player %s not found", awName);
+            sprintf(std_genBuffer, "Player %ls not found", awName); // Port: %ls, the name is wide (P7.3)
             sithConsole_PrintString(std_genBuffer);
         }
     }
@@ -614,7 +615,7 @@ int J3DAPI sithCommand_Tick(const SithConsoleCommand* pFunc, const char* pStrTic
 
     if ( !pStrTickRate || (tickRate = atoi(pStrTickRate)) == 0 )
     {
-        sprintf(std_genBuffer, "Current tick rate is %d msec", sithMulti_GetTickRate());
+        sprintf(std_genBuffer, "Current tick rate is %zu msec", sithMulti_GetTickRate()); // Port: %zu (P7.3)
         sithConsole_PrintString(std_genBuffer);
         return 1;
     }
@@ -626,7 +627,7 @@ int J3DAPI sithCommand_Tick(const SithConsoleCommand* pFunc, const char* pStrTic
     }
 
     sithMulti_SetTickRate(tickRate);
-    sithEvent_RegisterTask(2u, sithMulti_CheckPlayers, tickRate, SITHEVENT_TASKINTERVAL);
+    sithEvent_RegisterTask(2u, sithMulti_CheckPlayers, (uint32_t)tickRate, SITHEVENT_TASKINTERVAL); // Port: narrowing cast; 50 to 300
     return 1;
 }
 
@@ -650,7 +651,7 @@ int J3DAPI sithCommand_Session(const SithConsoleCommand* pFunc, const char* pArg
     }
 
     numPlayers = stdComm_GetNumPlayers();
-    sprintf(std_genBuffer, "%d players in session", numPlayers);
+    sprintf(std_genBuffer, "%zu players in session", (size_t)numPlayers); // Port: %zu (P7.3)
     sithConsole_PrintString(std_genBuffer);
     for ( i = 0; i < numPlayers; ++i )
     {
@@ -815,6 +816,7 @@ int J3DAPI sithCommand_CamInfo(const SithConsoleCommand* pFunc, const char* pArg
     sithConsole_PrintString(std_genBuffer);
     sprintf(std_genBuffer, "ORIENT: P %2.4f Y %2.4f R %2.4f", pCamera->lookPYR.pitch, pCamera->lookPYR.yaw, pCamera->lookPYR.roll);
     sithConsole_PrintString(std_genBuffer);
+    return 1; // Port: fell off the end; the command succeeded (P7.3)
 }
 
 int J3DAPI sithCommand_Fov(const SithConsoleCommand* pFunc, const char* pArg)
@@ -933,11 +935,11 @@ int J3DAPI sithCommand_CogList(const SithConsoleCommand* pFunc, const char* pArg
         return 0;
     }
 
-    sprintf(std_genBuffer, "World cogs = %d.", sithWorld_pCurrentWorld->numCogs);
+    sprintf(std_genBuffer, "World cogs = %zu.", (size_t)sithWorld_pCurrentWorld->numCogs); // Port: %zu (P7.3)
     sithConsole_PrintString(std_genBuffer);
     for ( i = 0, pCog = sithWorld_pCurrentWorld->aCogs; i < sithWorld_pCurrentWorld->numCogs; ++i, ++pCog )
     {
-        sprintf(std_genBuffer, "%d: %-16s %-16s ", i, pCog->aName, pCog->pScript->aName);
+        sprintf(std_genBuffer, "%zu: %-16s %-16s ", (size_t)i, pCog->aName, pCog->pScript->aName); // Port: %zu (P7.3)
         if ( (pCog->flags & SITHCOG_DISABLED) != 0 )
         {
             sprintf(std_genBuffer + strlen(std_genBuffer), "(paused) ");
@@ -948,7 +950,7 @@ int J3DAPI sithCommand_CogList(const SithConsoleCommand* pFunc, const char* pArg
             sprintf(std_genBuffer + strlen(std_genBuffer), "(trace)  ");
         }
 
-        sprintf(std_genBuffer + strlen(std_genBuffer), aLineEnd);
+        sprintf(std_genBuffer + strlen(std_genBuffer), "%s", aLineEnd); // Port: not used as a format (P7.3)
         sithConsole_PrintString(std_genBuffer);
     }
 
@@ -1065,7 +1067,7 @@ int J3DAPI sithCommand_MatList(const SithConsoleCommand* pFunc, const char* pArg
             continue;
         }
 
-        matNum = pSurface->face.pMaterial - pWorld->aMaterials;
+        matNum = (int)(pSurface->face.pMaterial - pWorld->aMaterials); // Port: narrowing cast; an index into aMaterials
         ++aMatInfo[matNum].surfCount;
     }
 
@@ -1085,12 +1087,12 @@ int J3DAPI sithCommand_MatList(const SithConsoleCommand* pFunc, const char* pArg
 
     qsort(aMatInfo, pWorld->numMaterials, sizeof(SithCommandMatInfo), sithCommand_CompareMatInfo);
 
-    numMaterials = pWorld->numMaterials;
+    numMaterials = (int)pWorld->numMaterials; // Port: narrowing cast; the loops above already compare as int
     for ( i = numMaterials - 1; i >= 0; --i )
     {
         if ( aMatInfo[i].memPerSurf )
         {
-            sprintf(std_genBuffer, "%-16s: %d faces, %d bytes, %d bytes/face.", pWorld->aMaterials[aMatInfo[i].num].aName, aMatInfo[i].surfCount, aMatInfo[i].memUsage, aMatInfo[i].memPerSurf);
+            sprintf(std_genBuffer, "%-16s: %zu faces, %zu bytes, %zu bytes/face.", pWorld->aMaterials[aMatInfo[i].num].aName, aMatInfo[i].surfCount, aMatInfo[i].memUsage, aMatInfo[i].memPerSurf); // Port: %zu (P7.3)
             sithConsole_PrintString(std_genBuffer);
         }
     }
@@ -1149,7 +1151,10 @@ int J3DAPI sithCommand_StopSounds(const SithConsoleCommand* pFunc, const char* p
 
 static int J3DAPI sithCommand_CompareMatInfo(const void* pElem1, const void* pElem2)
 {
-    return ((const SithCommandMatInfo*)pElem2)->memPerSurf - ((const SithCommandMatInfo*)pElem1)->memPerSurf;
+    // Port: compared, not subtracted: the difference of two size_t is never negative (P7.3). Largest first, as retail.
+    const size_t memPerSurf1 = ((const SithCommandMatInfo*)pElem1)->memPerSurf;
+    const size_t memPerSurf2 = ((const SithCommandMatInfo*)pElem2)->memPerSurf;
+    return (memPerSurf2 > memPerSurf1) - (memPerSurf2 < memPerSurf1);
 }
 #endif
 

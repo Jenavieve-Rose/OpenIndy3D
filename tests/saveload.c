@@ -7,7 +7,10 @@
  * loads the level again from the file), records the world again and compares the two. It then saves the restored game
  * and requires the second file to be byte-for-byte the first, and runs more frames to show the restored game goes on.
  *
- *   saveload <data root> [frames before the save] [frames after the restore]
+ *   saveload <data root> [frames before the save] [frames after the restore] [level number]
+ *
+ * The level number is the game's own, 1 to 17 in story order (JonesMain_Startup reads it from the command line, as
+ * `jones3d <n>` does); the default is the first level. ctest runs every level (PORT-PLAN.md P7.2).
  *
  * Saves go under "Install Path" (J3D_REG_Install_Path; ctest points it into the build tree). Exit 0 on success.
  */
@@ -36,7 +39,7 @@
 int J3DAPI sithGamesave_SaveFile(const char* pFilename);                 // sithGamesave.c, not in its header
 int J3DAPI sithGamesave_RestoreFile(const char* pFilename, int bNotify);
 
-#define SAVELOAD_MAXTHINGS  2048
+#define SAVELOAD_MAXTHINGS  8192 // more than any level holds; a level that has more fails the test (saveload_Capture)
 #define SAVELOAD_NUMGLOBALS 16   // NdsHeader.aCogGlobalValues
 
 typedef struct SaveloadThing
@@ -56,6 +59,7 @@ typedef struct SaveloadState
     char aWorldName[64];
     uint32_t msecGameTime;
     size_t numThings;   // things with a type
+    int bTruncated;     // the level holds more things than aThings
     SaveloadThing aThings[SAVELOAD_MAXTHINGS];
     int playerIdx;
     SithCogSymbolValue aGlobals[SAVELOAD_NUMGLOBALS];
@@ -73,7 +77,7 @@ static void saveload_Capture(SaveloadState* pState)
     pState->msecGameTime = sithTime_msecGameTime;
     pState->playerIdx    = sithPlayer_pLocalPlayerThing ? sithPlayer_pLocalPlayerThing->idx : -1;
 
-    for ( int i = 0; i <= pWorld->lastThingIdx && pState->numThings < SAVELOAD_MAXTHINGS; ++i )
+    for ( int i = 0; i <= pWorld->lastThingIdx; ++i )
     {
         const SithThing* pThing = &pWorld->aThings[i];
         // Only what a save holds: no free slots, and no timed debris or particles, which sithThing_CanSync leaves out
@@ -81,6 +85,11 @@ static void saveload_Capture(SaveloadState* pState)
         if ( !sithThing_CanSync(pThing) )
         {
             continue;
+        }
+        if ( pState->numThings >= SAVELOAD_MAXTHINGS )
+        {
+            pState->bTruncated = 1;
+            break;
         }
 
         SaveloadThing* pOut = &pState->aThings[pState->numThings++];
@@ -141,6 +150,10 @@ static int saveload_Compare(const SaveloadState* pA, const SaveloadState* pB)
     {
         SAVELOAD_DIFF("player thing %d / %d\n", pA->playerIdx, pB->playerIdx);
     }
+    if ( pA->bTruncated || pB->bTruncated )
+    {
+        SAVELOAD_DIFF("more than %d things: raise SAVELOAD_MAXTHINGS\n", SAVELOAD_MAXTHINGS);
+    }
     if ( pA->numThings != pB->numThings )
     {
         SAVELOAD_DIFF("thing count %zu / %zu\n", pA->numThings, pB->numThings);
@@ -175,7 +188,8 @@ static int saveload_Compare(const SaveloadState* pA, const SaveloadState* pB)
         }
         if ( memcmp(&pTA->health, &pTB->health, sizeof(float)) )
         {
-            SAVELOAD_DIFF("thing %d: health %g / %g\n", pTA->idx, pTA->health, pTB->health);
+            const SithThing* pThing = &sithWorld_pCurrentWorld->aThings[pTA->idx];
+            SAVELOAD_DIFF("thing %d (%s, type %d): health %g / %g\n", pTA->idx, pThing->aName, pTA->type, pTA->health, pTB->health);
         }
     }
 
@@ -268,19 +282,175 @@ static int saveload_SplitBlocks(const unsigned char* pFile, size_t size, Saveloa
     return -1;
 }
 
+// Prints a differing message's bytes from both saves (the first 64), so a failure can be read from the test's output.
+static void saveload_DumpBlocks(const SaveloadBlock* pA, const SaveloadBlock* pB)
+{
+    const SaveloadBlock* apBlocks[2] = { pA, pB };
+    for ( int n = 0; n < 2; ++n )
+    {
+        printf("    %s:", n ? "second" : "first ");
+        for ( uint32_t i = 0; i < apBlocks[n]->length && i < 64; ++i )
+        {
+            printf("%s%02x", (i % 4) ? "" : " ", apBlocks[n]->pData[i]);
+        }
+        printf("\n");
+    }
+}
+
 static int saveload_BlockEqual(const SaveloadBlock* pA, const SaveloadBlock* pB, size_t skip)
 {
     return pA->type == pB->type && pA->length == pB->length && pA->length >= skip
         && memcmp(pA->pData + skip, pB->pData + skip, pA->length - skip) == 0;
 }
 
-// Compares the save of the restored game (B) with the original save (A). Everything must be identical except three
+// Compares the save of the restored game (B) with the original save (A). Everything must be identical except
 // differences that are retail behaviour, not port bugs (docs/PORTING.md, "Savegame round trip"):
 //   - AI status messages come out in a different order (the AI blocks are reallocated on restore): compared as a set;
 //   - an animation's ID is its slot number, and restore reallocates slots without holes: the ID is not compared;
-//   - the ambient channel's handle, and every saved channel's handle, which retail's restore does not keep (below).
+//   - the sound section's channels (saveload_CompareSound).
 // (Sound_Restore's pause time, the fifth word, compares since the port fixed its sign, PORT-PLAN.md P4.9.)
-#define SAVELOAD_SOUNDSKIPMAX 65536
+
+// One saved sound channel (Sound_Save): its name, then 17 words, the fourth the channel handle, the thirteenth the flags
+// and the fourteenth the guid that names the channel to the game.
+#define SAVELOAD_MAXCHANNELS 256
+#define SAVELOAD_CHANNEL_HANDLE 3
+#define SAVELOAD_CHANNEL_FLAGS 12
+#define SAVELOAD_CHANNEL_GUID 13
+#define SAVELOAD_SOUND_LOOP 0x2u
+#define SAVELOAD_SOUND_FAR 0x200000u
+
+typedef struct SaveloadChannel
+{
+    const unsigned char* pName;
+    uint32_t nameLen;
+    uint32_t aWords[17];
+} SaveloadChannel;
+
+// Splits the channel list that starts at pSec + 20 (after the ambient handle, magic, pause count, elapsed and pause
+// times). Returns the channel count and sets *pEnd to the offset of the end-of-list word, or returns -1.
+static int saveload_SplitChannels(const unsigned char* pSec, size_t size, SaveloadChannel* aChannels, size_t* pEnd)
+{
+    size_t off = 5 * sizeof(uint32_t);
+    int num = 0;
+    uint32_t nameLen;
+    while ( off + sizeof(uint32_t) <= size && (memcpy(&nameLen, pSec + off, sizeof(nameLen)), nameLen != 0) )
+    {
+        if ( num == SAVELOAD_MAXCHANNELS || off + sizeof(uint32_t) + nameLen + sizeof(aChannels->aWords) > size )
+        {
+            return -1;
+        }
+        SaveloadChannel* pChannel = &aChannels[num++];
+        pChannel->nameLen = nameLen;
+        pChannel->pName   = pSec + off + sizeof(uint32_t);
+        memcpy(pChannel->aWords, pChannel->pName + nameLen, sizeof(pChannel->aWords));
+        off += sizeof(uint32_t) + nameLen + sizeof(pChannel->aWords);
+    }
+    if ( off + sizeof(uint32_t) > size )
+    {
+        return -1;
+    }
+    *pEnd = off;
+    return num;
+}
+
+// The sound section (sithSoundMixer_GameSave, Sound_Save) and the weapon section after it. Retail's restore does not
+// give the channels back exactly as they were saved (phase 8 fix series):
+//   - the ambient channel's handle (word 0): sithSoundMixer_GameRestore stops the ambient channel, and the mixer starts
+//     it again, under a new handle, on the next frame: not compared;
+//   - the order: Sound_Save walks the channels from the last, and Sound_Restore replays them in the saved order into
+//     new channels, so the second save lists them in another order: channels are matched by guid;
+//   - each channel's handle: Sound_Restore reads it into the handle entropy and Sound_GenerateChannelHandle adds
+//     SOUND_HANDLE_MIN (1234) to it, so a restored channel's handle is 1234 higher;
+//   - each channel's flags gain SOUND_CHANNEL_FAR: Sound_Restore moves the listener 100,000 units away before replaying
+//     the channels, so each starts far and the next Sound_Update brings it back;
+//   - a channel saved only because it was far, and not looping (a one-shot sound out of earshot), is not replayed.
+// Everything else (the other channel words, the names, the entropy and fades after the list, the weapon section) must
+// be identical.
+static int saveload_CompareSound(const unsigned char* pSecA, size_t sizeA, const unsigned char* pSecB, size_t sizeB)
+{
+    static SaveloadChannel aChannelsA[SAVELOAD_MAXCHANNELS], aChannelsB[SAVELOAD_MAXCHANNELS];
+    int numDiffs = 0;
+    size_t endA, endB;
+#define SAVELOAD_SOUNDDIFF(...) do { printf("  FILE DIFF: " __VA_ARGS__); ++numDiffs; } while ( 0 )
+
+    int numA = saveload_SplitChannels(pSecA, sizeA, aChannelsA, &endA);
+    int numB = saveload_SplitChannels(pSecB, sizeB, aChannelsB, &endB);
+    if ( numA < 0 || numB < 0 )
+    {
+        SAVELOAD_SOUNDDIFF("sound section: the channel list does not parse\n");
+        return numDiffs;
+    }
+
+    if ( memcmp(pSecA + sizeof(uint32_t), pSecB + sizeof(uint32_t), 4 * sizeof(uint32_t)) )
+    {
+        SAVELOAD_SOUNDDIFF("sound section: the words after the ambient handle differ\n");
+    }
+
+    int aMatched[SAVELOAD_MAXCHANNELS] = { 0 };
+    for ( int i = 0; i < numA; ++i )
+    {
+        const SaveloadChannel* pA = &aChannelsA[i];
+        const SaveloadChannel* pB = NULL;
+        for ( int k = 0; k < numB && !pB; ++k )
+        {
+            if ( !aMatched[k] && aChannelsB[k].aWords[SAVELOAD_CHANNEL_GUID] == pA->aWords[SAVELOAD_CHANNEL_GUID] )
+            {
+                aMatched[k] = 1;
+                pB = &aChannelsB[k];
+            }
+        }
+
+        const uint32_t flagsA = pA->aWords[SAVELOAD_CHANNEL_FLAGS];
+        if ( !pB )
+        {
+            if ( (flagsA & SAVELOAD_SOUND_LOOP) || !(flagsA & SAVELOAD_SOUND_FAR) )
+            {
+                SAVELOAD_SOUNDDIFF("sound channel %.*s (guid %u) not restored\n", (int)pA->nameLen, pA->pName,
+                    pA->aWords[SAVELOAD_CHANNEL_GUID]);
+            }
+            continue;
+        }
+
+        if ( pA->nameLen != pB->nameLen || memcmp(pA->pName, pB->pName, pA->nameLen) )
+        {
+            SAVELOAD_SOUNDDIFF("sound channel guid %u: another sound\n", pA->aWords[SAVELOAD_CHANNEL_GUID]);
+            continue;
+        }
+        if ( pB->aWords[SAVELOAD_CHANNEL_HANDLE] != pA->aWords[SAVELOAD_CHANNEL_HANDLE] + 1234 )
+        {
+            SAVELOAD_SOUNDDIFF("sound channel handle %u restored as %u, not %u\n", pA->aWords[SAVELOAD_CHANNEL_HANDLE],
+                pB->aWords[SAVELOAD_CHANNEL_HANDLE], pA->aWords[SAVELOAD_CHANNEL_HANDLE] + 1234);
+        }
+        if ( pB->aWords[SAVELOAD_CHANNEL_FLAGS] != (flagsA | SAVELOAD_SOUND_FAR) )
+        {
+            SAVELOAD_SOUNDDIFF("sound channel flags 0x%x restored as 0x%x\n", flagsA, pB->aWords[SAVELOAD_CHANNEL_FLAGS]);
+        }
+        for ( int w = 0; w < 17; ++w )
+        {
+            if ( w != SAVELOAD_CHANNEL_HANDLE && w != SAVELOAD_CHANNEL_FLAGS && pA->aWords[w] != pB->aWords[w] )
+            {
+                SAVELOAD_SOUNDDIFF("sound channel %.*s (guid %u): word %d 0x%x restored as 0x%x\n", (int)pA->nameLen,
+                    pA->pName, pA->aWords[SAVELOAD_CHANNEL_GUID], w, pA->aWords[w], pB->aWords[w]);
+            }
+        }
+    }
+    for ( int k = 0; k < numB; ++k )
+    {
+        if ( !aMatched[k] )
+        {
+            SAVELOAD_SOUNDDIFF("sound channel %.*s (guid %u) is new in the second save\n", (int)aChannelsB[k].nameLen,
+                aChannelsB[k].pName, aChannelsB[k].aWords[SAVELOAD_CHANNEL_GUID]);
+        }
+    }
+
+    // After the list: the entropy, the fades and the weapon section.
+    if ( sizeA - endA != sizeB - endB || memcmp(pSecA + endA, pSecB + endB, sizeA - endA) )
+    {
+        SAVELOAD_SOUNDDIFF("the handle entropy, fades or weapon section differ\n");
+    }
+#undef SAVELOAD_SOUNDDIFF
+    return numDiffs;
+}
 
 static int saveload_CompareFiles(const char* pPathA, const char* pPathB)
 {
@@ -335,68 +505,11 @@ static int saveload_CompareFiles(const char* pPathA, const char* pPathB)
         else if ( !saveload_BlockEqual(pBlockA, pBlockB, pBlockA->type == SAVELOAD_DSS_ANIMSTATUS ? sizeof(int32_t) : 0) )
         {
             SAVELOAD_FILEDIFF("message %d (type %d, %u bytes) differs\n", i, pBlockA->type, pBlockA->length);
+            saveload_DumpBlocks(pBlockA, pBlockB);
         }
     }
 
-    if ( sizeA - tailA != sizeB - tailB )
-    {
-        SAVELOAD_FILEDIFF("sound and weapon sections: %zu / %zu bytes\n", sizeA - tailA, sizeB - tailB);
-    }
-    else
-    {
-        // Walk the sound section (sithSoundMixer_GameSave, Sound_Save) to find the words retail does not restore:
-        //   the ambient channel handle (word 0): sithSoundMixer_GameRestore stops the ambient channel, and the mixer
-        //   starts it again, under a new handle, on the next frame;
-        //   each saved channel's handle: Sound_Restore reads it into the handle entropy, and Sound_GenerateChannelHandle
-        //   adds SOUND_HANDLE_MIN (1234) to it again, so a restored channel's handle is 1234 higher (phase 8 fix series);
-        //   each saved channel's flags gain SOUND_CHANNEL_FAR (0x200000): Sound_Restore moves the listener 100,000 units
-        //   away before replaying the channels, so each starts far and the next Sound_Update brings it back.
-        const unsigned char* pSecA = pA + tailA;
-        const unsigned char* pSecB = pB + tailB;
-        size_t secSize = sizeA - tailA;
-        unsigned char aSkip[SAVELOAD_SOUNDSKIPMAX] = { 0 }; // 1 = byte not compared
-        size_t off = 5 * sizeof(uint32_t); // ambient, magic, pause count, elapsed time, pause time
-        uint32_t nameLen;
-        memset(aSkip, 1, sizeof(uint32_t));
-        while ( off + sizeof(uint32_t) <= secSize && (memcpy(&nameLen, pSecA + off, sizeof(nameLen)), nameLen != 0) )
-        {
-            size_t handleOff = off + sizeof(uint32_t) + nameLen + 3 * sizeof(uint32_t);
-            int32_t handleA, handleB;
-            if ( handleOff + sizeof(int32_t) > secSize || handleOff + sizeof(int32_t) > sizeof(aSkip) )
-            {
-                SAVELOAD_FILEDIFF("sound section: channel list runs past the section\n");
-                goto done;
-            }
-            memcpy(&handleA, pSecA + handleOff, sizeof(handleA));
-            memcpy(&handleB, pSecB + handleOff, sizeof(handleB));
-            if ( handleB != handleA + 1234 )
-            {
-                SAVELOAD_FILEDIFF("sound channel handle %d restored as %d, not %d\n", handleA, handleB, handleA + 1234);
-            }
-            memset(aSkip + handleOff, 1, sizeof(int32_t));
-            {
-                size_t flagsOff = handleOff + 9 * sizeof(uint32_t);
-                uint32_t flagsA, flagsB;
-                memcpy(&flagsA, pSecA + flagsOff, sizeof(flagsA));
-                memcpy(&flagsB, pSecB + flagsOff, sizeof(flagsB));
-                if ( flagsB != (flagsA | 0x200000u) )
-                {
-                    SAVELOAD_FILEDIFF("sound channel flags 0x%x restored as 0x%x\n", flagsA, flagsB);
-                }
-                memset(aSkip + flagsOff, 1, sizeof(uint32_t));
-            }
-            off += sizeof(uint32_t) + nameLen + 17 * sizeof(uint32_t);
-        }
-
-        for ( size_t k = 0; k < secSize; ++k )
-        {
-            if ( pSecA[k] != pSecB[k] && !(k < sizeof(aSkip) && aSkip[k]) )
-            {
-                SAVELOAD_FILEDIFF("sound and weapon sections differ at byte %zu\n", k);
-                break;
-            }
-        }
-    }
+    numDiffs += saveload_CompareSound(pA + tailA, sizeA - tailA, pB + tailB, sizeB - tailB);
 #undef SAVELOAD_FILEDIFF
 
 done:
@@ -412,11 +525,12 @@ int main(int argc, char** argv)
     harness_InstallHandlers();
     if ( argc < 2 )
     {
-        fprintf(stderr, "usage: %s <data root> [frames before the save] [frames after the restore]\n", argv[0]);
+        fprintf(stderr, "usage: %s <data root> [frames before the save] [frames after the restore] [level number]\n", argv[0]);
         return 2;
     }
     unsigned long framesBefore = argc > 2 ? strtoul(argv[2], NULL, 10) : 300;
     unsigned long framesAfter  = argc > 3 ? strtoul(argv[3], NULL, 10) : 300;
+    const char* pLevelNum      = argc > 4 ? argv[4] : ""; // the game's command line: the number of the level to start
 
     // What main.c does for `jones3d --data <root> --headless`, minus the user folders (the test sets Install Path).
     setenv("J3D_DATA", argv[1], 1);
@@ -438,7 +552,7 @@ int main(int argc, char** argv)
     stdWin95_SetWindow(NULL);
     stdWin95_SetInstance(NULL);
     stdWin95_SetGuid(&saveload_guid);
-    if ( JonesMain_Startup("") )
+    if ( JonesMain_Startup(pLevelNum) )
     {
         fprintf(stderr, "saveload: JonesMain_Startup failed\n");
         return 1;

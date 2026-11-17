@@ -3044,21 +3044,21 @@ void J3DAPI sithCogFunction_DebugLocalSymbols(SithCog* pCog)
 
             if ( pSymbol->value.type == SITHCOG_VALUE_FLOAT )
             {
-                sprintf(std_genBuffer, " Symbol %d: '%s' ", pSymbol->id, pSymbol->pName ? pSymbol->pName : "<null>");
+                sprintf(std_genBuffer, " Symbol %zu: '%s' ", (size_t)pSymbol->id, /* Port: %zu (P7.3) */ pSymbol->pName ? pSymbol->pName : "<null>");
                 sprintf(std_genBuffer + strlen(std_genBuffer), " = %f\n", pSymbol->value.val.floatValue);
 #line 4447
                 stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, std_genBuffer, 0, 0, 0, 0);
             }
             else if ( pSymbol->value.type == SITHCOG_VALUE_VECTOR )
             {
-                sprintf(std_genBuffer, " Symbol %d: '%s' ", pSymbol->id, pSymbol->pName ? pSymbol->pName : "<null>");
+                sprintf(std_genBuffer, " Symbol %zu: '%s' ", (size_t)pSymbol->id, /* Port: %zu (P7.3) */ pSymbol->pName ? pSymbol->pName : "<null>");
                 sprintf(std_genBuffer + strlen(std_genBuffer), " = %f %f %f\n", pSymbol->value.val.vecValue.x, pSymbol->value.val.vecValue.y, pSymbol->value.val.vecValue.z);
 #line 4453
                 stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, std_genBuffer, 0, 0, 0, 0);
             }
             else if ( pSymbol->value.type == SITHCOG_VALUE_INT )
             {
-                sprintf(std_genBuffer, " Symbol %d: '%s' ", pSymbol->id, pSymbol->pName ? pSymbol->pName : "<null>");
+                sprintf(std_genBuffer, " Symbol %zu: '%s' ", (size_t)pSymbol->id, /* Port: %zu (P7.3) */ pSymbol->pName ? pSymbol->pName : "<null>");
                 sprintf(std_genBuffer + strlen(std_genBuffer), " = %d\n", pSymbol->value.val.intValue);
 #line 4459
                 stdPrintf(sith_pHS->pErrorPrint, J3D_FILE, __LINE__, std_genBuffer, 0, 0, 0, 0);

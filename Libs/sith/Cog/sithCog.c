@@ -2237,12 +2237,12 @@ int J3DAPI sithCog_CogStatus(const SithConsoleCommand* pFunc, const char* pArg)
     SithCog* pCog;
     SithCogSymbol* pSymbol;
 
-    if ( !pWorld || !pArg || sscanf(pArg, "%d", &index) != 1 )
+    if ( !pWorld || !pArg || sscanf(pArg, "%zu", &index) != 1 ) // Port: %zu; %d wrote half of the size_t (P7.3)
     {
         goto error;
     }
 
-    if ( index > pWorld->numCogs )
+    if ( index >= pWorld->numCogs ) // Port: >=, index numCogs is past the end (P7.3)
     {
         goto error;
     }
@@ -2253,12 +2253,14 @@ int J3DAPI sithCog_CogStatus(const SithConsoleCommand* pFunc, const char* pArg)
         goto error;
     }
 
-    sprintf(std_genBuffer, "Cog #%d: Name:%s  Script %s\n", index, pCog->aName, pCog->pScript->aName);
+    sprintf(std_genBuffer, "Cog #%zu: Name:%s  Script %s\n", index, // Port: %zu (P7.3)
+            pCog->aName, pCog->pScript->aName);
     sithConsole_PrintString(std_genBuffer);
 
     for ( i = 0, pSymbol = pCog->pSymbolTable->aSymbols; i < pCog->pSymbolTable->numUsedSymbols; ++i, ++pSymbol )
     {
-        sprintf(std_genBuffer, "  Symbol %d: '%s' ", pSymbol->id, pSymbol->pName ? pSymbol->pName : "<null>");
+        sprintf(std_genBuffer, "  Symbol %zu: '%s' ", (size_t)pSymbol->id, // Port: %zu (P7.3)
+            pSymbol->pName ? pSymbol->pName : "<null>");
         if ( pSymbol->value.type == SITHCOG_VALUE_FLOAT )
         {
             sprintf(&std_genBuffer[strlen(std_genBuffer)], " = %f\n", pSymbol->value.val.floatValue);
@@ -2275,6 +2277,7 @@ int J3DAPI sithCog_CogStatus(const SithConsoleCommand* pFunc, const char* pArg)
 
 error:
     sithConsole_PrintString("Error, bad parameters.\n");
+    return 0; // Port: fell off the end after the print (P7.3)
 }
 #endif
 

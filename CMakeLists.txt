@@ -167,10 +167,16 @@ j3d_library(smush
 # seen through its headers. The structures that depend on 1-byte packing (the chunk layouts read from movie files) are
 # packed explicitly with their sizes asserted (P5.1, docs/PORTING.md). Its six MASM files are C beside them (P5.4-P5.7).
 
+# sithWrite.c is the debug build's level writer, outside the release link (docs/SOURCE-TREE.md). It is built with the
+# engine's debug asserts, whose template writer calls it (sithTemplate.c, PORT-PLAN.md P7.3).
+if(J3D_DEBUG_ASSERTS)
+    set(J3D_SITH_EXCLUDE)
+else()
+    set(J3D_SITH_EXCLUDE Libs/sith/World/sithWrite.c)
+endif()
 j3d_library(sith
     DIRS Libs/sith
-    EXCLUDE
-        Libs/sith/World/sithWrite.c     # debug-build-only level writer, outside the release link (docs/SOURCE-TREE.md)
+    EXCLUDE ${J3D_SITH_EXCLUDE}
     DEPS std rdroid sound
 )
 
@@ -297,7 +303,8 @@ set(J3D_TEST_DATA "" CACHE PATH "Game data root (the folder holding RESOURCE/) f
 # Each test is one program: tests/<name>.c plus the shared engine startup and crash handlers in tests/harness.c.
 #   levelload  loads the static world and every level through the binary .cnd section loaders
 #   cogcheck   compiles every .cog in the GOBs through the engine's lookup (loose overrides included)
-#   saveload   runs the game headless, saves, restores into a fresh world and compares (below for its settings)
+#   saveload   runs the game headless, saves, restores into a fresh world and compares (below for its settings);
+#              registered once for the first level and once for each of the others (P7.2)
 #   boot       (below) runs the game headless
 set(J3D_TESTS levelload cogcheck saveload)
 
@@ -367,6 +374,24 @@ if(J3D_TEST_DATA)
     set_tests_properties(saveload-3d PROPERTIES
         ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Sound_3D=1;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-3d-out/logs/;${J3D_SANITIZER_ENV}"
         FAIL_REGULAR_EXPRESSION "ASSERT")
+    # saveload-<nn>_<level>: the same round trip for each of the other sixteen levels (PORT-PLAN.md P7.2), numbered as
+    # the game numbers them (JonesMain_aCndLevelLoadInfos), each with a save folder of its own so they can run together.
+    set(J3D_LEVELS 00_cyn 01_bab 02_riv 03_shs 05_lag 06_vol 07_tem 16_jep 08_teo 09_olv 10_sea 11_pyr 12_sol 13_nub
+        14_inf 15_aet 17_pru)
+    set(level_num 0)
+    foreach(level IN LISTS J3D_LEVELS)
+        math(EXPR level_num "${level_num} + 1")
+        if(level_num GREATER 1)
+            string(LENGTH "0${level_num}" len)
+            math(EXPR start "${len} - 2")
+            string(SUBSTRING "0${level_num}" ${start} 2 nn)
+            set(test saveload-${nn}_${level})
+            add_test(NAME ${test} COMMAND saveload ${J3D_TEST_DATA} 300 300 ${level_num})
+            set_tests_properties(${test} PROPERTIES
+                ENVIRONMENT "J3D_SETTINGS=/dev/null;J3D_REG_Start_Mode=0;J3D_REG_Install_Path=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/${nn}/;J3D_LOGS=${CMAKE_CURRENT_BINARY_DIR}/saveload-out/${nn}/logs/;${J3D_SANITIZER_ENV}"
+                FAIL_REGULAR_EXPRESSION "ASSERT")
+        endif()
+    endforeach()
 endif()
 
 # gamedialogs: the game's own dialogs through their entry points, with the player's data (Phase 6).
