@@ -3288,6 +3288,12 @@ void J3DAPI JonesHud_RenderMenuItem(JonesHudMenuItem* pItem)
         itemFlag200 = pItem->flags & 0x200;
         itemMaxAlpha = 0.6f;
 
+#ifdef J3D_PORT
+        // Port: an item moving in none of the four directions read range and animCur unset (static analyzer, PORT-PLAN.md
+        // Phase 7 audit); such an item is drawn whole (decision 18).
+        range   = 1.0f;
+        animCur = 1.0f;
+#endif
         switch ( pItem->flags ^ itemFlag1 ^ (flag2 | curFlag100 | itemFlag200 | colIdx) )
         {
             case 0x20:

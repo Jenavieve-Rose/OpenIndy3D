@@ -1589,6 +1589,15 @@ void J3DAPI sithAnimate_UpdateThingFadeAnim(SithAnimationSlot* pAnim, float secD
     {
         rdVector_Copy4(&newColor, &pAnim->startVector);
     }
+#ifdef J3D_PORT
+    else
+    {
+        // Port: only the alpha is set below, but all four channels are copied to curVector, which every save writes;
+        // its red, green and blue were stack garbage, so two runs saved different files (PORT-PLAN.md Phase 7 audit).
+        // They keep their current values (decision 18). Only the alpha is ever used.
+        rdVector_Copy4(&newColor, &pAnim->curVector);
+    }
+#endif
 
     newColor.alpha = D3DVAL(pAnim->deltaVector.alpha) * secDeltaTime + pAnim->curVector.alpha;
     if ( pAnim->deltaVector.alpha == 0.0f )

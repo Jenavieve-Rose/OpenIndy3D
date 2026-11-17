@@ -2589,6 +2589,12 @@ void J3DAPI Sound_Update(const rdVector3* pPos, const rdVector3* pVelocity, rdVe
         if ( pCurChannel->handle != SOUND_INVALIDHANDLE && (pCurChannel->flags & SOUND_CHANNEL_3DSOUND) != 0 )
         {
             SoundThingInfo thngSndInfo;
+#ifdef J3D_PORT
+            // Port: the callback sets or clears only the underwater bit, so the other bits were stack garbage, which
+            // every save then wrote (two runs saved different files; PORT-PLAN.md Phase 7 audit). Zeroed first, as
+            // Sound_PlayThing does.
+            thngSndInfo.envflags = 0;
+#endif
             if ( (pCurChannel->flags & (SOUND_CHANNEL_THING | SOUND_CHANNEL_3DSOUND)) != 0
                 && Sound_pfGetThingInfoCallback
                 && Sound_pfGetThingInfoCallback(pCurChannel->thingId, &thngSndInfo) )

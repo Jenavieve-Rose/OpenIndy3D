@@ -432,6 +432,13 @@ if(J3D_TEST_DATA AND J3D_PLATFORM STREQUAL "apple")
     set_tests_properties(launcher PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" SKIP_RETURN_CODE 77)
 endif()
 
+# determinism (Phase 7 audit): every level started twice headless must print the same log and write the same autosave.
+if(J3D_TEST_DATA)
+    add_test(NAME determinism COMMAND sh ${J3D_ROOT}/tests/determinism.sh $<TARGET_FILE:${J3D_HEADLESS_TARGET}>
+        ${J3D_TEST_DATA} ${CMAKE_CURRENT_BINARY_DIR}/determinism-out)
+    set_tests_properties(determinism PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}")
+endif()
+
 if(J3D_TEST_DATA)
     add_test(NAME boot COMMAND ${J3D_HEADLESS_TARGET} --data ${J3D_TEST_DATA} --headless --frames 600)
     set_tests_properties(boot PROPERTIES
