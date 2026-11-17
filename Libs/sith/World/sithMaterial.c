@@ -513,6 +513,7 @@ int J3DAPI sithMaterial_ReadMaterialsListBinary(tFileHandle fh, SithWorld* pWorl
             }
 
             std3D_AllocSystemTexture(&pMat->aTextures[i], apBuffers, pCurInfo->numMipLevels, pMat->formatType);
+            std3D_LoadHiresTexture(&pMat->aTextures[i], pMat->aName, i, pMat->formatType); // Port: phase 9
 
             for ( j = 0; j < pCurInfo->numMipLevels; ++j )
             {

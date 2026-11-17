@@ -90,6 +90,37 @@ void J3DMetal_WaitForGPU(void)
     }
 }
 
+MTLStorageMode J3DMetal_TextureStorageMode(void)
+{
+    // Phase 9 (the Universal binary): an Apple GPU shares memory with the CPU and takes shared textures; the Intel and
+    // AMD GPUs of Intel Macs do not, and need managed ones. J3D_METAL_MANAGED=1 takes the managed path on an Apple GPU,
+    // so it is tested on the machines that build the port.
+    static int mode = -1;
+    if ( mode < 0 )
+    {
+        id<MTLDevice> device = J3DMetal_Device();
+        const char*   pForce = getenv("J3D_METAL_MANAGED");
+        const int     bForce = pForce && *pForce && strcmp(pForce, "0") != 0;
+        mode = device && [device supportsFamily:MTLGPUFamilyApple1] && !bForce ? (int)MTLStorageModeShared
+                                                                                : (int)MTLStorageModeManaged;
+    }
+    return (MTLStorageMode)mode;
+}
+
+void J3DMetal_SyncForCPU(id<MTLTexture> texture)
+{
+    if ( texture && texture.storageMode == MTLStorageModeManaged )
+    {
+        // The GPU's copy of a managed texture reaches the CPU's only through a blit.
+        id<MTLCommandBuffer>      commands = [J3DMetal_Queue() commandBuffer];
+        id<MTLBlitCommandEncoder> blit     = [commands blitCommandEncoder];
+        [blit synchronizeResource:texture];
+        [blit endEncoding];
+        J3DMetal_Commit(commands);
+    }
+    J3DMetal_WaitForGPU();
+}
+
 void J3DMetal_SetSceneTexture(id<MTLTexture> texture)
 {
     metal_sceneTexture = texture;
@@ -244,7 +275,7 @@ int J3DMetal_Present(const uint8_t* pPixels, uint32_t width, uint32_t height, si
                                                                                            height:height
                                                                                         mipmapped:NO];
             desc.usage       = MTLTextureUsageShaderRead;
-            desc.storageMode = MTLStorageModeShared;
+            desc.storageMode = J3DMetal_TextureStorageMode();
             texture = [metal_device newTextureWithDescriptor:desc];
             metal_aTextures[metal_curTexture] = texture;
         }

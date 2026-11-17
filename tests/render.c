@@ -13,12 +13,19 @@
  *   - render state and fog (P2.13, P2.14): depth writes off, the 0xA0 alpha reference, linear fog by eye depth
  *   - textures (P2.12): texel placement, wrap, modulation by the vertex colour, RGB textures opaque whatever their
  *     fourth byte, alpha-0 texels discarded, mip level selection with and without a mip filter
+ *   - phase 9: a diagonal edge is smoothed with multisampling and hard without; anisotropic samplers draw; a texture
+ *     written to a PNG and read back (the high-resolution texture path) keeps its texels and alpha, with a mip chain
  * Needs no game data and no window. Exit status: the number of failed checks.
+ *
+ *   render [--samples <1|2|4|8>] [--anisotropy <1-16>]
+ * Every check runs the same with multisampling (ctest's render-msaa) and with managed textures, as an Intel Mac's GPU
+ * needs them (render-managed, J3D_METAL_MANAGED=1).
  */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <platform/apple/render_metal.h>
 
@@ -96,15 +103,32 @@ static void render_Quad(int x0, int y0, int x1, int y1, float z, uint32_t color)
     CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aVerts, 4, aIndices, 6) == 0, "Draw");
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
     harness_InstallHandlers();
+
+    uint32_t samples = 1, anisotropy = 1;
+    for ( int i = 1; i + 1 < argc; i += 2 )
+    {
+        if ( !strcmp(argv[i], "--samples") )
+        {
+            samples = (uint32_t)atoi(argv[i + 1]);
+        }
+        else if ( !strcmp(argv[i], "--anisotropy") )
+        {
+            anisotropy = (uint32_t)atoi(argv[i + 1]);
+        }
+    }
+    J3DRender_SetQuality(samples, anisotropy);
 
     if ( J3DRender_Open(SIZE, SIZE) )
     {
         printf("render: no Metal device\n");
         return 1;
     }
+    printf("render: %u sample(s), anisotropy %u, %s textures\n", J3DRender_GetSampleCount(), anisotropy,
+        getenv("J3D_METAL_MANAGED") ? "managed" : "default");
+    CHECK(samples <= 1 || J3DRender_GetSampleCount() > 1, "multisampling asked for, not given");
 
     // Coverage and colour byte order.
     render_Begin();
@@ -351,6 +375,123 @@ int main(void)
     render_Quad(0, 0, 4, 4, 0.5f, 0xFF123456);
     render_EndAndRead();
     CHECK(render_Pixel(1, 1) == 0x123456, "the scene after the overflow: %06X", render_Pixel(1, 1));
+
+    // Phase 9: a white triangle whose long edge runs diagonally across the pixels. Without multisampling every pixel
+    // is black or white; with it the pixels the edge crosses are in between.
+    {
+        render_Begin();
+        J3DRenderVertex aVerts[3] = {
+            render_Vertex(0.0f, 0.0f, 0.5f, 1.0f, 0xFFFFFFFF), render_Vertex(48.0f, 0.0f, 0.5f, 1.0f, 0xFFFFFFFF),
+            render_Vertex(0.0f, 31.0f, 0.5f, 1.0f, 0xFFFFFFFF),
+        };
+        static const uint16_t aIndices[3] = { 0, 1, 2 };
+        CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aVerts, 3, aIndices, 3) == 0, "Draw edge");
+        render_EndAndRead();
+        int numBetween = 0;
+        for ( int y = 0; y < 32; ++y )
+        {
+            for ( int x = 0; x < 48; ++x )
+            {
+                const uint32_t g = (render_Pixel(x, y) >> 8) & 0xFF;
+                numBetween += g > 0 && g < 0xFF;
+            }
+        }
+        if ( J3DRender_GetSampleCount() > 1 )
+        {
+            CHECK(numBetween >= 20, "multisampled edge: %d pixel(s) in between", numBetween);
+        }
+        else
+        {
+            CHECK(numBetween == 0, "edge without multisampling: %d pixel(s) in between", numBetween);
+        }
+        CHECK(render_Pixel(2, 2) == 0xFFFFFF && render_Pixel(40, 28) == 0, "edge inside and out: %06X %06X",
+            render_Pixel(2, 2), render_Pixel(40, 28));
+    }
+
+    // Phase 9: a texture written to a PNG and read back, as a high-resolution replacement is. Texels: opaque colours,
+    // an alpha-0 texel (discarded) and a half-transparent red (blended over the black).
+    {
+        static const uint8_t aTexels[4 * 4 * 4] = {
+            // B, G, R, A
+            0x00, 0x00, 0xFF, 0xFF,  0x00, 0xFF, 0x00, 0xFF,  0xFF, 0x00, 0x00, 0xFF,  0x40, 0x80, 0xC0, 0xFF,
+            0x11, 0x22, 0x33, 0xFF,  0xFF, 0xFF, 0xFF, 0x00,  0x00, 0x00, 0xC8, 0x80,  0x00, 0x00, 0x00, 0xFF,
+            0x00, 0x00, 0xFF, 0xFF,  0x00, 0xFF, 0x00, 0xFF,  0xFF, 0x00, 0x00, 0xFF,  0x40, 0x80, 0xC0, 0xFF,
+            0x11, 0x22, 0x33, 0xFF,  0xFF, 0xFF, 0xFF, 0x00,  0x00, 0x00, 0xC8, 0x80,  0x00, 0x00, 0x00, 0xFF,
+        };
+        J3DRenderTexture* pSource = J3DRender_CreateTexture(4, 4, 1, 1);
+        J3DRender_UploadTextureLevel(pSource, 0, aTexels, 16);
+        char aPath[1024];
+        const char* pTmp = getenv("TMPDIR");
+        snprintf(aPath, sizeof(aPath), "%s/j3d-render-%d.png", pTmp && *pTmp ? pTmp : "/tmp", (int)getpid());
+        CHECK(J3DRender_WriteTextureImage(pSource, aPath, 1) == 0, "WriteTextureImage %s", aPath);
+        J3DRender_ReleaseTexture(pSource);
+
+        uint8_t* pFile = NULL;
+        size_t   fileSize = 0;
+        FILE*    pStream = fopen(aPath, "rb");
+        if ( pStream )
+        {
+            fseek(pStream, 0, SEEK_END);
+            fileSize = (size_t)ftell(pStream);
+            fseek(pStream, 0, SEEK_SET);
+            pFile = (uint8_t*)malloc(fileSize);
+            fileSize = pFile ? fread(pFile, 1, fileSize, pStream) : 0;
+            fclose(pStream);
+        }
+        remove(aPath);
+
+        uint32_t width = 0, height = 0;
+        J3DRenderTexture* pImage = J3DRender_CreateTextureFromImage(pFile, fileSize, 1, 1, &width, &height);
+        // The same image for a material without alpha: opaque, the half-transparent texel at its full colour
+        J3DRenderTexture* pOpaque = J3DRender_CreateTextureFromImage(pFile, fileSize, 0, 0, &width, &height);
+        free(pFile);
+        CHECK(pImage && width == 4 && height == 4, "CreateTextureFromImage: %ux%u", width, height);
+        CHECK(!J3DRender_CreateTextureFromImage("not an image", 12, 1, 0, &width, &height), "a bad image is refused");
+        if ( pImage )
+        {
+            render_Begin();
+            J3DRender_SetTexture(pImage);
+            J3DRender_SetSampler(0, 1, 1, J3DRENDER_MIP_NONE);
+            J3DRenderVertex aVerts[4] = {
+                { -0.5f, -0.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 0.0f }, { 15.5f, -0.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 0.0f },
+                { 15.5f, 15.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 1.0f }, { -0.5f, 15.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 1.0f },
+            };
+            static const uint16_t aIndices[6] = { 0, 1, 2, 0, 2, 3 };
+            CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aVerts, 4, aIndices, 6) == 0, "Draw image");
+            // Minified 4:1 with the generated mip chain: the 2x2 level averages the texel pairs
+            J3DRender_SetSampler(1, 1, 1, J3DRENDER_MIP_NEAREST);
+            J3DRenderVertex aSmall[4] = {
+                { 31.5f, -0.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 0.0f }, { 32.5f, -0.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 0.0f },
+                { 32.5f, 0.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 1.0f }, { 31.5f, 0.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 1.0f },
+            };
+            CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aSmall, 4, aIndices, 6) == 0, "Draw image small");
+            if ( pOpaque )
+            {
+                J3DRender_SetTexture(pOpaque);
+                J3DRender_SetSampler(0, 1, 1, J3DRENDER_MIP_NONE);
+                J3DRenderVertex aOpaque[4] = {
+                    { 15.5f, 31.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 0.0f }, { 31.5f, 31.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 0.0f },
+                    { 31.5f, 47.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 1.0f, 1.0f }, { 15.5f, 47.5f, 0.5f, 1.0f, 0xFFFFFFFF, 0xFF000000, 0.0f, 1.0f },
+                };
+                CHECK(J3DRender_Draw(J3DRENDER_TRIANGLES, aOpaque, 4, aIndices, 6) == 0, "Draw opaque image");
+            }
+            J3DRender_SetTexture(NULL);
+            J3DRender_SetSampler(1, 0, 0, J3DRENDER_MIP_NEAREST);
+            render_EndAndRead();
+            J3DRender_ReleaseTexture(pImage);
+            J3DRender_ReleaseTexture(pOpaque);
+
+            CHECK(render_Pixel(1, 1) == 0xFF0000 && render_Pixel(5, 1) == 0x00FF00 && render_Pixel(9, 1) == 0x0000FF
+                && render_Pixel(13, 1) == 0xC08040 && render_Pixel(1, 5) == 0x332211,
+                "image texels: %06X %06X %06X %06X %06X", render_Pixel(1, 1), render_Pixel(5, 1), render_Pixel(9, 1),
+                render_Pixel(13, 1), render_Pixel(1, 5));
+            CHECK(render_Pixel(5, 5) == 0, "image alpha-0 texel discarded: %06X", render_Pixel(5, 5));
+            CHECK(render_Near(render_Pixel(9, 5), 0x640000, 2), "image half-transparent texel: %06X", render_Pixel(9, 5));
+            CHECK(render_Pixel(32, 0) != 0, "image minified through its mip chain: %06X", render_Pixel(32, 0));
+            CHECK(pOpaque && render_Near(render_Pixel(25, 37), 0xC80000, 1) && render_Pixel(17, 33) == 0xFF0000,
+                "image for an opaque material: %06X %06X", render_Pixel(25, 37), render_Pixel(17, 33));
+        }
+    }
 
     free(render_pScene);
     J3DRender_Close();

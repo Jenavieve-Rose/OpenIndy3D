@@ -23,6 +23,15 @@
  * (-w <= x, y <= w) keep only w > 0, so the part behind the eye is cut off exactly. Depth is clamped, not clipped
  * (render_OpenPass): Direct3D did not clip TL vertices on z. A vertex with rhw = 0 is drawn with w = 1.
  *
+ * Multisampling (phase 9, the "MSAA" setting). With more than one sample the scene is drawn into a multisampled
+ * colour texture and depth beside it, and every render pass stores them and resolves the colour into the scene
+ * texture, which stays the frame's picture and what the CPU reads back. A multisampled texture cannot be loaded from
+ * the back buffer, so BeginScene uploads it into a texture of its own and the scene's first pass starts by copying it
+ * across, every sample of a pixel taking that pixel's colour; edges drawn after it are smoothed. Retail's alpha test
+ * stays per pixel: alpha-tested edges keep their steps, as on a 1999 card.
+ *
+ * Anisotropic filtering (phase 9, "Anisotropy") is the maximum anisotropy of every sampler; 1 is retail's filtering.
+ *
  * The scene texture is written by the CPU at BeginScene, so BeginScene first waits for the GPU to finish everything
  * committed so far (the previous scene and its present both read the texture). The game submits a few hundred
  * triangles a frame, so the GPU is long done by then and the wait costs nothing measurable; a ring of scene textures
@@ -88,6 +97,19 @@ static NSString* const render_shaderSource =
      "    float4 color = tex.sample(smp, in.uv) * in.diffuse; // D3DTOP_MODULATE, colour and alpha\n"
      "    if ( !alpha_passes(color.a, u.alphaRef) ) discard_fragment();\n"
      "    return apply_fog(color, in.eyeDepth, u);\n"
+     "}\n"
+     "// Multisampling: the back buffer's pixels into every sample of the scene's first pass.\n"
+     "struct CopyOut { float4 position [[position]]; };\n"
+     "vertex CopyOut copy_vertex(uint vid [[vertex_id]])\n"
+     "{\n"
+     "    float2 p = float2((vid << 1) & 2, vid & 2); // one triangle covering clip space\n"
+     "    CopyOut out;\n"
+     "    out.position = float4(p * 2.0 - 1.0, 1.0, 1.0);\n"
+     "    return out;\n"
+     "}\n"
+     "fragment float4 copy_fragment(CopyOut in [[stage_in]], texture2d<float> tex [[texture(0)]])\n"
+     "{\n"
+     "    return tex.read(uint2(in.position.xy));\n"
      "}\n";
 
 typedef struct RenderUniforms // the shaders' Uniforms
@@ -101,10 +123,14 @@ typedef struct RenderUniforms // the shaders' Uniforms
 } RenderUniforms;
 _Static_assert(sizeof(RenderUniforms) == 48, "RenderUniforms must match the shaders' Uniforms");
 
+static id<MTLLibrary>              render_library;
 static id<MTLRenderPipelineState> render_pipelineFlat;
 static id<MTLRenderPipelineState> render_pipelineTextured;
+static id<MTLRenderPipelineState> render_pipelineCopy;     // multisampling only
+static NSUInteger                 render_pipelineSamples;  // the sample count the pipelines were made for
 static id<MTLDepthStencilState>   render_depthWrite;
 static id<MTLDepthStencilState>   render_depthNoWrite;     // STD3D_RS_ZWRITE_DISABLED, from P2.13
+static id<MTLDepthStencilState>   render_depthAlways;      // the multisample copy: no test, no write
 static RenderUniforms             render_uniforms;
 static int                        render_bUniformsDirty;
 static int                        render_bDepthWrite = 1;
@@ -117,12 +143,116 @@ static int           render_bSceneNewer; // the scene texture holds a scene the 
 static id<MTLTexture>      render_curTexture;   // J3DRender_SetTexture
 static id<MTLSamplerState> render_aSamplers[2 * 2 * 2 * 3]; // by J3DRender_SetSampler's arguments, made on first use
 static size_t              render_curSampler = 1 * 12 + 0 * 6 + 0 * 3 + J3DRENDER_MIP_NEAREST; // bilinear, wrap, nearest mip
+static uint32_t            render_maxAnisotropy = 1; // J3DRender_SetQuality
+static uint32_t            render_wantSamples   = 1;
 
-static id<MTLTexture>              render_sceneColor;
-static id<MTLTexture>              render_depth;
+static id<MTLTexture>              render_sceneColor;  // the picture: drawn into, or resolved into when multisampling
+static id<MTLTexture>              render_msaaColor;   // multisampling: the colour drawn into
+static id<MTLTexture>              render_backBuffer;  // multisampling: the back buffer, copied in by the first pass
+static id<MTLTexture>              render_depth;       // multisampled when the colour is
+static NSUInteger                  render_samples = 1; // of the open targets
 static id<MTLCommandBuffer>        render_commands;
 static id<MTLRenderCommandEncoder> render_encoder;
 static int                         render_bClearDepth;
+static int                         render_bFirstPass;  // the next pass is the scene's first
+
+void J3DRender_SetQuality(uint32_t samples, uint32_t maxAnisotropy)
+{
+    render_wantSamples = samples ? samples : 1;
+    maxAnisotropy      = maxAnisotropy < 1 ? 1 : maxAnisotropy > 16 ? 16 : maxAnisotropy;
+    if ( maxAnisotropy != render_maxAnisotropy )
+    {
+        render_maxAnisotropy = maxAnisotropy;
+        for ( size_t i = 0; i < sizeof(render_aSamplers) / sizeof(render_aSamplers[0]); ++i )
+        {
+            render_aSamplers[i] = nil; // remade on first use with the new anisotropy
+        }
+    }
+}
+
+uint32_t J3DRender_GetSampleCount(void)
+{
+    return (uint32_t)render_samples;
+}
+
+// The largest sample count the device supports that is no more than the one asked for (1, 2, 4 or 8).
+static NSUInteger render_SupportedSamples(id<MTLDevice> device, uint32_t want)
+{
+    NSUInteger samples = want >= 8 ? 8 : want >= 4 ? 4 : want >= 2 ? 2 : 1;
+    while ( samples > 1 && !([device supportsTextureSampleCount:samples]) )
+    {
+        samples /= 2;
+    }
+    return samples;
+}
+
+// Makes the pipelines for the sample count, unless they are made already. 0 on success.
+static int render_MakePipelines(id<MTLDevice> device, NSUInteger samples)
+{
+    if ( render_pipelineFlat && render_pipelineSamples == samples )
+    {
+        return 0;
+    }
+
+    @autoreleasepool
+    {
+        NSError* error = nil;
+        if ( !render_library )
+        {
+            render_library = [device newLibraryWithSource:render_shaderSource options:nil error:&error];
+            if ( !render_library )
+            {
+                NSLog(@"render_metal: shader compile failed: %@", error.localizedDescription);
+                return 1;
+            }
+        }
+
+        // Blending as retail enabled it: source alpha over inverse source alpha.
+        MTLRenderPipelineDescriptor* desc = [MTLRenderPipelineDescriptor new];
+        desc.vertexFunction                                 = [render_library newFunctionWithName:@"scene_vertex"];
+        desc.colorAttachments[0].pixelFormat                = MTLPixelFormatBGRA8Unorm;
+        desc.colorAttachments[0].blendingEnabled            = YES;
+        desc.colorAttachments[0].sourceRGBBlendFactor       = MTLBlendFactorSourceAlpha;
+        desc.colorAttachments[0].destinationRGBBlendFactor  = MTLBlendFactorOneMinusSourceAlpha;
+        desc.colorAttachments[0].sourceAlphaBlendFactor     = MTLBlendFactorSourceAlpha;
+        desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        desc.depthAttachmentPixelFormat                     = MTLPixelFormatDepth32Float;
+        desc.rasterSampleCount                              = samples;
+
+        desc.fragmentFunction   = [render_library newFunctionWithName:@"scene_fragment_flat"];
+        render_pipelineFlat     = [device newRenderPipelineStateWithDescriptor:desc error:&error];
+        desc.fragmentFunction   = [render_library newFunctionWithName:@"scene_fragment_textured"];
+        render_pipelineTextured = [device newRenderPipelineStateWithDescriptor:desc error:&error];
+        render_pipelineCopy     = nil;
+        if ( render_pipelineFlat && render_pipelineTextured && samples > 1 )
+        {
+            desc.vertexFunction                      = [render_library newFunctionWithName:@"copy_vertex"];
+            desc.fragmentFunction                    = [render_library newFunctionWithName:@"copy_fragment"];
+            desc.colorAttachments[0].blendingEnabled = NO;
+            render_pipelineCopy = [device newRenderPipelineStateWithDescriptor:desc error:&error];
+        }
+        if ( !render_pipelineFlat || !render_pipelineTextured || (samples > 1 && !render_pipelineCopy) )
+        {
+            NSLog(@"render_metal: pipeline failed: %@", error.localizedDescription);
+            render_pipelineFlat = render_pipelineTextured = render_pipelineCopy = nil;
+            return 1;
+        }
+        render_pipelineSamples = samples;
+
+        if ( !render_depthWrite )
+        {
+            MTLDepthStencilDescriptor* depthDesc = [MTLDepthStencilDescriptor new];
+            depthDesc.depthCompareFunction = MTLCompareFunctionLessEqual; // D3DCMP_LESSEQUAL
+            depthDesc.depthWriteEnabled    = YES;
+            render_depthWrite              = [device newDepthStencilStateWithDescriptor:depthDesc];
+            depthDesc.depthWriteEnabled    = NO;
+            render_depthNoWrite            = [device newDepthStencilStateWithDescriptor:depthDesc];
+            depthDesc.depthCompareFunction = MTLCompareFunctionAlways;
+            render_depthAlways             = [device newDepthStencilStateWithDescriptor:depthDesc];
+        }
+    }
+    return 0;
+}
 
 int J3DRender_Open(uint32_t width, uint32_t height)
 {
@@ -134,16 +264,34 @@ int J3DRender_Open(uint32_t width, uint32_t height)
         return 1;
     }
 
+    const NSUInteger samples = render_SupportedSamples(device, render_wantSamples);
+    if ( render_MakePipelines(device, samples) )
+    {
+        J3DRender_Close();
+        return 1;
+    }
+
     @autoreleasepool
     {
-        // Shared storage: the CPU uploads the back buffer into it at every BeginScene.
+        // CPU-visible storage: the CPU uploads the back buffer into it at every BeginScene (without multisampling) and
+        // reads the picture back.
         MTLTextureDescriptor* colorDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
                                                                                              width:width
                                                                                             height:height
                                                                                          mipmapped:NO];
         colorDesc.usage       = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-        colorDesc.storageMode = MTLStorageModeShared;
+        colorDesc.storageMode = J3DMetal_TextureStorageMode();
         render_sceneColor     = [device newTextureWithDescriptor:colorDesc];
+        if ( samples > 1 )
+        {
+            colorDesc.usage       = MTLTextureUsageShaderRead;
+            render_backBuffer     = [device newTextureWithDescriptor:colorDesc];
+            colorDesc.textureType = MTLTextureType2DMultisample;
+            colorDesc.sampleCount = samples;
+            colorDesc.usage       = MTLTextureUsageRenderTarget;
+            colorDesc.storageMode = MTLStorageModePrivate;
+            render_msaaColor      = [device newTextureWithDescriptor:colorDesc];
+        }
 
         MTLTextureDescriptor* depthDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
                                                                                              width:width
@@ -151,59 +299,20 @@ int J3DRender_Open(uint32_t width, uint32_t height)
                                                                                          mipmapped:NO];
         depthDesc.usage       = MTLTextureUsageRenderTarget;
         depthDesc.storageMode = MTLStorageModePrivate;
-        render_depth          = [device newTextureWithDescriptor:depthDesc];
+        if ( samples > 1 )
+        {
+            depthDesc.textureType = MTLTextureType2DMultisample;
+            depthDesc.sampleCount = samples;
+        }
+        render_depth = [device newTextureWithDescriptor:depthDesc];
     }
 
-    if ( !render_sceneColor || !render_depth )
+    if ( !render_sceneColor || !render_depth || (samples > 1 && (!render_msaaColor || !render_backBuffer)) )
     {
         J3DRender_Close();
         return 1;
     }
-
-    if ( !render_pipelineFlat )
-    {
-        @autoreleasepool
-        {
-            NSError*       error   = nil;
-            id<MTLLibrary> library = [device newLibraryWithSource:render_shaderSource options:nil error:&error];
-            if ( !library )
-            {
-                NSLog(@"render_metal: shader compile failed: %@", error.localizedDescription);
-                J3DRender_Close();
-                return 1;
-            }
-
-            // Blending as retail enabled it: source alpha over inverse source alpha.
-            MTLRenderPipelineDescriptor* desc = [MTLRenderPipelineDescriptor new];
-            desc.vertexFunction                                 = [library newFunctionWithName:@"scene_vertex"];
-            desc.colorAttachments[0].pixelFormat                = MTLPixelFormatBGRA8Unorm;
-            desc.colorAttachments[0].blendingEnabled            = YES;
-            desc.colorAttachments[0].sourceRGBBlendFactor       = MTLBlendFactorSourceAlpha;
-            desc.colorAttachments[0].destinationRGBBlendFactor  = MTLBlendFactorOneMinusSourceAlpha;
-            desc.colorAttachments[0].sourceAlphaBlendFactor     = MTLBlendFactorSourceAlpha;
-            desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-            desc.depthAttachmentPixelFormat                     = MTLPixelFormatDepth32Float;
-
-            desc.fragmentFunction = [library newFunctionWithName:@"scene_fragment_flat"];
-            render_pipelineFlat   = [device newRenderPipelineStateWithDescriptor:desc error:&error];
-            desc.fragmentFunction   = [library newFunctionWithName:@"scene_fragment_textured"];
-            render_pipelineTextured = [device newRenderPipelineStateWithDescriptor:desc error:&error];
-            if ( !render_pipelineFlat || !render_pipelineTextured )
-            {
-                NSLog(@"render_metal: pipeline failed: %@", error.localizedDescription);
-                render_pipelineFlat = render_pipelineTextured = nil;
-                J3DRender_Close();
-                return 1;
-            }
-
-            MTLDepthStencilDescriptor* depthDesc = [MTLDepthStencilDescriptor new];
-            depthDesc.depthCompareFunction = MTLCompareFunctionLessEqual; // D3DCMP_LESSEQUAL
-            depthDesc.depthWriteEnabled    = YES;
-            render_depthWrite              = [device newDepthStencilStateWithDescriptor:depthDesc];
-            depthDesc.depthWriteEnabled    = NO;
-            render_depthNoWrite            = [device newDepthStencilStateWithDescriptor:depthDesc];
-        }
-    }
+    render_samples = samples;
 
     if ( !render_arena )
     {
@@ -229,16 +338,31 @@ void J3DRender_Close(void)
     J3DMetal_WaitForGPU();
     J3DMetal_SetSceneTexture(nil);
     render_sceneColor = nil;
+    render_msaaColor  = nil;
+    render_backBuffer = nil;
     render_depth      = nil;
+    render_samples    = 1;
 }
 
 // Opens a render pass on the scene, keeping its colour; the depth is cleared if a clear is pending.
 static void render_OpenPass(void)
 {
     MTLRenderPassDescriptor* pass = [MTLRenderPassDescriptor renderPassDescriptor];
-    pass.colorAttachments[0].texture     = render_sceneColor;
-    pass.colorAttachments[0].loadAction  = MTLLoadActionLoad;
-    pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+    const int bCopyBackBuffer = render_msaaColor && render_bFirstPass;
+    if ( render_msaaColor )
+    {
+        pass.colorAttachments[0].texture        = render_msaaColor;
+        pass.colorAttachments[0].loadAction     = bCopyBackBuffer ? MTLLoadActionDontCare : MTLLoadActionLoad;
+        pass.colorAttachments[0].storeAction    = MTLStoreActionStoreAndMultisampleResolve;
+        pass.colorAttachments[0].resolveTexture = render_sceneColor;
+    }
+    else
+    {
+        pass.colorAttachments[0].texture     = render_sceneColor;
+        pass.colorAttachments[0].loadAction  = MTLLoadActionLoad;
+        pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+    }
+    render_bFirstPass = 0;
     pass.depthAttachment.texture         = render_depth;
     pass.depthAttachment.loadAction      = render_bClearDepth ? MTLLoadActionClear : MTLLoadActionLoad;
     pass.depthAttachment.clearDepth      = 1.0;
@@ -251,6 +375,13 @@ static void render_OpenPass(void)
     // TL vertices), no culling (D3DCULL_NONE), depth test less-or-equal with writes.
     [render_encoder setDepthClipMode:MTLDepthClipModeClamp];
     [render_encoder setCullMode:MTLCullModeNone];
+    if ( bCopyBackBuffer )
+    {
+        [render_encoder setRenderPipelineState:render_pipelineCopy];
+        [render_encoder setDepthStencilState:render_depthAlways];
+        [render_encoder setFragmentTexture:render_backBuffer atIndex:0];
+        [render_encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+    }
     [render_encoder setDepthStencilState:render_bDepthWrite ? render_depthWrite : render_depthNoWrite];
     render_bUniformsDirty = 1;
 }
@@ -272,12 +403,14 @@ int J3DRender_BeginScene(const uint8_t* pBackBuffer, size_t rowSize)
     render_bSceneNewer = 0;
     if ( pBackBuffer )
     {
-        [render_sceneColor replaceRegion:MTLRegionMake2D(0, 0, render_sceneColor.width, render_sceneColor.height)
-                             mipmapLevel:0
-                               withBytes:pBackBuffer
-                             bytesPerRow:rowSize];
+        id<MTLTexture> target = render_backBuffer ? render_backBuffer : render_sceneColor;
+        [target replaceRegion:MTLRegionMake2D(0, 0, target.width, target.height)
+                  mipmapLevel:0
+                    withBytes:pBackBuffer
+                  bytesPerRow:rowSize];
     }
 
+    render_bFirstPass = 1;
     render_commands = [J3DMetal_Queue() commandBuffer];
     render_OpenPass();
     return render_encoder ? 0 : 1;
@@ -336,6 +469,7 @@ static id<MTLSamplerState> render_GetSampler(size_t index)
                                                          : MTLSamplerMipFilterLinear;
         desc.sAddressMode = bClampU ? MTLSamplerAddressModeClampToEdge : MTLSamplerAddressModeRepeat;
         desc.tAddressMode = bClampV ? MTLSamplerAddressModeClampToEdge : MTLSamplerAddressModeRepeat;
+        desc.maxAnisotropy = render_maxAnisotropy;
         render_aSamplers[index] = [J3DMetal_Device() newSamplerStateWithDescriptor:desc];
     }
     return render_aSamplers[index];
@@ -356,7 +490,7 @@ J3DRenderTexture* J3DRender_CreateTexture(uint32_t width, uint32_t height, size_
     const size_t maxLevels = desc.mipmapLevelCount;
     desc.mipmapLevelCount = numLevels < maxLevels ? numLevels : maxLevels;
     desc.usage            = MTLTextureUsageShaderRead;
-    desc.storageMode      = MTLStorageModeShared; // one copy on unified memory: retail's system and video textures
+    desc.storageMode      = J3DMetal_TextureStorageMode(); // one copy on unified memory: retail's system and video textures
     if ( !bAlpha )
     {
         // X8R8G8B8: the fourth byte is not alpha.
@@ -545,7 +679,7 @@ int J3DRender_TakeScene(uint8_t* pPixels, uint32_t width, uint32_t height, size_
         J3DMetal_Commit(render_commands);
         if ( pPixels )
         {
-            J3DMetal_WaitForGPU();
+            J3DMetal_SyncForCPU(render_sceneColor);
             [render_sceneColor getBytes:pPixels bytesPerRow:rowSize fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
         }
         render_commands = [J3DMetal_Queue() commandBuffer];
@@ -560,7 +694,7 @@ int J3DRender_TakeScene(uint8_t* pPixels, uint32_t width, uint32_t height, size_
 
     if ( pPixels )
     {
-        J3DMetal_WaitForGPU();
+        J3DMetal_SyncForCPU(render_sceneColor);
         [render_sceneColor getBytes:pPixels bytesPerRow:rowSize fromRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0];
     }
     J3DMetal_SetSceneTexture(nil); // the back buffer is the frame's picture again
@@ -575,7 +709,7 @@ int J3DRender_ReadScene(uint8_t** ppPixels, uint32_t* pWidth, uint32_t* pHeight)
         return 1; // no scene texture, or a scene still open
     }
 
-    J3DMetal_WaitForGPU();
+    J3DMetal_SyncForCPU(render_sceneColor);
     const NSUInteger width  = render_sceneColor.width;
     const NSUInteger height = render_sceneColor.height;
     uint8_t* pPixels = (uint8_t*)malloc(width * height * 4);

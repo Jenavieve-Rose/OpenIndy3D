@@ -3,6 +3,8 @@
 #
 #   tools/package.sh [<build-dir>] [<out-dir>]     (defaults: build, dist)
 #
+# For one app that runs on Apple silicon and Intel Macs, make build-universal with tools/universal.sh and name it here.
+#
 # Environment:
 #   J3D_SIGN_IDENTITY   the signing identity, "Developer ID Application: <name> (<team>)"; default "-", an ad-hoc
 #                       signature, which runs here but which Gatekeeper refuses on other Macs
@@ -29,13 +31,14 @@ rm -rf "$stage" "$out/$name.dmg"
 mkdir -p "$stage"
 
 # Nothing from outside the bundle but the system's own libraries (P8.3)
-if otool -L "$app/Contents/MacOS/OpenIndy3D" | tail -n +2 | grep -v -E "^\s+(/System/Library/|/usr/lib/)"; then
+# (A Universal app's listing has a heading per architecture; only the indented lines name libraries.)
+if otool -L -arch all "$app/Contents/MacOS/OpenIndy3D" | grep -E "^\s" | grep -v -E "^\s+(/System/Library/|/usr/lib/)"; then
     echo "package: the app links a library outside the system (above)" >&2
     exit 1
 fi
 
 if cmp -s "$app/Contents/Resources/OpenIndy3D.icns" "$build/OpenIndy3D.icns" && \
-   grep -q "indiana_jones_and_the_infernal_machine" "$build/CMakeCache.txt"; then
+   grep -qs "indiana_jones_and_the_infernal_machine" "$build/CMakeCache.txt" "$root/build-arm64/CMakeCache.txt"; then
     echo "package: warning: the icon is made from the retail box art (J3D_ICON_SOURCE); give an original picture for a public release" >&2
 fi
 

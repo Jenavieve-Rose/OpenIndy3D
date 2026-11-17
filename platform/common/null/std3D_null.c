@@ -250,3 +250,7 @@ void J3DAPI std3D_FreeDisplayEnvironment(StdDisplayEnvironment* pEnv)
 {
     (void)pEnv; // static storage, see std3D_BuildDisplayEnvironment
 }
+
+void J3DAPI std3D_LoadHiresTexture(tSystemTexture* pTexture, const char* pMatName, size_t celNum, StdColorFormatType formatType)
+{
+}

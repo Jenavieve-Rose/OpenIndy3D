@@ -266,6 +266,7 @@ if(J3D_PLATFORM STREQUAL "apple")
         "-framework AVFAudio"
         "-framework CoreText"
         "-framework CoreGraphics"
+        "-framework ImageIO"
     )
     target_compile_definitions(platform_apple PUBLIC J3D_PLATFORM_APPLE=1)
     # Objective-C files are compiled with ARC. The C-only warning switches in j3d_common apply to them unchanged.
@@ -398,7 +399,8 @@ endforeach()
 # Tests that need no game data, registered in every configuration:
 #   display    the shared system-memory half of stdDisplay: back buffer, fills, blits, RGB565, SaveScreen (P2.4 to P2.7)
 #   present    (apple builds) the Metal present path, read back from a real window; skipped (77) with no window server
-#   render     (apple builds) the Metal renderer's shaders and fixed-function state, offscreen (P2.10)
+#   render     (apple builds) the Metal renderer's shaders and fixed-function state, offscreen (P2.10); render-msaa
+#              and render-managed run it multisampled and with an Intel Mac's managed textures (phase 9)
 #   audio3d    (apple builds) the audio device places 3D voices on the right side; skipped (77) with no output device
 #   keys       the DIK tables and GetKeyNameTextA and SearchPathA built on them (P3.1, P3.7)
 #   sounddriver the sound driver on the virtual clock, and its mix, rendered without a device (P4.3 to P4.6)
@@ -439,6 +441,12 @@ if(J3D_PLATFORM STREQUAL "apple")
     j3d_executable(render platform_apple ${J3D_ROOT}/tests/render.c ${J3D_ROOT}/tests/harness.c)
     add_test(NAME render COMMAND render)
     set_tests_properties(render PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
+    # Phase 9: the same checks multisampled with anisotropic samplers, and with managed textures (Intel Macs)
+    add_test(NAME render-msaa COMMAND render --samples 4 --anisotropy 16)
+    set_tests_properties(render-msaa PROPERTIES ENVIRONMENT "${J3D_SANITIZER_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
+    add_test(NAME render-managed COMMAND render --samples 4)
+    set(J3D_MANAGED_ENV ${J3D_SANITIZER_ENV} J3D_METAL_MANAGED=1)
+    set_tests_properties(render-managed PROPERTIES ENVIRONMENT "${J3D_MANAGED_ENV}" FAIL_REGULAR_EXPRESSION "ASSERT")
 endif()
 
 # boot: the game itself (its null-backend build, J3D_HEADLESS_TARGET), headless (in-memory display, virtual clock), for

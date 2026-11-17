@@ -199,6 +199,9 @@ int J3DAPI rdMaterial_LoadEntry(const char* pFilename, rdMaterial* pMat)
         }
 
         std3D_AllocSystemTexture(&pMat->aTextures[i], apVBuffers, texHeader.numMipLevels, pMat->formatType);
+#ifdef J3D_PORT
+        std3D_LoadHiresTexture(&pMat->aTextures[i], pFilename, i, pMat->formatType); // Port: phase 9
+#endif
         for ( j = 0; j < texHeader.numMipLevels; ++j )
         {
             stdDisplay_VBufferFree(apVBuffers[j]);

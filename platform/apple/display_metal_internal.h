@@ -18,6 +18,13 @@ id<MTLCommandQueue> J3DMetal_Queue(void);
 void J3DMetal_Commit(id<MTLCommandBuffer> commands);
 void J3DMetal_WaitForGPU(void); // blocks until the last committed command buffer has completed
 
+// The storage mode for textures the CPU writes or reads: shared on an Apple GPU, managed on an Intel Mac's GPU (or
+// with J3D_METAL_MANAGED=1 set).
+MTLStorageMode J3DMetal_TextureStorageMode(void);
+// Waits for all GPU work so far, first copying a managed texture's GPU contents back for the CPU; then getBytes reads
+// what the GPU drew.
+void J3DMetal_SyncForCPU(id<MTLTexture> texture);
+
 // The renderer's picture for this frame: the next J3DMetal_Present shows this texture instead of uploading the back
 // buffer, then forgets it. Its size need not match the window; it is scaled like the back buffer.
 void J3DMetal_SetSceneTexture(id<MTLTexture> texture);

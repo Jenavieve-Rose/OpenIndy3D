@@ -686,10 +686,10 @@ int J3DMenu_ShowExitGame(char* pSaveGameFilePath, int* pResult)
 // as menu_String keeps only sixteen of its copies and a window of four pages needs more.
 typedef struct MenuPage
 {
-    J3DMenuItem aItems[8];
+    J3DMenuItem aItems[11];
     int numItems;
     char aaText[24][128];
-    const char* apNames[4][8];  // the name lists of choice items
+    const char* apNames[6][8];  // the name lists of choice items
     int numText;
 } MenuPage;
 
@@ -809,8 +809,30 @@ static void menu_ReadSound(const MenuPage* pPage, J3DMenuSound* pSettings)
 static const int menu_aFrameLimits[MENU_NUM_FRAME_LIMITS] = { 0, 30, 60, 120 };
 static const char* const menu_apFrameLimitNames[MENU_NUM_FRAME_LIMITS] = { "None", "30", "60", "120" };
 
+// Phase 9: multisampling and anisotropic filtering, as the renderer counts them (1 is off)
+#define MENU_NUM_MSAA 4
+static const int menu_aMsaa[MENU_NUM_MSAA] = { 1, 2, 4, 8 };
+static const char* const menu_apMsaaNames[MENU_NUM_MSAA] = { "Off", "2x", "4x", "8x" };
+#define MENU_NUM_ANISOTROPY 5
+static const int menu_aAnisotropy[MENU_NUM_ANISOTROPY] = { 1, 2, 4, 8, 16 };
+static const char* const menu_apAnisotropyNames[MENU_NUM_ANISOTROPY] = { "Off", "2x", "4x", "8x", "16x" };
+
+// The index of value in aValues, or 0
+static int menu_ValueIndex(const int* aValues, int numValues, int value)
+{
+    for ( int i = 0; i < numValues; i++ )
+    {
+        if ( aValues[i] == value )
+        {
+            return i;
+        }
+    }
+    return 0;
+}
+
 // Display (templates 114 and 148 as one page). Items: 0 resolution, 1 performance, 2 mip mapping, 3 fog, 4 fog density
-// (greyed while fog is off), and in the launcher 5 fullscreen or a window, 6 vsync and 7 the frame limit.
+// (greyed while fog is off), and in the launcher 5 fullscreen or a window, 6 vsync, 7 the frame limit, and phase 9's
+// 8 multisampling, 9 anisotropic filtering and 10 high-resolution textures.
 static int menu_displayDefaultResolution;
 
 static int32_t menu_DisplayChanged(J3DMenuItem* pItems, int32_t numItems, int32_t changedIndex)
@@ -831,6 +853,12 @@ static int32_t menu_DisplayChanged(J3DMenuItem* pItems, int32_t numItems, int32_
         {
             pItems[6].value = 1; // vsync
             pItems[7].value = 0; // no frame limit
+        }
+        if ( numItems > 10 )
+        {
+            pItems[8].value = 0;  // no multisampling
+            pItems[9].value = 0;  // no anisotropic filtering
+            pItems[10].value = 1; // high-resolution textures where there are any
         }
     }
     pItems[4].bDisabled = !pItems[3].value;
@@ -907,7 +935,30 @@ static void menu_BuildDisplay(MenuPage* pPage, const J3DMenuDisplay* pSettings, 
         }
         aItems[7].apNames = pPage->apNames[3];
         aItems[7].numNames = MENU_NUM_FRAME_LIMITS;
-        pPage->numItems = 8;
+        // Phase 9: image quality beyond retail, read when the game opens its renderer and loads its materials
+        for ( int i = 0; i < MENU_NUM_MSAA; i++ )
+        {
+            pPage->apNames[4][i] = menu_apMsaaNames[i];
+        }
+        for ( int i = 0; i < MENU_NUM_ANISOTROPY; i++ )
+        {
+            pPage->apNames[5][i] = menu_apAnisotropyNames[i];
+        }
+        aItems[8].kind = J3DMENU_ITEM_CHOICE;
+        aItems[8].pGroup = "Image Quality";
+        aItems[8].pLabel = "Antialiasing (MSAA)";
+        aItems[8].value = menu_ValueIndex(menu_aMsaa, MENU_NUM_MSAA, wuRegistry_GetInt("MSAA", 1));
+        aItems[8].apNames = pPage->apNames[4];
+        aItems[8].numNames = MENU_NUM_MSAA;
+        aItems[9].kind = J3DMENU_ITEM_CHOICE;
+        aItems[9].pLabel = "Anisotropic filtering";
+        aItems[9].value = menu_ValueIndex(menu_aAnisotropy, MENU_NUM_ANISOTROPY, wuRegistry_GetInt("Anisotropy", 1));
+        aItems[9].apNames = pPage->apNames[5];
+        aItems[9].numNames = MENU_NUM_ANISOTROPY;
+        aItems[10].kind = J3DMENU_ITEM_TOGGLE;
+        aItems[10].pLabel = "High-resolution textures (Resource/hires)";
+        aItems[10].value = wuRegistry_GetInt("Hires Textures", 1) != 0;
+        pPage->numItems = 11;
     }
     menu_displayDefaultResolution = pSettings->defaultResolution;
 }
@@ -928,6 +979,12 @@ static void menu_ReadDisplay(const MenuPage* pPage, J3DMenuDisplay* pSettings)
         // Port settings, not the game's display settings: written here, as Options writes on OK
         wuRegistry_SaveInt("VSync", pPage->aItems[6].value != 0);
         wuRegistry_SaveInt("Frame Limit", menu_aFrameLimits[pPage->aItems[7].value]);
+    }
+    if ( pPage->numItems > 10 )
+    {
+        wuRegistry_SaveInt("MSAA", menu_aMsaa[pPage->aItems[8].value]);
+        wuRegistry_SaveInt("Anisotropy", menu_aAnisotropy[pPage->aItems[9].value]);
+        wuRegistry_SaveInt("Hires Textures", pPage->aItems[10].value != 0);
     }
 }
 

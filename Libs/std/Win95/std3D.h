@@ -54,5 +54,11 @@ void J3DAPI std3D_ClearZBuffer(void);
 StdDisplayEnvironment* J3DAPI std3D_BuildDisplayEnvironment(void);
 void J3DAPI std3D_FreeDisplayEnvironment(StdDisplayEnvironment* pEnv);
 
+#ifdef J3D_PORT
+// Port (phase 9): replaces the texture std3D_AllocSystemTexture made for cel celNum of material pMatName with a
+// higher-resolution image from a loose file, when there is one (std3D_metal.c). The game keeps the material's own size.
+void J3DAPI std3D_LoadHiresTexture(tSystemTexture* pTexture, const char* pMatName, size_t celNum, StdColorFormatType formatType);
+#endif
+
 J3D_EXTERN_C_END
 #endif // STD_STD3D_H

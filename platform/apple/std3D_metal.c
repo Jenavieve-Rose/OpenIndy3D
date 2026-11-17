@@ -16,20 +16,28 @@
  * P2.12: textures and the texture cache, the mipmap filter.
  *
  * P2.13 to P2.16: render states, fog, the projection's checks, the wireframe state.
+ *
+ * Phase 9: multisampling and anisotropic filtering (Open), higher-resolution textures from loose files
+ * (std3D_LoadHiresTexture).
  */
 #include <stddef.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include <std/General/std.h>
 #include <std/General/stdMath.h>
 #include <std/General/stdMemory.h>
+#include <std/General/stdFnames.h>
 #include <std/General/stdUtil.h>
 #include <std/Win95/std3D.h>
 #include <std/Win95/stdDisplay.h>
+#include <w32util/wuRegistry.h>
 
 #include <platform/apple/render_metal.h>
+#include <platform/common/host_path.h>
 #include <platform/common/stdDisplay_common.h>
 
 #define STD3D_DEFAULT_MAX_VERTICES 512 // retail std3D.c: used when the device reports no limit
@@ -64,6 +72,8 @@ static size_t          std3D_numCachedTextures = 0;
 static void std3D_AddTextureToCacheList(tSystemTexture* pTexture);
 static void std3D_RemoveTextureFromCacheList(tSystemTexture* pCacheTexture);
 static void std3D_UpdateSampler(void);
+static int  std3D_bHires; // the "Hires Textures" setting, and a hires folder to look in, read at Open
+static int  std3D_HasHiresFolder(void);
 static void std3D_UpdateFog(void);
 
 // Fog, as retail kept it (std3D_EnableFog, std3D_SetFog).
@@ -158,6 +168,9 @@ int J3DAPI std3D_Open(size_t deviceNum)
 
     // Retail created its z-buffer and Direct3D device on the back buffer surface; here, the scene and depth textures
     // at its size. The display mode must be set first, as retail required.
+    // Phase 9: multisampling and anisotropic filtering, the launcher's "MSAA" and "Anisotropy" (1, off, by default).
+    J3DRender_SetQuality((uint32_t)wuRegistry_GetInt("MSAA", 1), (uint32_t)wuRegistry_GetInt("Anisotropy", 1));
+    std3D_bHires = wuRegistry_GetInt("Hires Textures", 1) != 0 && std3D_HasHiresFolder();
     if ( !stdDisplay_bModeSet
         || J3DRender_Open(stdDisplay_backBuffer.rasterInfo.width, stdDisplay_backBuffer.rasterInfo.height) )
     {
@@ -758,6 +771,182 @@ int J3DAPI std3D_PurgeTextureCache(size_t size)
     }
 
     return purgedBytes > 0;
+}
+
+/* ---- High-resolution textures (phase 9) ---------------------------------------------------------------------------- */
+
+// Port: a material cel's texture replaced by an image from a loose file: hires/<material>.png for cel 0 and
+// hires/<material>_cel<n>.png for cel n, where <material> is the .mat file's name without its extension. The file is
+// opened through the game's own file services, so it is looked for as any loose file is: in the User Path's folder,
+// then the data's Resource folder (Resource/hires/...). Only when one of them has a hires folder (std3D_HasHiresFolder,
+// at Open): a lookup that finds nothing also searches the GOBs, which for every cel of a level costs about 0.1 s. The image may be any size up to 16384 on a side;
+// the game keeps the material's own size (texture coordinates are fractions of it), so an image with the original's
+// shape replaces it exactly. It takes its alpha when the material has alpha (colour-keyed or translucent), and a mip
+// chain made by the GPU when the mipmap filter is on. The texture cache's size accounting keeps the retail texture's
+// size.
+//
+// With J3D_HIRES_DUMP=<folder> set, every cel's original texture is first written there as a PNG under the name it
+// would be looked for by (an existing file is kept): the starting point for a set of replacements.
+#define STD3D_HIRES_MAX_FILE ((size_t)256 << 20)
+
+// Whether a loose root of the game's file services (JonesFile_Open: the working directory, the User Path, the data's
+// Resource folder) has a hires folder.
+static int std3D_HasHiresFolder(void)
+{
+    char aRoot[J3D_PATHSIZE], aPath[J3D_PATHSIZE], aHost[J3D_PATHSIZE];
+    struct stat st;
+    for ( int i = 0; i < 3; ++i )
+    {
+        aRoot[0] = '\0';
+        if ( i == 0 )
+        {
+            strcpy(aRoot, ".");
+        }
+        else if ( i == 1 )
+        {
+            wuRegistry_GetStr("User Path", aRoot, sizeof(aRoot), "");
+        }
+        else
+        {
+            wuRegistry_GetStr("Source Dir", aPath, sizeof(aPath), "");
+            if ( aPath[0] )
+            {
+                STD_MAKEPATH(aRoot, aPath, "resource");
+            }
+        }
+        if ( !aRoot[0] )
+        {
+            continue;
+        }
+        STD_MAKEPATH(aPath, aRoot, "hires");
+        J3DHost_ToPosixPath(aHost, sizeof(aHost), aPath);
+        if ( stat(aHost, &st) == 0 && S_ISDIR(st.st_mode) )
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void std3D_HiresFileName(char* pName, size_t size, const char* pMatName, size_t celNum)
+{
+    const char* pBase = strrchr(pMatName, '/');
+    const char* pAlt  = strrchr(pMatName, '\\');
+    pBase = pAlt > pBase ? pAlt : pBase;
+    pBase = pBase ? pBase + 1 : pMatName;
+
+    char aBase[64];
+    stdUtil_StringCopyBounded(aBase, sizeof(aBase), pBase, (size_t)-1);
+    char* pExt = strrchr(aBase, '.');
+    if ( pExt )
+    {
+        *pExt = '\0';
+    }
+    if ( celNum )
+    {
+        snprintf(pName, size, "%s_cel%u.png", aBase, (unsigned)celNum);
+    }
+    else
+    {
+        snprintf(pName, size, "%s.png", aBase);
+    }
+}
+
+// Reads a whole file through the game's file services into a malloc'd buffer; NULL when it cannot be opened.
+static uint8_t* std3D_ReadWholeFile(const char* pPath, size_t* pSize)
+{
+    tFileHandle fh = std_pHS->pFileOpen(pPath, "rb");
+    if ( !fh )
+    {
+        return NULL;
+    }
+
+    size_t   size = 0, capacity = (size_t)256 << 10;
+    uint8_t* pData = (uint8_t*)malloc(capacity);
+    while ( pData )
+    {
+        if ( size == capacity )
+        {
+            uint8_t* pBigger = capacity < STD3D_HIRES_MAX_FILE ? (uint8_t*)realloc(pData, capacity * 2) : NULL;
+            if ( !pBigger )
+            {
+                free(pData);
+                pData = NULL;
+                break;
+            }
+            pData     = pBigger;
+            capacity *= 2;
+        }
+        const size_t numRead = std_pHS->pFileRead(fh, pData + size, capacity - size);
+        if ( !numRead )
+        {
+            break;
+        }
+        size += numRead;
+    }
+    std_pHS->pFileClose(fh);
+
+    if ( pData && !size )
+    {
+        free(pData);
+        pData = NULL;
+    }
+    *pSize = size;
+    return pData;
+}
+
+void J3DAPI std3D_LoadHiresTexture(tSystemTexture* pTexture, const char* pMatName, size_t celNum, StdColorFormatType formatType)
+{
+    if ( !std3D_bOpen || !pTexture || !pTexture->pD3DSrcTexture || !pMatName || !*pMatName )
+    {
+        return;
+    }
+
+    J3DRenderTexture* pOld   = (J3DRenderTexture*)pTexture->pD3DSrcTexture;
+    const int         bAlpha = formatType != STDCOLOR_FORMAT_RGB;
+    char aName[96];
+    std3D_HiresFileName(aName, sizeof(aName), pMatName, celNum);
+
+    const char* pDump = getenv("J3D_HIRES_DUMP");
+    if ( pDump && *pDump )
+    {
+        char aDumpPath[1024];
+        struct stat st;
+        snprintf(aDumpPath, sizeof(aDumpPath), "%s/%s", pDump, aName);
+        if ( stat(aDumpPath, &st) != 0 && J3DRender_WriteTextureImage(pOld, aDumpPath, bAlpha) )
+        {
+            stdPrintf(std_pHS->pWarningPrint, J3D_FILE, __LINE__, "Could not write '%s'.\n", aDumpPath, 0, 0, 0);
+        }
+    }
+
+    if ( !std3D_bHires )
+    {
+        return;
+    }
+
+    char aPath[128];
+    STD_MAKEPATH(aPath, "hires", aName); // as the material loaders make their paths
+    size_t   size  = 0;
+    uint8_t* pData = std3D_ReadWholeFile(aPath, &size);
+    if ( !pData )
+    {
+        return; // no replacement: the usual case
+    }
+
+    uint32_t width = 0, height = 0;
+    J3DRenderTexture* pNew = J3DRender_CreateTextureFromImage(pData, size, bAlpha,
+        std3D_mipmapFilter != STD3D_MIPMAPFILTER_NONE, &width, &height);
+    free(pData);
+    if ( !pNew )
+    {
+        stdPrintf(std_pHS->pWarningPrint, J3D_FILE, __LINE__, "Could not read the image '%s'.\n", aPath, 0, 0, 0);
+        return;
+    }
+
+    pTexture->pD3DSrcTexture = (LPDIRECT3DTEXTURE2)pNew;
+    J3DRender_ReleaseTexture(pOld);
+    stdPrintf(std_pHS->pStatusPrint, J3D_FILE, __LINE__, "High-resolution texture '%s', %dx%d.\n", aPath, (int)width,
+        (int)height, 0);
 }
 
 /* ---- Samplers ------------------------------------------------------------------------------------------------------- */

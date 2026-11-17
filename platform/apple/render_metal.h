@@ -14,6 +14,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Image quality, port settings beyond retail (phase 9): the multisample count (1 for none; 2, 4 or 8, lowered to what
+// the device supports) used from the next J3DRender_Open, and the samplers' maximum anisotropy (1, retail's filtering,
+// to 16), used from the next draw. Both 1 by default.
+void     J3DRender_SetQuality(uint32_t samples, uint32_t maxAnisotropy);
+uint32_t J3DRender_GetSampleCount(void); // of the open scene targets; 1 when not multisampled
+
 // Creates the scene and depth textures for a width x height back buffer. 0 on success; 1 when there is no Metal
 // device or the textures cannot be made.
 int  J3DRender_Open(uint32_t width, uint32_t height);
@@ -71,6 +77,15 @@ J3DRenderTexture* J3DRender_CreateTexture(uint32_t width, uint32_t height, size_
 void J3DRender_UploadTextureLevel(J3DRenderTexture* pTexture, size_t level, const uint8_t* pPixels, size_t rowSize);
 void J3DRender_RetainTexture(J3DRenderTexture* pTexture);
 void J3DRender_ReleaseTexture(J3DRenderTexture* pTexture);
+
+// Phase 9, high-resolution textures (texture_image.m). A texture from an image file's bytes (PNG, or any format
+// ImageIO reads), as BGRA: with the image's alpha unpremultiplied when bAlpha, opaque otherwise; with a full mip chain
+// made by the GPU when bMipmaps. Its size goes to *pWidth, *pHeight. NULL when the image cannot be read or is larger
+// than 16384 on a side. The caller holds one reference.
+J3DRenderTexture* J3DRender_CreateTextureFromImage(const void* pData, size_t size, int bAlpha, int bMipmaps,
+    uint32_t* pWidth, uint32_t* pHeight);
+// Writes a texture's top level to a PNG file, with its alpha when bAlpha, opaque otherwise. 0 on success.
+int J3DRender_WriteTextureImage(J3DRenderTexture* pTexture, const char* pPath, int bAlpha);
 
 // The texture the following draws use; NULL draws with the vertex colours alone.
 void J3DRender_SetTexture(J3DRenderTexture* pTexture);
