@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 # Port of the Jones3D engine (infernal-machine-decomp, upstream commit 319a6fc2) to arm64 macOS.
 # See docs/PORT-PLAN.md for the phases and docs/PORTING.md for every deviation from the decomp.
-project(OpenIndy3D VERSION 1.1.0 LANGUAGES C)
+project(OpenIndy3D VERSION 1.1.1 LANGUAGES C)
 
 # Which platform backends the game binary uses (PORT-PLAN.md P2.1):
 #   apple  SDL3 window and input, Metal renderer; Objective-C, SDL3 and the Apple frameworks are required.

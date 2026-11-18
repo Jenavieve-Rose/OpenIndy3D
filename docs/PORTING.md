@@ -2156,3 +2156,21 @@ outfit (the jacket drawn, holster and whip in place), and the full `tools/check.
 - Checked: a key set written and read back is the same set; the 1.0.2 `XboxOne.kfg` loads its keyboard keys; a run
   with the Steam folder stored copied it by clones in under a second and played from the copy, and the next run used
   the copy without copying.
+
+## After 1.1
+
+### Keys the Mac sends that the game should not see, a second screenshot key, and the IQ picture
+
+- Fn and F13: SDL's Mac table (`scancodes_darwin.h`) reports key code 63 (Fn, when a keyboard sends it as a key) as
+  `SDL_SCANCODE_RGUI` and key code 105 (F13) as `SDL_SCANCODE_PRINTSCREEN`, so the game saw Right Windows and Print
+  Screen. `J3DControl_IsIgnoredKey` (stdControl_sdl.c) drops both by the event's `raw` key code: `wkernel_TranslateKey`
+  posts no message for them, `control_ReadDevices` leaves Print Screen and F13 out of the key state, and Right Command
+  while Fn is held. The controls menu's capture table no longer maps F13.
+- Home takes a screenshot as F12 does (`JonesMain_HandleWMKeydown`, `JonesMain_IntroHandleWMKeydown`, under
+  `J3D_PORT`): a Mac keyboard has no Print Screen, and macOS often takes F12. Home is bound to nothing else by default
+  (only debug builds in the editor bind it to Center).
+- IQ picture: `stdBmp_Load` makes `iq.bmp` a bottom-up DIB, as the file stores it, but `menu_PictureFromBitmaps` read
+  rows top first, so the statistics and level completed menus showed it upside down. `GetObjectA` now fills a
+  `DIBSECTION` as Windows does (`dsBmih.biHeight` negative for top-down rows), and the menus read each bitmap, mask
+  and save thumbnail in its own row order (`menu_GetBitmap`, `menu_BitmapRow`).
+- Checked: the menu self-test's picture of Game Statistics shows the IQ picture upright with its points.
