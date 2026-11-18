@@ -400,13 +400,35 @@ static int menu_ListSaves(J3DMenuSave** ppSaves)
     return numSaves;
 }
 
+// A bitmap's pixels with its row order: *pbTopDown is 0 for a bottom-up DIB (a .bmp file's rows as stored), whose first
+// row in memory is the bottom one. 0 when the bitmap cannot be read.
+static int menu_GetBitmap(HBITMAP hBitmap, BITMAP* pBmp, int* pbTopDown)
+{
+    DIBSECTION dib;
+    if ( !hBitmap || GetObject(hBitmap, sizeof(dib), &dib) != (int)sizeof(dib) || !dib.dsBm.bmBits )
+    {
+        return 0;
+    }
+    *pBmp = dib.dsBm;
+    *pbTopDown = dib.dsBmih.biHeight < 0;
+    return 1;
+}
+
+// Row y from the top of a bitmap menu_GetBitmap read.
+static const uint8_t* menu_BitmapRow(const BITMAP* pBmp, int bTopDown, int y)
+{
+    const int height = pBmp->bmHeight < 0 ? -pBmp->bmHeight : pBmp->bmHeight;
+    return (const uint8_t*)pBmp->bmBits + (size_t)(bTopDown ? y : height - 1 - y) * (size_t)pBmp->bmWidthBytes;
+}
+
 // A thumbnail bitmap (24 or 32 bits, blue first, as sithGamesave makes them) as the menu's pixels.
 static int menu_ThumbFromBitmap(HBITMAP hBitmap, uint8_t* pPixels)
 {
     BITMAP bmp;
+    int bTopDown;
     int x;
     int y;
-    if ( !hBitmap || GetObject(hBitmap, sizeof(bmp), &bmp) != (int)sizeof(bmp) || !bmp.bmBits )
+    if ( !menu_GetBitmap(hBitmap, &bmp, &bTopDown) )
     {
         return 0;
     }
@@ -416,7 +438,7 @@ static int menu_ThumbFromBitmap(HBITMAP hBitmap, uint8_t* pPixels)
     }
     for ( y = 0; y < J3DMENU_THUMB_HEIGHT; ++y )
     {
-        const uint8_t* pSrc = (const uint8_t*)bmp.bmBits + (size_t)y * (size_t)bmp.bmWidthBytes;
+        const uint8_t* pSrc = menu_BitmapRow(&bmp, bTopDown, y);
         uint8_t* pDst = pPixels + (size_t)y * J3DMENU_THUMB_WIDTH * 4;
         const int step = bmp.bmBitsPixel / 8;
         for ( x = 0; x < J3DMENU_THUMB_WIDTH; ++x )
@@ -1727,16 +1749,18 @@ static uint8_t* menu_PictureFromBitmaps(HBITMAP hImage, HBITMAP hMask, int* pWid
 {
     BITMAP bmp;
     BITMAP mask;
+    int bTopDown;
+    int bMaskTopDown = 1;
     uint8_t* pPixels;
     int bMask;
     int x;
     int y;
-    if ( !hImage || GetObject(hImage, sizeof(bmp), &bmp) != (int)sizeof(bmp) || !bmp.bmBits
+    if ( !menu_GetBitmap(hImage, &bmp, &bTopDown)
          || (bmp.bmBitsPixel != 24 && bmp.bmBitsPixel != 32) || bmp.bmWidth <= 0 || bmp.bmHeight == 0 )
     {
         return NULL;
     }
-    bMask = hMask && GetObject(hMask, sizeof(mask), &mask) == (int)sizeof(mask) && mask.bmBits
+    bMask = hMask && menu_GetBitmap(hMask, &mask, &bMaskTopDown)
             && mask.bmWidth == bmp.bmWidth && mask.bmHeight == bmp.bmHeight && (mask.bmBitsPixel == 24 || mask.bmBitsPixel == 32);
     *pWidth = bmp.bmWidth;
     *pHeight = bmp.bmHeight < 0 ? -bmp.bmHeight : bmp.bmHeight;
@@ -1747,8 +1771,8 @@ static uint8_t* menu_PictureFromBitmaps(HBITMAP hImage, HBITMAP hMask, int* pWid
     }
     for ( y = 0; y < *pHeight; ++y )
     {
-        const uint8_t* pSrc = (const uint8_t*)bmp.bmBits + (size_t)y * (size_t)bmp.bmWidthBytes;
-        const uint8_t* pMask = bMask ? (const uint8_t*)mask.bmBits + (size_t)y * (size_t)mask.bmWidthBytes : NULL;
+        const uint8_t* pSrc = menu_BitmapRow(&bmp, bTopDown, y);
+        const uint8_t* pMask = bMask ? menu_BitmapRow(&mask, bMaskTopDown, y) : NULL;
         uint8_t* pDst = pPixels + (size_t)y * (size_t)*pWidth * 4;
         const int step = bmp.bmBitsPixel / 8;
         const int maskStep = bMask ? mask.bmBitsPixel / 8 : 0;

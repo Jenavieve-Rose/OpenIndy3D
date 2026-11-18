@@ -527,6 +527,20 @@ int WINAPI GetObjectA(HANDLE h, int size, LPVOID pOut)
         pBitmap->bmPlanes = 1;
         pBitmap->bmBitsPixel = (WORD)p->bpp;
         pBitmap->bmBits = p->pBits;
+        if ( size >= (int)sizeof(DIBSECTION) )
+        {
+            // As Windows: a DIB section's header too, its height negative when the rows run top-down
+            DIBSECTION* pDib = pOut;
+            memset(&pDib->dsBmih, 0, sizeof(*pDib) - sizeof(BITMAP));
+            pDib->dsBmih.biSize = sizeof(BITMAPINFOHEADER);
+            pDib->dsBmih.biWidth = p->width;
+            pDib->dsBmih.biHeight = p->bTopDown ? -p->height : p->height;
+            pDib->dsBmih.biPlanes = 1;
+            pDib->dsBmih.biBitCount = (WORD)p->bpp;
+            pDib->dsBmih.biCompression = BI_RGB;
+            pDib->dsBmih.biSizeImage = (DWORD)p->pitch * (DWORD)p->height;
+            return (int)sizeof(DIBSECTION);
+        }
         return (int)sizeof(BITMAP);
     }
     if ( p->type == GUI_OBJ_FONT && size >= (int)sizeof(LOGFONTA) )

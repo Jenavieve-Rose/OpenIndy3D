@@ -147,6 +147,17 @@ typedef struct tagBITMAP
     LPVOID bmBits;
 } BITMAP, *PBITMAP, *LPBITMAP;
 
+// GetObject with sizeof(DIBSECTION): the bitmap and the header it was made from, whose biHeight is negative for a
+// top-down bitmap (BITMAP's bmHeight is always the row count).
+typedef struct tagDIBSECTION
+{
+    BITMAP           dsBm;
+    BITMAPINFOHEADER dsBmih;
+    DWORD            dsBitfields[3];
+    HANDLE           dshSection;
+    DWORD            dsOffset;
+} DIBSECTION, *PDIBSECTION, *LPDIBSECTION;
+
 typedef struct _ICONINFO
 {
     BOOL    fIcon;
