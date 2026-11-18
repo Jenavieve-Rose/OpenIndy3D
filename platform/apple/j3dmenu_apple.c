@@ -795,13 +795,24 @@ static void menu_BuildSound(MenuPage* pPage, const J3DMenuSound* pSettings)
     aItems[1].pLabel = menu_PageText(pPage, "JONES_STR_3D_SND", "3D Sound");
     aItems[1].value = pSettings->b3DAvailable && pSettings->b3DSound;
     aItems[1].bDisabled = !pSettings->b3DAvailable;
-    pPage->numItems = 2;
+    // Port: head tracking (AVAudioEnvironmentNode, docs/BUILDING.md "Sound Head Tracking"); a port string, the game's
+    // table has none for it
+    aItems[2].kind = J3DMENU_ITEM_TOGGLE;
+    aItems[2].pGroup = "";
+    aItems[2].pLabel = "Head Tracking (headphones that track the head)";
+    aItems[2].value = pSettings->bHeadTrackingAvailable && pSettings->bHeadTracking;
+    aItems[2].bDisabled = !pSettings->bHeadTrackingAvailable;
+    pPage->numItems = 3;
 }
 
 static void menu_ReadSound(const MenuPage* pPage, J3DMenuSound* pSettings)
 {
     pSettings->volume = pPage->aItems[0].value;
     pSettings->b3DSound = pPage->aItems[1].value;
+    if ( pSettings->bHeadTrackingAvailable )
+    {
+        pSettings->bHeadTracking = pPage->aItems[2].value;
+    }
 }
 
 // The launcher's frame limits (P8.7), frames a second; 0 is none

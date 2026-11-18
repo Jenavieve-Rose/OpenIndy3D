@@ -34,3 +34,13 @@ void J3DAudio_SetMirror(int bMirror)
 {
     (void)bMirror;
 }
+
+int J3DAudio_HeadTrackingAvailable(void)
+{
+    return 0;
+}
+
+void J3DAudio_SetHeadTracking(int bEnabled)
+{
+    (void)bEnabled;
+}

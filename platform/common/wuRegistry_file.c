@@ -13,7 +13,8 @@
  * Lookup order for Get*: the J3D_REG_<name> environment variable (spaces in the name become underscores, for example
  * J3D_REG_Start_Mode=2), then the file, then derived defaults (below), then the caller's default.
  *
- * Game data root. "Data Root" names the folder holding RESOURCE/ (the player's install, or the DREAMM copy). It comes
+ * Game data root. "Data Root" names the folder holding RESOURCE/ (the game's own copy in <user dir>/GameData, which
+ * host_data.c makes from the player's install or the DREAMM copy). It comes
  * from J3D_DATA (main.c sets it from --data), or from the file. When set, it supplies the defaults for the two path
  * values JonesMain and JonesFile read from: "Source Dir" (the CD root; JonesFile appends "resource") and "User Path"
  * (the install root). The defaults end in '/', as the engine concatenates onto them.

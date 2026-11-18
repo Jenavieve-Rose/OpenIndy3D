@@ -35,6 +35,12 @@ The data root comes from, in order:
    stores what it finds, and in a run someone is at asks with an open panel; holding Option at launch asks again.
    The folder is checked: the three GOBs must be there, and `Resource/Indy3D.exe` names the version (P8.4, P8.5).
 
+When the data root comes from 3 or 4, the game copies what it needs to run (`Resource/` and `KeySets/`) into
+`~/Library/Application Support/OpenIndy3D/GameData/`, checks the copy, and from then on runs from it (`Data Root` names
+it; `Data Source` records where it came from). The store's folder is left alone. On the same APFS volume the files are
+cloned, so the copy is instant and takes no space; elsewhere it is a full copy (about 860 MB). `J3D_NO_DATA_COPY=1`
+runs from the folder as it is. A data root given with `--data` or `J3D_DATA` (the tests and tools) is never copied.
+
 ## Build with Ninja
 
 From the repository root:
@@ -182,7 +188,7 @@ J3D_REG_Sound_3D=1 build/jones3d --data /path/to/data-root
 | --- | --- |
 | `Sound 3D=i:1` | 3D sound on (default 0). |
 | `Sound 3D Rendering=i:<n>` | 0 (default) Apple's best rendering for headphones; 1 HRTF, high quality; 2 HRTF; 3 Apple's rendering for a Mac's built-in speakers (places sounds only slightly apart). 0 to 2 work on any output and are made for headphones. |
-| `Sound Head Tracking=i:1` | macOS 15 and later, with rendering 0 and headphones that track the head (AirPods Pro, for example): the sound field stays put as you turn your head. Default 0. |
+| `Sound Head Tracking=i:1` | macOS 15 and later, with rendering 0 and headphones that track the head (AirPods Pro, for example): the sound field stays put as you turn your head. Default 1 (on); also the Sound menu's Head Tracking box. |
 
 The game's "Reverse sound" option swaps left and right in 3D sound. Retail applied it only from a hidden box in the
 sound settings dialog and never read it back at startup; the port's sound options leave it out (PORT-PLAN.md P6.15).

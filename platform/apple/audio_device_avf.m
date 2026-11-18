@@ -13,8 +13,9 @@
  * forward). A point (x, y, z) is placed at (x, z, -y), a rotation, so handedness is kept. "Reverse sound" negates x.
  *
  * Settings: "Sound 3D Rendering" (0, the default: Apple's best rendering for headphones; 1 HRTF high quality; 2 HRTF;
- * 3 Apple's rendering for a Mac's built-in speakers) and "Sound Head Tracking" (1: on macOS 15 and later, with
- * headphones that track the head, the listener turns with the player's head; default 0). 0 to 2 are made for
+ * 3 Apple's rendering for a Mac's built-in speakers) and "Sound Head Tracking" (1, the default: on macOS 15 and later,
+ * with headphones that track the head, the listener turns with the player's head; 0 off; the Sound menu's Head
+ * Tracking box). 0 to 2 are made for
  * headphones and work on any output; 3 places sounds only slightly apart (about 1 dB measured), as Apple's speaker
  * rendering does.
  *
@@ -241,7 +242,7 @@ int J3DAudio_OpenDevice(J3DAudioRenderFunc pfRender, J3DAudioRenderSlotFunc pfRe
         J3DAudio_environment.outputType = J3DAudio_OutputType();
         if ( @available(macOS 15.0, *) )
         {
-            J3DAudio_environment.listenerHeadTrackingEnabled = wuRegistry_GetIntEx("Sound Head Tracking", 0) != 0;
+            J3DAudio_environment.listenerHeadTrackingEnabled = wuRegistry_GetIntEx("Sound Head Tracking", 1) != 0;
         }
 
         // The 3D slots.
@@ -374,6 +375,29 @@ void J3DAudio_SetSlotPosition(int slot, const float aPos[3])
     }
 
     J3DAudio_aSlots[slot].position = J3DAudio_ToAV(aPos);
+}
+
+int J3DAudio_HeadTrackingAvailable(void)
+{
+    if ( @available(macOS 15.0, *) )
+    {
+        return 1;
+    }
+    return 0;
+}
+
+void J3DAudio_SetHeadTracking(int bEnabled)
+{
+    AVAudioEnvironmentNode* environment = J3DAudio_environment;
+    if ( !environment )
+    {
+        return; // taken from "Sound Head Tracking" when the device opens
+    }
+
+    if ( @available(macOS 15.0, *) )
+    {
+        environment.listenerHeadTrackingEnabled = bEnabled != 0;
+    }
 }
 
 void J3DAudio_SetMirror(int bMirror)

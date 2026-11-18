@@ -2127,3 +2127,29 @@ outfit (the jacket drawn, holster and whip in place), and the full `tools/check.
 - Not done: alpha to coverage for alpha-tested edges (it changes their look); a run on an Intel Mac.
 - Behaviour: `tools/check.sh --asserts` passes (apple 42, null 34, sanitizer 42, debug-asserts 42, layout audit 0), and
   `tools/universal.sh --test` (arm64 42, x86_64 42 under Rosetta 2).
+
+## After 1.0.2
+
+### Settings that did not stay, head tracking, and the game's own data folder
+
+- Game play settings: the launcher's Options window opens before `sithMain_Startup`, `sithOverlayMap_Startup`,
+  `sithVoice_Startup` and `jonesConfig_Startup` read Difficulty, Show Hints, Map Rotation, Show Text and Default Run, so
+  `jonesConfig_GetGamePlayMenu` showed the engine's initial values, and OK saved them over the player's. Before
+  `jonesConfig_Startup` it now reads them from the settings, with the startups' defaults.
+- Key sets: `jonesConfig_ControlOptions_WriteScheme` read a set's rows through retail's `int (*)[9]`, which matched
+  its 32-bit `size_t`; with a 64-bit `size_t` every binding's high half was written as a binding of its own (`""`) and
+  each row lost its last bindings. A set written that way failed to load (`""` is no key), so the game fell back to a
+  default set and cleared `Configuration`. The row is now read as `size_t`, and the loader skips `""` so sets written
+  by 1.0 to 1.0.2 load what they kept (their controller buttons were never written and must be bound again).
+- Chosen set: the control options menu and the launcher's Controls tab showed the first listed set when the chosen one
+  is not listed (the port's "Dual-Stick Controller" is made in memory, not a file) and saved that on OK. The chosen
+  set is now saved only when it is listed or the player picked another.
+- Head tracking: the 1.0.2 listener fix only turned the listener's front vector round; head tracking was off because
+  `Sound Head Tracking` defaulted to 0 and nothing showed it. It now defaults to 1 and is the Sound page's Head Tracking
+  box (macOS 15 and later), applied at once through `J3DAudio_SetHeadTracking`.
+- Game data: `hostdata_MakeLocal` copies `Resource/` and `KeySets/` from a stored or found data root into
+  `<user dir>/GameData` (APFS clones where possible, through `GameData.partial`, checked with `J3DHost_CheckData`
+  before it replaces an earlier copy) and stores it as `Data Root` (BUILDING.md).
+- Checked: a key set written and read back is the same set; the 1.0.2 `XboxOne.kfg` loads its keyboard keys; a run
+  with the Steam folder stored copied it by clones in under a second and played from the copy, and the next run used
+  the copy without copying.

@@ -59,6 +59,8 @@ typedef struct J3DMenuSound
     int volume;
     int b3DSound;
     int b3DAvailable;
+    int bHeadTracking;          // "Sound Head Tracking"
+    int bHeadTrackingAvailable; // macOS 15 and later
     void (*pfTestVolume)(int volume);
 } J3DMenuSound;
 int J3DMenu_ShowSoundSettings(J3DMenuSound* pSettings, int* pResult);

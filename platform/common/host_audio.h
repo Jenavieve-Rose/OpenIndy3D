@@ -38,6 +38,12 @@ void J3DAudio_SetSlotPosition(int slot, const float aPos[3]);
 // Mirrors the 3D scene left to right (the game's "Reverse sound" option).
 void J3DAudio_SetMirror(int bMirror);
 
+// Head tracking ("Sound Head Tracking", default on): with headphones that track the head (AirPods, for example), the
+// 3D scene stays put as the player turns their head. Available says whether the system has it (macOS 15 and later);
+// Set applies at once on an open device and is otherwise taken when the device opens.
+int  J3DAudio_HeadTrackingAvailable(void);
+void J3DAudio_SetHeadTracking(int bEnabled);
+
 // Renders as a device's callbacks would, at 48,000 Hz when no device is open. For tests (tests/sounddriver.c); the game
 // never calls them. J3DAudio_Render writes interleaved stereo.
 void J3DAudio_Render(float* pOut, uint32_t frameCount);

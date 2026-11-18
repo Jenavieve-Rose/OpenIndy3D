@@ -37,6 +37,7 @@
 
 #ifdef J3D_PORT
 #include <platform/common/host_path.h>
+#include <platform/common/host_audio.h>
 #include <platform/common/j3dmenu.h>
 #endif
 
@@ -1541,11 +1542,13 @@ static int J3DAPI jonesConfig_ControlOptions_WriteScheme(JonesControlsScheme* pS
     // Now go over actions and write the key config per action
     for ( i = 0; i < (int)STD_ARRAYLEN(pScheme->aActions); ++i )
     {
-        int (*pBindings)[9];
+        // Port: the row's own type. Retail's int (*)[9] matched its 32-bit size_t; with a 64-bit size_t it read every
+        // binding's high half as a binding of its own (written as ""), and dropped the row's last bindings.
+        size_t (*pBindings)[JONESCONTROL_ACTION_BINDARRAYSIZE];
         int j;
         char aActionControlLine[256];
 
-        pBindings = (int (*)[9])pScheme->aActions[i];
+        pBindings = &pScheme->aActions[i];
 
         // Write action name
         pJonesString = jonesString_GetString(jonesConfig_aJonesControlActionNames[i]);
@@ -2568,6 +2571,15 @@ int J3DAPI jonesConfig_LoadControlScheme(const char* pFilePath, JonesControlsSch
         paActionBindings[0] = 0; // Reset number of bindings state
         while ( paActionBindings && argNum < stdConffile_entry.numArgs )
         {
+#ifdef J3D_PORT
+            // Port: an empty name ("") is skipped. Releases up to 1.0.2 wrote one for every other binding of a key set
+            // (jonesConfig_ControlOptions_WriteScheme), which made the whole set fail to load; this keeps the rest.
+            if ( !stdConffile_entry.aArgs[argNum].argName[0] )
+            {
+                ++argNum;
+                continue;
+            }
+#endif
             numControllerBinds = 0;
             numKeyboardBinds   = 0;
             prevArgNum         = argNum;
@@ -5052,13 +5064,26 @@ LRESULT CALLBACK jonesConfig_LoadGameThumbnailPaintProc(HWND hWnd, UINT uMsg, WP
 // both, so they leave settings.ini alike.
 static void jonesConfig_GetGamePlayMenu(J3DMenuGamePlay* pOptions)
 {
-    pOptions->difficulty    = sithGetGameDifficulty();
     pOptions->maxDifficulty = (int)jonesInventory_GetMaxDifficultyLevel();
+    pOptions->outfit        = wuRegistry_GetInt("Indy Outfit", 0); // Port: Indy's outfit, taken at the next level start
+    if ( !jonesConfig_bStartup )
+    {
+        // The launcher's Options window opens before sithMain_Startup, sithOverlayMap_Startup, sithVoice_Startup and
+        // jonesConfig_Startup have read these from settings.ini, so the game's own state still holds its initial values;
+        // shown and saved back on OK, they overwrote the player's settings. Read them as those startups do.
+        pOptions->difficulty   = wuRegistry_GetInt("Difficulty", 5); // SITH_DEFAULTGAMEDIFFICULTY (sithMain.c)
+        pOptions->bShowHints   = wuRegistry_GetIntEx("Show Hints", 0);
+        pOptions->bMapRotation = wuRegistry_GetIntEx("Map Rotation", 0);
+        pOptions->bDefaultRun  = wuRegistry_GetIntEx("Default Run", 0);
+        pOptions->bShowText    = wuRegistry_GetIntEx("Show Text", 0);
+        return;
+    }
+
+    pOptions->difficulty    = sithGetGameDifficulty();
     pOptions->bShowHints    = sithOverlayMap_GetShowHints();
     pOptions->bMapRotation  = sithOverlayMap_GetMapRotation();
     pOptions->bDefaultRun   = jonesConfig_gamePlayOptions_bDefaultRun;
     pOptions->bShowText     = sithVoice_GetShowText();
-    pOptions->outfit        = wuRegistry_GetInt("Indy Outfit", 0); // Port: Indy's outfit, taken at the next level start
 }
 
 static void jonesConfig_ApplyGamePlayMenu(const J3DMenuGamePlay* pOptions)
@@ -8703,6 +8728,8 @@ static void jonesConfig_GetSoundMenu(const JonesSoundSettings* pData, J3DMenuSou
     pSettings->volume       = (int)(pData->maxSoundVolume * 100.0f); // Port: narrowing cast, as TBM_SETPOS took it
     pSettings->b3DAvailable = Sound_Has3DHW();
     pSettings->b3DSound     = pSettings->b3DAvailable && pData->b3DHWSupport;
+    pSettings->bHeadTrackingAvailable = J3DAudio_HeadTrackingAvailable();
+    pSettings->bHeadTracking          = wuRegistry_GetIntEx("Sound Head Tracking", 1) != 0; // Port: audio_device_avf.m
     pSettings->pfTestVolume = jonesConfig_SoundSettingsTestVolume;
 }
 
@@ -8713,6 +8740,12 @@ static void jonesConfig_ApplySoundMenu(JonesSoundSettings* pData, const J3DMenuS
     wuRegistry_SaveFloat("Sound Volume", (float)(pSettings->volume / 100.0));
     wuRegistry_SaveIntEx("Sound 3D", pData->b3DHWSupport);
     wuRegistry_SaveIntEx("ReverseSound", pData->bReverseSound); // the hidden box, unchanged
+    if ( pSettings->bHeadTrackingAvailable )
+    {
+        // Port: head tracking, applied at once (audio_device_avf.m)
+        wuRegistry_SaveIntEx("Sound Head Tracking", pSettings->bHeadTracking != 0);
+        J3DAudio_SetHeadTracking(pSettings->bHeadTracking);
+    }
 }
 #endif
 
@@ -10918,6 +10951,7 @@ void J3DAPI jonesConfig_InsertCD_HandleWM_COMMAND(HWND hWnd, int nResult, LPARAM
 // saved name, the switches as saved. The names are kept here: the control options free and reload the sets.
 static char jonesConfig_aaLauncherSets[J3DMENU_CTRL_MAXSETS][128];
 static const char* jonesConfig_apLauncherSets[J3DMENU_CTRL_MAXSETS];
+static int jonesConfig_bLauncherSetListed; // the saved "Configuration" is one of the listed sets
 
 static void jonesConfig_FillLauncherControls(J3DMenuControls* pControls)
 {
@@ -10925,6 +10959,7 @@ static void jonesConfig_FillLauncherControls(J3DMenuControls* pControls)
     int i;
     pControls->numSchemes = 0;
     pControls->scheme     = 0;
+    jonesConfig_bLauncherSetListed = 0;
     if ( jonesConfig_InitKeySetsPath() && jonesConfig_ControlOptions_InitControlsConfig() )
     {
         const JonesControlsConfig* pConfig = &jonesConfig_controlOptions_curControlConfig;
@@ -10937,6 +10972,7 @@ static void jonesConfig_FillLauncherControls(J3DMenuControls* pControls)
             if ( streq(aSelectedName, pConfig->aSchemes[i].aName) )
             {
                 pControls->scheme = i;
+                jonesConfig_bLauncherSetListed = 1;
             }
         }
         pControls->numSchemes = i;
@@ -10964,6 +11000,7 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
     J3DMenuGamePlay gamePlay;
     J3DMenuSound sound;
     J3DMenuControls controls;
+    int initialScheme;
     int result = 2;
 
     if ( !jonesConfig_GetDisplayMenu(pDisplayEnv, pDisplaySettings, &display) )
@@ -10976,6 +11013,7 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
 
     jonesConfig_FillLauncherControls(&controls);
     controls.pfEditSets = jonesConfig_LauncherEditSets;
+    initialScheme = controls.scheme;
 
     if ( J3DMenu_ShowOptions(&display.menu, &gamePlay, &sound, &controls, &result) && result == 1 )
     {
@@ -10984,7 +11022,9 @@ int J3DAPI jonesConfig_ShowLauncherOptions(StdDisplayEnvironment* pDisplayEnv, J
         jonesConfig_ApplySoundMenu(pSoundSettings, &sound);
         Sound_SetMaxVolume(pSoundSettings->maxSoundVolume);
         Sound_Set3DHWState(pSoundSettings->b3DHWSupport);
-        if ( controls.numSchemes > 0 )
+        // Only a listed set, or one the player picked: a set the list does not show (the port's "Dual-Stick
+        // Controller") came up as the first set, and saving that replaced the player's set.
+        if ( controls.numSchemes > 0 && (jonesConfig_bLauncherSetListed || controls.scheme != initialScheme) )
         {
             wuRegistry_SaveStr("Configuration", controls.apSchemes[controls.scheme]);
         }
@@ -11671,6 +11711,8 @@ static int jonesConfig_ShowControlOptionsMenu(int* pResult, int bInGame)
 {
     J3DMenuControlOptions* pOptions;
     char aSelected[128];
+    int bSelectedListed;
+    int initialSelected;
     int i;
 
     if ( !J3DMenu_IsAvailable() )
@@ -11703,14 +11745,17 @@ static int jonesConfig_ShowControlOptionsMenu(int* pResult, int bInGame)
     }
 
     jonesConfig_menuControlConfig.selectedShemeIdx = 0;
+    bSelectedListed = 0;
     for ( i = 0; i < jonesConfig_menuControlConfig.numSchemes; ++i )
     {
         jonesConfig_menuControlConfig.aSchemes[i].bModified = 0;
         if ( streq(aSelected, jonesConfig_menuControlConfig.aSchemes[i].aName) )
         {
             jonesConfig_menuControlConfig.selectedShemeIdx = i;
+            bSelectedListed = 1;
         }
     }
+    initialSelected = jonesConfig_menuControlConfig.selectedShemeIdx;
 
     pOptions->bMouse             = wuRegistry_GetIntEx("Mouse Control", 0);
     pOptions->bJoystickAvailable = !bInGame || stdControl_GetNumJoysticks() > 0; // before the game the pads are not opened yet
@@ -11724,10 +11769,15 @@ static int jonesConfig_ShowControlOptionsMenu(int* pResult, int bInGame)
         // OK, then what jonesConfig_ShowControlOptions did after the dialog
         JonesControlsConfig* pConfig = &jonesConfig_menuControlConfig;
         *pResult = 1;
-        wuRegistry_SaveStr("Configuration", pConfig->aSchemes[pConfig->selectedShemeIdx].aName);
-        if ( bInGame )
+        // A chosen set the list does not show (the port's "Dual-Stick Controller", made by jonesConfig_LoadActiveControlScheme
+        // and not a file) stays chosen unless the player picks another: the list's first set stood in for it and was saved.
+        if ( bSelectedListed || pConfig->selectedShemeIdx != initialSelected )
         {
-            jonesConfig_BindControls(&pConfig->aSchemes[pConfig->selectedShemeIdx]);
+            wuRegistry_SaveStr("Configuration", pConfig->aSchemes[pConfig->selectedShemeIdx].aName);
+            if ( bInGame )
+            {
+                jonesConfig_BindControls(&pConfig->aSchemes[pConfig->selectedShemeIdx]);
+            }
         }
         jonesConfig_FreeControlConfigEntry(pConfig);
         jonesConfig_FreeControlConfigEntry(&jonesConfig_controlOptions_curControlConfig);

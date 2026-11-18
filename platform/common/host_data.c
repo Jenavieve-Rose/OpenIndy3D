@@ -1,8 +1,11 @@
 /*
  * The player's game data (PORT-PLAN.md P8.4, P8.5); see host_data.h.
  */
+#include <copyfile.h>
 #include <errno.h>
 #include <glob.h>
+#include <limits.h>
+#include <removefile.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -326,6 +329,123 @@ int J3DHost_FindData(char* pRoot, size_t size)
     return 1;
 }
 
+/* ---- A copy in the player's own folder ------------------------------------------------------------------------------ */
+
+// The game runs from its own copy of the data, <user dir>/GameData, so it does not depend on where Steam, GOG or DREAMM
+// put the game (or on that folder staying put). Copied: Resource (the GOBs, Cog, the movies, Indy3D.exe for the version
+// check) and KeySets (the retail key sets, seeded from here). The store's folder is left as it was; copies are APFS
+// clones where the file system allows, so on the same volume they take no space.
+#define HOSTDATA_LOCALNAME "GameData"
+
+static const char* const hostdata_apCopied[] = { "Resource", "KeySets" };
+
+static int hostdata_IsDir(const char* pPath)
+{
+    struct stat st;
+    return stat(pPath, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static void hostdata_Remove(const char* pPath)
+{
+    if ( hostdata_IsDir(pPath) )
+    {
+        removefile(pPath, NULL, REMOVEFILE_RECURSIVE);
+    }
+}
+
+// The folder in pRoot named pName in any letter case, as the retail installs vary (RESOURCE, Resource, KEYSETS)
+static int hostdata_FindChild(const char* pRoot, const char* pName, char* pPath, size_t size)
+{
+    char aEnginePath[1100];
+    snprintf(aEnginePath, sizeof(aEnginePath), "%s/%s", pRoot, pName);
+    J3DHost_ToPosixPath(pPath, size, aEnginePath);
+    return hostdata_IsDir(pPath);
+}
+
+// Copies pRoot's data into <user dir>/GameData and returns 1 with its path in pLocal, or 0 to keep using pRoot (already
+// the copy, J3D_NO_DATA_COPY set, or the copy failed). Copied into GameData.partial first and checked, so a copy cut
+// short is never used; a GameData from an earlier choice is replaced only once the new copy is whole.
+static int hostdata_MakeLocal(const char* pRoot, char* pLocal, size_t size)
+{
+    const char* pNoCopy = getenv("J3D_NO_DATA_COPY");
+    if ( pNoCopy && *pNoCopy && strcmp(pNoCopy, "0") != 0 )
+    {
+        return 0;
+    }
+
+    char aLocal[1100], aPartial[1100], aOld[1100];
+    snprintf(aLocal, sizeof(aLocal), "%s" HOSTDATA_LOCALNAME, J3DHost_GetUserDir());
+    snprintf(aPartial, sizeof(aPartial), "%s.partial", aLocal);
+    snprintf(aOld, sizeof(aOld), "%s.old", aLocal);
+
+    char aRealRoot[PATH_MAX], aRealLocal[PATH_MAX];
+    if ( realpath(pRoot, aRealRoot) && realpath(aLocal, aRealLocal) && strcmp(aRealRoot, aRealLocal) == 0 )
+    {
+        return 0; // already the copy
+    }
+
+    if ( J3DHost_MakeDirs(J3DHost_GetUserDir()) )
+    {
+        return 0;
+    }
+
+    hostdata_Remove(aPartial); // a copy an earlier run did not finish
+    if ( mkdir(aPartial, 0755) != 0 )
+    {
+        fprintf(stderr, J3D_PRODUCT_NAME ": could not create %s: %s\n", aPartial, strerror(errno));
+        return 0;
+    }
+
+    printf("Game data: copying %s to %s\n", pRoot, aLocal);
+    fflush(stdout);
+    for ( size_t i = 0; i < sizeof(hostdata_apCopied) / sizeof(hostdata_apCopied[0]); i++ )
+    {
+        char aFrom[1100], aTo[1200];
+        if ( !hostdata_FindChild(pRoot, hostdata_apCopied[i], aFrom, sizeof(aFrom)) )
+        {
+            continue; // KeySets is optional; CheckData below finds a missing Resource
+        }
+
+        snprintf(aTo, sizeof(aTo), "%s/%s", aPartial, hostdata_apCopied[i]);
+        if ( copyfile(aFrom, aTo, NULL, COPYFILE_ALL | COPYFILE_RECURSIVE | COPYFILE_CLONE) != 0 )
+        {
+            fprintf(stderr, J3D_PRODUCT_NAME ": could not copy %s to %s: %s; the game runs from %s\n", aFrom, aTo,
+                    strerror(errno), pRoot);
+            hostdata_Remove(aPartial);
+            return 0;
+        }
+    }
+
+    J3DDataInfo info;
+    if ( !J3DHost_CheckData(aPartial, &info) )
+    {
+        fprintf(stderr, J3D_PRODUCT_NAME ": the copy in %s cannot be used (%s); the game runs from %s\n", aPartial,
+                info.aProblem, pRoot);
+        hostdata_Remove(aPartial);
+        return 0;
+    }
+
+    hostdata_Remove(aOld);
+    if ( hostdata_IsDir(aLocal) && rename(aLocal, aOld) != 0 )
+    {
+        fprintf(stderr, J3D_PRODUCT_NAME ": could not replace %s: %s\n", aLocal, strerror(errno));
+        hostdata_Remove(aPartial);
+        return 0;
+    }
+    if ( rename(aPartial, aLocal) != 0 )
+    {
+        fprintf(stderr, J3D_PRODUCT_NAME ": could not move %s to %s: %s\n", aPartial, aLocal, strerror(errno));
+        rename(aOld, aLocal);
+        hostdata_Remove(aPartial);
+        return 0;
+    }
+    hostdata_Remove(aOld);
+
+    wuRegistry_SaveStr("Data Source", pRoot); // where it came from, for the player's information
+    snprintf(pLocal, size, "%s", aLocal);
+    return 1;
+}
+
 /* ---- Making sure there is one --------------------------------------------------------------------------------------- */
 
 static char hostdata_aVersion[64];
@@ -337,6 +457,15 @@ const char* J3DHost_GetDataVersion(void)
 
 static void hostdata_Use(const char* pRoot, const J3DDataInfo* pInfo, int bStore)
 {
+    char aLocal[1100];
+    J3DDataInfo localInfo;
+    if ( hostdata_MakeLocal(pRoot, aLocal, sizeof(aLocal)) && J3DHost_CheckData(aLocal, &localInfo) )
+    {
+        pRoot  = aLocal;
+        pInfo  = &localInfo;
+        bStore = 1;
+    }
+
     if ( bStore )
     {
         wuRegistry_SaveStr("Data Root", pRoot);
