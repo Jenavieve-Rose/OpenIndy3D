@@ -35,7 +35,8 @@ The data root comes from, in order:
    stores what it finds, and in a run someone is at asks with an open panel; holding Option at launch asks again.
    The folder is checked: the three GOBs must be there, and `Resource/Indy3D.exe` names the version (P8.4, P8.5).
 
-When the data root comes from 3 or 4, the game copies what it needs to run (`Resource/` and `KeySets/`) into
+When the data root comes from 3 or 4, the game copies what it needs to run (`Resource/`, `KeySets/`, and `Jones3D.exe` or `Install/Launch.bmp`, which hold
+the launcher's picture) into
 `~/Library/Application Support/OpenIndy3D/GameData/`, checks the copy, and from then on runs from it (`Data Root` names
 it; `Data Source` records where it came from). The store's folder is left alone. On the same APFS volume the files are
 cloned, so the copy is instant and takes no space; elsewhere it is a full copy (about 860 MB). `J3D_NO_DATA_COPY=1`

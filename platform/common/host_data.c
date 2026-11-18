@@ -333,11 +333,15 @@ int J3DHost_FindData(char* pRoot, size_t size)
 
 // The game runs from its own copy of the data, <user dir>/GameData, so it does not depend on where Steam, GOG or DREAMM
 // put the game (or on that folder staying put). Copied: Resource (the GOBs, Cog, the movies, Indy3D.exe for the version
-// check) and KeySets (the retail key sets, seeded from here). The store's folder is left as it was; copies are APFS
-// clones where the file system allows, so on the same volume they take no space.
+// check), KeySets (the retail key sets, seeded from here) and the launcher's picture (bitmap 141 of the Steam
+// release's Jones3D.exe, or the CD and GOG releases' Install/Launch.bmp: menu_LoadLaunchPicture). The store's folder is
+// left as it was; copies are APFS clones where the file system allows, so on the same volume they take no space.
 #define HOSTDATA_LOCALNAME "GameData"
 
 static const char* const hostdata_apCopied[] = { "Resource", "KeySets" };
+
+// Optional files, each copied when the source has it; also added to a copy made before they were copied
+static const char* const hostdata_apCopiedFiles[] = { "Jones3D.exe", "Install/Launch.bmp" };
 
 static int hostdata_IsDir(const char* pPath)
 {
@@ -362,6 +366,38 @@ static int hostdata_FindChild(const char* pRoot, const char* pName, char* pPath,
     return hostdata_IsDir(pPath);
 }
 
+// Copies the optional files pRoot has and pDest lacks. Returns 0 unless a copy failed.
+static int hostdata_CopyFiles(const char* pRoot, const char* pDest)
+{
+    int result = 0;
+    for ( size_t i = 0; i < sizeof(hostdata_apCopiedFiles) / sizeof(hostdata_apCopiedFiles[0]); i++ )
+    {
+        char aEngine[1200], aFrom[1100], aTo[1100], aDir[1100];
+        struct stat st;
+        snprintf(aEngine, sizeof(aEngine), "%s/%s", pRoot, hostdata_apCopiedFiles[i]);
+        J3DHost_ToPosixPath(aFrom, sizeof(aFrom), aEngine); // any letter case, as the installs vary
+        snprintf(aTo, sizeof(aTo), "%s/%s", pDest, hostdata_apCopiedFiles[i]);
+        if ( stat(aFrom, &st) != 0 || !S_ISREG(st.st_mode) || stat(aTo, &st) == 0 )
+        {
+            continue;
+        }
+
+        snprintf(aDir, sizeof(aDir), "%s", aTo);
+        char* pSlash = strrchr(aDir, '/');
+        if ( pSlash )
+        {
+            pSlash[1] = '\0';
+            J3DHost_MakeDirs(aDir);
+        }
+        if ( copyfile(aFrom, aTo, NULL, COPYFILE_ALL | COPYFILE_CLONE) != 0 )
+        {
+            fprintf(stderr, J3D_PRODUCT_NAME ": could not copy %s to %s: %s\n", aFrom, aTo, strerror(errno));
+            result = 1;
+        }
+    }
+    return result;
+}
+
 // Copies pRoot's data into <user dir>/GameData and returns 1 with its path in pLocal, or 0 to keep using pRoot (already
 // the copy, J3D_NO_DATA_COPY set, or the copy failed). Copied into GameData.partial first and checked, so a copy cut
 // short is never used; a GameData from an earlier choice is replaced only once the new copy is whole.
@@ -381,7 +417,13 @@ static int hostdata_MakeLocal(const char* pRoot, char* pLocal, size_t size)
     char aRealRoot[PATH_MAX], aRealLocal[PATH_MAX];
     if ( realpath(pRoot, aRealRoot) && realpath(aLocal, aRealLocal) && strcmp(aRealRoot, aRealLocal) == 0 )
     {
-        return 0; // already the copy
+        // Already the copy: add what a copy made before the optional files were copied lacks, from where it came from
+        char aSource[1100];
+        if ( !wuRegistry_GetStr("Data Source", aSource, sizeof(aSource), NULL) && aSource[0] && hostdata_IsDir(aSource) )
+        {
+            hostdata_CopyFiles(aSource, aLocal);
+        }
+        return 0;
     }
 
     if ( J3DHost_MakeDirs(J3DHost_GetUserDir()) )
@@ -414,6 +456,13 @@ static int hostdata_MakeLocal(const char* pRoot, char* pLocal, size_t size)
             hostdata_Remove(aPartial);
             return 0;
         }
+    }
+
+    if ( hostdata_CopyFiles(pRoot, aPartial) )
+    {
+        fprintf(stderr, J3D_PRODUCT_NAME ": the launcher's picture was not copied; the game runs from %s\n", pRoot);
+        hostdata_Remove(aPartial);
+        return 0;
     }
 
     J3DDataInfo info;

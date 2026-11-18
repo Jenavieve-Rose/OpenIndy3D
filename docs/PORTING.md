@@ -2150,6 +2150,9 @@ outfit (the jacket drawn, holster and whip in place), and the full `tools/check.
 - Game data: `hostdata_MakeLocal` copies `Resource/` and `KeySets/` from a stored or found data root into
   `<user dir>/GameData` (APFS clones where possible, through `GameData.partial`, checked with `J3DHost_CheckData`
   before it replaces an earlier copy) and stores it as `Data Root` (BUILDING.md).
+- The launcher's picture is bitmap 141 of the Steam release's `Jones3D.exe` or the CD and GOG releases'
+  `Install/Launch.bmp`, both beside `Resource/`, so they are copied too (`hostdata_CopyFiles`); a `GameData` made
+  without them gets them from `Data Source` at the next start.
 - Checked: a key set written and read back is the same set; the 1.0.2 `XboxOne.kfg` loads its keyboard keys; a run
   with the Steam folder stored copied it by clones in under a second and played from the copy, and the next run used
   the copy without copying.
