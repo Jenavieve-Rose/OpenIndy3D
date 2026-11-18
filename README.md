@@ -264,7 +264,7 @@ open build-xcode/OpenIndy3D.xcodeproj
 tools/package.sh
 ```
 
-Signs the app with the Hardened Runtime and packs `dist/OpenIndy3D-1.0.2.dmg`. Set `J3D_SIGN_IDENTITY` to your
+Signs the app with the Hardened Runtime and packs `dist/OpenIndy3D-1.1.0.dmg`. Set `J3D_SIGN_IDENTITY` to your
 Developer ID and `J3D_NOTARY_PROFILE` to a `notarytool` profile to notarize it.
 
 Everything else — every option, environment variable, test and tool — is in **[docs/BUILDING.md](docs/BUILDING.md)**.
