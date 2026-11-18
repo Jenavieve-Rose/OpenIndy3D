@@ -663,6 +663,9 @@ static void J3DAPI JonesMain_HandleWMKeydown(HWND hWnd, WPARAM vk, int a3, int r
             }
         } break;
 
+#ifdef J3D_PORT
+        case VK_HOME: // screenshot too: Mac keyboards have no Print Screen, and F12 is often taken by the system
+#endif
         case VK_F12: // screenshot
         {
             if ( repreatCount > 1 || (exkeyflags & KF_REPEAT) != 0 )
@@ -2600,6 +2603,9 @@ void J3DAPI JonesMain_IntroHandleWMKeydown(HWND hwnd, WPARAM vk, int a3, int rep
             JonesMain_CloseWindow();
             break;
 
+#ifdef J3D_PORT
+        case VK_HOME:
+#endif
         case VK_F12:
             sithMakeDirs();
             sithRender_MakeScreenShot();

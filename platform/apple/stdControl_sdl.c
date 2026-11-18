@@ -126,6 +126,7 @@ static int32_t         control_wheel           = 0;    // WHEEL_DELTA units sinc
 static uint8_t         control_aMouseDown[STDCONTROL_MAX_MOUSE_BUTTONS];
 static ControlMouseEvent control_aMouseEvents[CONTROL_MAX_MOUSE_EVENTS];
 static uint32_t        control_numMouseEvents  = 0;
+static int             control_bFnDown         = 0;    // Fn is held, so Right Command's state is Fn's (J3DControl_IsIgnoredKey)
 
 // The input script's devices (host_record.h).
 static uint8_t    control_aScriptKeys[STDCONTROL_MAX_KEYBOARD_BUTTONS];
@@ -386,6 +387,11 @@ static void control_ReadDevices(ControlSnapshot* pSnap)
     {
         if ( pState[hid] )
         {
+            if ( hid == SDL_SCANCODE_PRINTSCREEN || hid == SDL_SCANCODE_F13
+                 || (hid == SDL_SCANCODE_RGUI && control_bFnDown) )
+            {
+                continue; // F13 and Fn (J3DControl_IsIgnoredKey)
+            }
             const uint8_t dik = J3DHost_HidToDik((uint32_t)hid);
             if ( dik )
             {
@@ -541,8 +547,23 @@ void J3DControl_SetMenuUp(int bUp)
     control_UpdateMouseCapture();
 }
 
+// The Mac's virtual key codes (Carbon's kVK_Function and kVK_F13), which SDL passes on as the event's raw code.
+#define CONTROL_MACKEY_FN  0x3F
+#define CONTROL_MACKEY_F13 0x69
+
+int J3DControl_IsIgnoredKey(const SDL_KeyboardEvent* pEvent)
+{
+    return pEvent->raw == CONTROL_MACKEY_FN || pEvent->raw == CONTROL_MACKEY_F13
+        || pEvent->scancode == SDL_SCANCODE_PRINTSCREEN || pEvent->scancode == SDL_SCANCODE_F13;
+}
+
 void J3DControl_HandleEvent(const SDL_Event* pEvent)
 {
+    if ( (pEvent->type == SDL_EVENT_KEY_DOWN || pEvent->type == SDL_EVENT_KEY_UP) && pEvent->key.raw == CONTROL_MACKEY_FN )
+    {
+        control_bFnDown = pEvent->key.down;
+    }
+
     if ( !stdControl_bStartup || J3DRecord_IsReplaying() )
     {
         return;

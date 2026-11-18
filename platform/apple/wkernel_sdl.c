@@ -311,7 +311,7 @@ static void wkernel_ToggleFullscreen(void)
 
 static void wkernel_TranslateKey(const SDL_KeyboardEvent* pEvent)
 {
-    const WPARAM vk = wkernel_GetVirtualKey(pEvent);
+    const WPARAM vk = J3DControl_IsIgnoredKey(pEvent) ? 0 : wkernel_GetVirtualKey(pEvent);
     if ( !vk )
     {
         return;

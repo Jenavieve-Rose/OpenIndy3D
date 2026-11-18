@@ -6,6 +6,10 @@
  */
 #include <SDL3/SDL.h>
 
+// Keys the game never sees, as window messages or as key state: the Mac's Fn (Globe) key, which SDL reports as Right
+// Command when a keyboard sends it as a key, and F13, which SDL reports as Print Screen.
+int J3DControl_IsIgnoredKey(const SDL_KeyboardEvent* pEvent);
+
 // Called by wkernel_sdl.c for every SDL event, before it becomes a window message.
 void J3DControl_HandleEvent(const SDL_Event* pEvent);
 
